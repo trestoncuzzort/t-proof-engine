@@ -823,3 +823,35 @@ higher budget did not close.
 **What would falsify the design:** a trigger the guide's rules reject (Verus refuses it), or one of the three still
 MALFORMED for another reason.
 
+## T16 registered (2026-10-06 23:46Z, after hand probes and before the column run): comprehensions in F*
+
+D1's sixth landing, the comprehension tasks' next kernel after Lean (T12) and Rocq (T14). F* refuses all seven by name.
+
+**Design** (receipt d2d097513c74, FStar.Seq.Base). Each map shape is one function `t_compK` in Dafny's prefix form:
+over a seq `(t_s, t_n)`, over a range `(t_a, t_n)`, then the body's free variables. It is built by `Seq.init`, with one
+call of `Seq.init_index`, which Base gives no SMT pattern, so the function's own postcondition carries the length and
+every element to each call site.
+
+The body's definedness is the function's precondition, split as Dafny's lowering splits it:
+- conjuncts that do not mention the element are stated once, as `t_n > 0 ==> ...`;
+- the rest form a quantifier triggered on the element, `Seq.index t_s t_di`, or over a range `t_ix t_di` through an
+  identity function, since F* runs Z3 without MBQI.
+
+A filter, and a comprehension inside a spec_fun, method or lemma, refuse by name, so `evens` and `count_evens_skip`
+(early exits) refuse.
+
+**Measured before this registration, stated plainly.** Hand probes under the adapter's own Z3 version, seed and
+budget: all five maps' real files verify (`doubled`, `squares`, `diffs`, `every_other`, `odd_positions`). The first
+probe of `odd_positions` failed. Its slice's bound mentions no element, so nothing triggered the quantifier before
+the slice was typed. That is Dafny's measured case, and the split above repaired it. The F* lowerings of the other
+81 committed tasks are byte-identical.
+
+**Bars.**
+(1) F* verifies the real program and refutes the twin on at least 4 of the 5 maps.
+(2) `evens` and `count_evens_skip` refuse by name.
+(3) No F* cell that agreed before changes; the whole F* column is re-run.
+(4) All seven stays 43: SPARK and Frama-C still refuse every comprehension task.
+
+**What would falsify the design:** a twin whose certificate does not reach the comprehension's value (then that twin
+reads UNPROVED, counted against bar 1), or a quantifier pattern that fires in the probe and not in the adapter's run.
+
