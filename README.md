@@ -33,7 +33,8 @@ Measured from a clean clone of this repository on 2026-10-06 over the 88 committ
 - Rocq's and F*'s own columns, re-run after comprehensions landed in each (PREDICT T14, T16), read 62 and 58. The
   next clean-clone matrix installs them.
 - [t/ALGOVERI.md](t/ALGOVERI.md): 21 of AlgoVeri's contracts in seven kernels. Dafny verifies all 21 with the twin
-  refuted, and the other kernels far fewer. PREDICT T13's read names every failure and the repairs underway.
+  refuted, and the other kernels far fewer. PREDICT T13's read names every failure and the repairs underway. Verus's
+  AlgoVeri column, re-run after T15, reads 6.
 
 The registrations and reads behind these numbers are in
 [t/PREDICT-2026-10-06-t-expansion.md](t/PREDICT-2026-10-06-t-expansion.md). Each change states, before it runs,

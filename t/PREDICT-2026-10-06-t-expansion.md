@@ -872,6 +872,26 @@ higher budget did not close.
 **What would falsify the design:** a trigger the guide's rules reject (Verus refuses it), or one of the three still
 MALFORMED for another reason.
 
+### T15 read (2026-10-06 23:53Z): Verus triggers for an index read only inside a nested quantifier. No MALFORMED left among them; `quick_sort` verifies.
+
+The Verus column was re-run over the 21 AlgoVeri tasks at ef68ff5. Against T13's table, exactly four cells moved:
+
+| task | T13 | T15 |
+|---|---|---|
+| `kmp` | malformed / malformed | unproved / refuted |
+| `merge_sort` | malformed / malformed | unproved / refuted |
+| `matrix_multiply` | malformed / malformed | unproved / unproved |
+| `quick_sort` | malformed / malformed | verified / refuted |
+
+(1) **Bar 1 held:** none of the three registered cells is MALFORMED, and each reads a named outcome.
+(2) **Bar 2 held:** the Verus lowerings of all 88 committed tasks are byte-identical.
+(3) **The prediction held:** 0 of the 3 registered cells verify. `quick_sort`, the fourth of the same class, not named
+in the registration because the first run was stopped before reaching it, verifies with its twin refuted.
+
+Verus on AlgoVeri goes from 5 to 6 verified with the twin refuted. `poly_multiply_naive` stays MALFORMED. It is the
+shape T15 does not cover, an index into an `update` expression at the top level, for which Verus also infers no
+trigger. That is the next Verus repair. `trial_division_naive`'s twin certificate remains unproved.
+
 ## T16 registered (2026-10-06 23:46Z, after hand probes and before the column run): comprehensions in F*
 
 D1's sixth landing, the comprehension tasks' next kernel after Lean (T12) and Rocq (T14). F* refuses all seven by name.
