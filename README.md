@@ -13,14 +13,15 @@ never weakens it.
 
 ## Where it stands
 
-Measured from a clean clone on 2026-10-06 over the 88 committed tasks ([t/AGREEMENT.md](t/AGREEMENT.md)):
+Measured from a clean clone of this repository on 2026-10-06 over the 88 committed tasks
+([t/AGREEMENT.md](t/AGREEMENT.md)):
 
 | kernel | proved, twin refuted | carried, not proved | refused by name |
 |---|---|---|---|
 | Dafny | 88 | 0 | 0 |
 | Verus | 80 | 1 | 7 |
+| Lean 4 | 61 | 3 | 24 |
 | Rocq | 57 | 0 | 31 |
-| Lean 4 | 56 | 2 | 30 |
 | F\* | 53 | 2 | 33 |
 | SPARK | 50 | 3 | 35 |
 | Frama-C | 44 | 1 | 43 |
@@ -29,8 +30,6 @@ Measured from a clean clone on 2026-10-06 over the 88 committed tasks ([t/AGREEM
 - 43 of the 88 tasks are proved, with the twin refuted, in all seven kernels.
 - Most refusals are of constructs added to the language on 2026-10-06, which the other kernels are being taught
   now.
-- Lean's own column was re-run after comprehensions landed and reads 61. The next clean-clone matrix will
-  install it.
 
 The registrations and reads behind these numbers are in
 [t/PREDICT-2026-10-06-t-expansion.md](t/PREDICT-2026-10-06-t-expansion.md). Each change states, before it runs,

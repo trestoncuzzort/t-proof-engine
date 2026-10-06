@@ -681,6 +681,12 @@ property follows by induction. The first did, in a different place than predicte
 through the append, but not through `0 + i` under `toNat`, so a range from 0 gets its own corollary with
 `0 + i` simplified, which closed `diffs`.
 
+Measured (2026-10-06 23:23Z, the matrix regenerated from a clean clone of t-proof-engine at 1dfc4f9f, the first one run
+from the engine's own repository): exactly the six Lean cells this read names moved, and no other cell in any column.
+`sum_tail`'s twin, which had timed out once under load in the column re-run, refutes. Lean: 61 verified with the twin
+refuted, 3 carried and not proved, 24 refusals by name. All seven stays 43: SPARK, Frama-C, Rocq and F* still refuse
+the comprehension tasks.
+
 ## T13 registered (2026-10-06 23:12Z, after a lowering-only pass and before any kernel run): AlgoVeri's contracts in seven kernels
 
 D2 of `internal/RESEARCH-2026-10-06-landscape.md`. AlgoVeri states 77 classical algorithms with identical contracts in
