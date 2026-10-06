@@ -792,3 +792,34 @@ One operational finding, not a verdict: a Rocq-only column at three cells in fli
 processes per cell at about 420 MB each. Its first launch under a 5 GB cap was OOM-killed in ten seconds, and the
 rerun under 8 GB peaked at 7.4 to 7.8 GB. A Rocq column runs at two cells per 5 GB, or at three under 8 GB.
 
+## T15 registered (2026-10-06 23:39Z, after hand probes and before the kernel run): Verus triggers for an index read only inside a nested quantifier
+
+**Found by T13's first, stopped run.** Verus read three AlgoVeri cells MALFORMED, all from one cause: "Could not
+automatically infer triggers". In each, a quantifier's bound variable is read only inside a nested quantifier:
+
+- `matrix_multiplication`: `A[i]` appears only in the inner bound `A[i].len()` and in `A[i][j]`.
+- `kmp`: `fail[q]` appears only in an inner lower bound.
+- `merge_sort`: the index is into an expression, `(m + seq![e])[i]`.
+
+Verus does not look inside a nested quantifier for the outer one's trigger. The existing nested-quantifier branch
+collects only indexes of a plain variable in the inner body, and only when no top-level root exists.
+
+**Design** (Verus guide, "forall and triggers", receipt ed77e77a7f2c). When the body has no indexable term outside
+nested quantifiers, the outer quantifier gets an explicit `#![trigger X[v]]` for each such index term found inside
+them. That covers terms in their bounds or their bodies, with any base `X` that mentions no inner bound variable.
+
+**Measured before this registration, stated plainly:**
+- The Verus lowerings of all 88 committed tasks are byte-identical.
+- Three minimal programs of the three shapes each verify in Verus (2 verified, 0 errors).
+- The three AlgoVeri files now compile. At rlimit 50, above the adapter's 10, Verus reads postconditions or
+  assertions not proved in all three.
+
+**Bars.**
+(1) None of the three AlgoVeri Verus cells is MALFORMED; each reads a named outcome.
+(2) No Verus cell over the 88 committed tasks changes; their lowerings are identical.
+(3) **Prediction:** 0 of the 3 verify at the adapter's budget. These are Dafny-tuned proofs, and the probes at a
+higher budget did not close.
+
+**What would falsify the design:** a trigger the guide's rules reject (Verus refuses it), or one of the three still
+MALFORMED for another reason.
+
