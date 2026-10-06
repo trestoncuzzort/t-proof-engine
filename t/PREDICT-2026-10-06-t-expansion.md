@@ -744,3 +744,34 @@ Dafny, and the comparison here is between kernels on one statement.
 - Dafny failing to re-verify a program it verified while it was written (a proof too close to its resource limit to
   be stable).
 
+## T14 registered (2026-10-06 23:19Z, after the generator and before any kernel run): comprehensions in Rocq
+
+D1's fifth landing. Seven committed tasks state a comprehension, and Rocq refuses all seven by name: `doubled`,
+`squares`, `evens`, `diffs`, `every_other`, `odd_positions` and `count_evens_skip`.
+
+**Design.** Rocq's sequences in this lowering are a function from `Z` with a length, so a map needs no construction:
+
+- over a seq, `(fun k => body[x := s k], len s)`;
+- over a range, `(fun k => body[i := lo + k], Z.max 0 (hi - lo))`, with the index alone when `lo` is the literal 0.
+
+The body owes its definedness at every element of the source, so `diffs` owes `0 <= i + 1 < len(s)` on its range.
+A filter needs a construction that this landing does not build: a fuel Fixpoint appending at the end, with its length
+bound and element lemma, the shape of the stdlib's `filter` (receipt f42c30edd14b). So `evens` refuses by name (a
+filter), and so does `count_evens_skip` (early exits, before its filter is reached). The generator is written. All
+88 Rocq lowerings were compared before and after: exactly those seven changed, five from a refusal to a lowering and
+two to a narrower refusal.
+
+**Bars.**
+(1) Rocq verifies the real program and refutes the twin on at least 4 of the 5 maps (`doubled`, `squares`, `diffs`,
+`every_other`, `odd_positions`).
+(2) `evens` and `count_evens_skip` refuse by name.
+(3) No Rocq cell that agreed before changes; the whole column is re-run.
+(4) The all-seven count does not move with this landing: SPARK, Frama-C and F* still refuse every comprehension
+task.
+
+**What would falsify the design:**
+- `t_dis` not closing a goal that holds a beta-redex under the unfolded definitions (then the definitions are
+  reduced with `cbv beta` first, and the read says so);
+- a twin's certificate not evaluating the function at its witness (then that twin reads UNPROVED, counted against
+  bar 1).
+
