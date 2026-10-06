@@ -744,6 +744,55 @@ Dafny, and the comparison here is between kernels on one statement.
 - Dafny failing to re-verify a program it verified while it was written (a proof too close to its resource limit to
   be stable).
 
+### T13 read (2026-10-06 23:51Z): AlgoVeri in seven kernels. Dafny 21 of 21; the other kernels far below their ranges, and 13 unnamed failures.
+
+The table is `t/ALGOVERI.md`, from a clean clone at bc60bb4. A first run was stopped before it finished, because both
+polynomial tasks declared the name `poly_multiply`, which keys a table row and the lowered files. `cli.py verify` now
+refuses that before anything is lowered, and the tasks are `poly_multiply_naive` and `poly_multiply_karatsuba`.
+
+(1) **Bar 1 held:** Dafny verifies the real program and refutes the twin on all 21.
+
+(2) **Bar 2 missed in Verus.** `trial_division_naive` verifies with its twin UNPROVED. The twin's certificate did not
+close, so it is neither refuted nor decorative. Every other kernel refutes the twin of every real it verifies.
+
+(3) **Bar 3 missed: 13 cells are MALFORMED.** Each comes from a lowering defect that 88 small tasks never reached, and
+each is now named:
+
+- **Verus, 5 cells.** Four are "Could not automatically infer triggers", where a bound variable is read only inside a
+  nested quantifier: `kmp`, `matrix_multiply`, `merge_sort` and `quick_sort`. T15 is this repair; under it,
+  `quick_sort` verifies (37 verified, 0 errors at the adapter's budget). The fifth, `poly_multiply_naive`, is a shape
+  T15 does not cover: an index into an `update` expression at the top level.
+- **SPARK, 2 cells** (`solve_longest_common_subsequence`, `string_search_naive`). An operator on the functional
+  `Sequence` type is used without a `use type` clause: "operator for private type Sequence ... is not directly
+  visible".
+- **F*, 6 cells.** In three, a nested quantifier inside a spec function's body renders the inner variable out of scope
+  (Error 72, "Identifier not found"): `binary_search`, `linear_search`, `longest_palindromic_substring`. In the other
+  three, a `Tot bool` spec function calls a ghost quantifier helper (Error 34, "GTot is not compatible with Tot"):
+  `bubble_sort`, `insertion_sort`, `kmp`.
+
+(4) **The counts, against the predicted ranges**, as tasks verified with the twin refuted:
+
+| kernel | measured | predicted | |
+|---|---|---|---|
+| Verus | 5 (6 reals proved) | 10 to 18 | missed |
+| SPARK | 3 | 5 to 11 | missed |
+| F* | 3 | 5 to 11 | missed |
+| Lean | 0 | 3 to 7 | missed |
+| Rocq | 1 | 1 to 3 | held |
+| Frama-C | 2 | 1 to 2 | held |
+
+The rest of the carried cells read UNPROVED or TIMEOUT.
+
+(5) **Held:** all seven is 0. `integer_exponential` is verified with the twin refuted in six kernels, and Lean leaves
+its real UNPROVED.
+
+**What it bought.** The prediction was wrong because these are proofs written for Dafny: lemmas, loop splits and
+helper methods tuned to its resource limit, carried mechanically into six kernels that each need their own
+instantiation hints. The ranges assumed the 88 small tasks' rates would carry over, and they did not. The useful half
+is the defect list. AlgoVeri found 13 malformed cells in four lowerings, under six distinct causes, none of which the
+committed tasks reach. Each is now a named repair, the first of them (T15) already registered. The registered
+falsifier about Dafny's stability did not fire: all 21 re-verified from a clean clone.
+
 ## T14 registered (2026-10-06 23:19Z, after the generator and before any kernel run): comprehensions in Rocq
 
 D1's fifth landing. Seven committed tasks state a comprehension, and Rocq refuses all seven by name: `doubled`,
