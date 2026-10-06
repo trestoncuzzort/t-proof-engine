@@ -775,3 +775,20 @@ task.
 - a twin's certificate not evaluating the function at its witness (then that twin reads UNPROVED, counted against
   bar 1).
 
+### T14 read (2026-10-06 23:30Z): comprehensions in Rocq, all 5 maps verified with the twin refuted.
+
+(1) Bar 1 held, at 5 of 5: Rocq verifies the real program and refutes its twin on `doubled`, `squares`, `diffs`,
+`every_other` and `odd_positions`. `odd_positions` is among them; Lean leaves it UNPROVED, because the index sum sits
+under `toNat` in Lean and is plain `Z` here.
+(2) Bar 2 held: `evens` refuses as a filter, and `count_evens_skip` for its early exit.
+(3) Bar 3 held: the whole Rocq column was re-run over the 88 tasks, and only those five cells moved. Rocq goes from 57
+to 62 verified with the twin refuted, and its refusals from 31 to 26.
+(4) Bar 4 held as registered: all seven stays 43, since SPARK, Frama-C and F* still refuse every comprehension task.
+
+Neither registered falsifier fired. `t_dis` closed every goal with a beta-redex under the unfolded definitions, and
+each twin's certificate evaluated the function at its witness.
+
+One operational finding, not a verdict: a Rocq-only column at three cells in flight runs about five `rocqworker`
+processes per cell at about 420 MB each. Its first launch under a 5 GB cap was OOM-killed in ten seconds, and the
+rerun under 8 GB peaked at 7.4 to 7.8 GB. A Rocq column runs at two cells per 5 GB, or at three under 8 GB.
+
