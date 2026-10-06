@@ -1,0 +1,30 @@
+t (the t proof engine)
+Copyright (c) 2026 Treston Malachi Cuzzort. All rights reserved except as granted in LICENSE.
+
+WHAT YOU MAY DO WITHOUT ASKING
+  Research and education: read it, run it, reproduce it, extend it, teach with it, publish what you measure.
+  Cite this repository when you do.
+
+WHAT NEEDS WRITTEN PERMISSION FIRST
+  Any commercial use, including use inside a product, a service or a deployment.
+  Training, fine-tuning, distilling or evaluating a model for anything commercial, whether from this code or
+  from the tasks, twins, witnesses, certificates or grading tables that this repository contains or produces.
+  Redistributing any of that data under different terms.
+
+COMMERCIAL LICENSING
+  Contact the copyright holder through the GitHub account that owns this repository
+  (https://github.com/trestoncuzzort). State what you want to use and how.
+
+ORIGIN
+  This engine was developed inside https://github.com/trestoncuzzort/dawnr under t/ and split out on 2026-10-06
+  with its history. The same license covers it in both repositories.
+
+PROVENANCE
+  LICENSE section 8 names SHA256SUMS and SHA256SUMS.sig. This repository does not carry them yet; until it does, a
+  copy is compared against this repository's git history.
+
+THIRD-PARTY MATERIAL
+  The seven verifiers (Dafny, Verus, SPARK/gnatprove, Frama-C, Lean, Rocq, F*) are not part of the Work, are not
+  included here, and keep their own licenses. See LICENSE section 7.
+  t/third_party/codex_seatbelt/ holds two sandbox policy files copied unchanged from OpenAI's Codex CLI
+  (Apache License 2.0, its LICENSE beside them); t/py_sandbox.py loads them on macOS.

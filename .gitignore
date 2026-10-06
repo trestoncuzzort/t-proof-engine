@@ -1,0 +1,5 @@
+# what a run writes: lowered sources, kernel logs, the verdict cache, scratch tables
+t/out/
+__pycache__/
+*.pyc
+.pytest_cache/

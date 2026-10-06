@@ -1,0 +1,67 @@
+name: tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# read-only token: the tests need to read the repository, nothing more
+permissions:
+  contents: read
+
+jobs:
+  # No kernels (Dafny, Verus, SPARK, Frama-C, Lean, Rocq, F*) are installed here. The tests that need one skip by
+  # name when its binary is missing; the deselected ones below assume a binary without skipping yet.
+  # t/ runs on POSIX by design (SIGALRM timeouts, /proc reads, process-group kills; t/RUN-ON-WINDOWS.md),
+  # so the jobs are Linux and macOS.
+  engine:
+    name: engine (${{ matrix.os }}, py${{ matrix.python-version }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        python-version: ["3.10", "3.12"]
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: check out the repository
+        uses: actions/checkout@v4
+
+      - name: set up python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: install pytest
+        run: python -m pip install --upgrade pip pytest
+
+      - name: bubblewrap for the Python sandbox (Linux)
+        # t/py_sandbox.py runs model-written Python only inside bwrap. Ubuntu 24.04 restricts unprivileged user
+        # namespaces with AppArmor, and a program gets them back through a profile with `userns,`
+        # (ubuntu.com/blog/ubuntu-23-10-restricted-unprivileged-user-namespaces); t/apparmor-bwrap.sh applies it.
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y bubblewrap
+          probe() { python3 -c 'import sys; sys.path.insert(0, "t"); import py_sandbox; sys.exit(0 if py_sandbox.available() else 1)'; }
+          probe && echo "bwrap works as installed" || {
+            echo "bwrap cannot create its namespaces; applying t/apparmor-bwrap.sh"
+            sudo bash t/apparmor-bwrap.sh
+            probe && echo "bwrap works after t/apparmor-bwrap.sh" || echo "bwrap STILL cannot run here"
+          }
+
+      - name: engine tests
+        working-directory: t
+        run: |
+          DESELECT=(
+            # needs the dafny binary
+            --deselect "test_lsp.py::test_transcript_replays"
+            # needs the dafny binary (module docstring: "Runs dafny only")
+            --deselect "test_tlib.py::test_second_call_same_process_runs_no_kernel"
+            --deselect "test_tlib.py::test_second_process_reads_the_same_cache"
+          )
+          python -m pytest -v "${DESELECT[@]}" .
