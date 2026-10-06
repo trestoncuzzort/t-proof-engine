@@ -30,8 +30,10 @@ Measured from a clean clone of this repository on 2026-10-06 over the 88 committ
 - 43 of the 88 tasks are proved, with the twin refuted, in all seven kernels.
 - Most refusals are of constructs added to the language on 2026-10-06, which the other kernels are being taught
   now.
-- Rocq's own column, re-run after comprehensions landed in Rocq (PREDICT T14), reads 62. The next clean-clone
-  matrix installs it.
+- Rocq's and F*'s own columns, re-run after comprehensions landed in each (PREDICT T14, T16), read 62 and 58. The
+  next clean-clone matrix installs them.
+- [t/ALGOVERI.md](t/ALGOVERI.md): 21 of AlgoVeri's contracts in seven kernels. Dafny verifies all 21 with the twin
+  refuted, and the other kernels far fewer. PREDICT T13's read names every failure and the repairs underway.
 
 The registrations and reads behind these numbers are in
 [t/PREDICT-2026-10-06-t-expansion.md](t/PREDICT-2026-10-06-t-expansion.md). Each change states, before it runs,

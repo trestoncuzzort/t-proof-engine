@@ -904,3 +904,16 @@ the slice was typed. That is Dafny's measured case, and the split above repaired
 **What would falsify the design:** a twin whose certificate does not reach the comprehension's value (then that twin
 reads UNPROVED, counted against bar 1), or a quantifier pattern that fires in the probe and not in the adapter's run.
 
+### T16 read (2026-10-06 23:52Z): comprehensions in F*, all 5 maps verified with the twin refuted.
+
+(1) **Bar 1 held, at 5 of 5:** F* verifies the real program and refutes its twin on `doubled`, `squares`, `diffs`,
+`every_other` and `odd_positions`.
+(2) **Bar 2 held:** `evens` refuses as a filter, and `count_evens_skip` for its early exit.
+(3) **Bar 3 held:** the whole F* column was re-run over the 88 tasks, and only those five cells moved. F* goes from 53
+to 58 verified with the twin refuted, and its refusals from 33 to 28.
+(4) **Bar 4 held as registered:** all seven stays 43. The five maps are now verified with the twin refuted in Dafny,
+Verus, Rocq and F*, and in Lean for four of them. SPARK and Frama-C are the two kernels between them and all seven.
+
+Neither falsifier fired. Each twin's certificate states the measured value of the twin's comprehension, and the
+quantifier patterns fired under the adapter's own run as they did in the probes.
+
