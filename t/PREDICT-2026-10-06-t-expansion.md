@@ -680,3 +680,61 @@ verified with the twin refuted, 30 -> 24 refusals. (4) The second registered fal
 property follows by induction. The first did, in a different place than predicted. grind reached the element lemma
 through the append, but not through `0 + i` under `toNat`, so a range from 0 gets its own corollary with
 `0 + i` simplified, which closed `diffs`.
+
+## T13 registered (2026-10-06 23:12Z, after a lowering-only pass and before any kernel run): AlgoVeri's contracts in seven kernels
+
+D2 of `internal/RESEARCH-2026-10-06-landscape.md`. AlgoVeri states 77 classical algorithms with identical contracts in
+Dafny, Verus and Lean (github.com/haoyuzhao123/algoveri at 8e313b0e, Apache License 2.0). Of the 77, 22 use only
+what t states: 17 as written, and 5 with the permutation stated as equal length and equal occurrence counts. 21 of the
+22 are now written in t under `t/algoveri/`, each with a program that meets its contract. Each was verified in Dafny,
+with its twin refuted, while it was written. The 22nd, `k_smallest`, is not stated: its `ensures` is an existential
+over a sequence, which t's bounded quantifiers cannot say as written. `sort(v)[k] == res` would be an equivalent
+statement, and it is left for a registration of its own. `t/algoveri/MAPPING.md` gives every clause beside its t form
+and names each departure from the letter of the Dafny text.
+
+**Measured before any kernel ran.** A lowering-only pass, which gives no verdict, shows the tasks each kernel carries.
+The rest are refused by name.
+
+| kernel | carried |
+|---|---|
+| Dafny | 21 |
+| Verus | 21 |
+| SPARK | 14 |
+| F* | 14 |
+| Lean | 8 |
+| Rocq | 3 |
+| Frama-C | 2 |
+
+Only `fast_exponential` and `integer_exponential` are carried by all seven. The pass found one unnamed failure: F*'s
+spec functions over a `seq<seq>` raised TypeError. It was fixed before this registration (c31b5ca).
+
+**Bars.**
+(1) Dafny verifies the real program and refutes the twin on all 21.
+(2) In every kernel, the twin of every real program it verifies is refuted (100%).
+(3) No cell is an unnamed failure (MALFORMED, or a lowering error); every refusal is by name.
+(4) Of the carried tasks, these are verified with the twin refuted:
+
+| kernel | predicted |
+|---|---|
+| Verus | 10 to 18 of 21 |
+| SPARK | 5 to 11 of 14 |
+| F* | 5 to 11 of 14 |
+| Lean | 3 to 7 of 8 |
+| Rocq | 1 to 3 of 3 |
+| Frama-C | 1 to 2 of 2 |
+
+(5) All seven: 0 to 2.
+
+**Why the ranges are wide.** These proofs were written for Dafny, with lemmas and loop splits tuned to its resource
+limit, and they are carried mechanically into six other kernels. No proof this size has gone through the other
+lowerings before.
+
+**Not comparable with AlgoVeri's results.** Its best model reached 40.3% in Dafny, 24.7% in Verus and 7.8% in Lean.
+Those numbers measure a model writing a verified program. These programs were written with iteration against
+Dafny, and the comparison here is between kernels on one statement.
+
+**What would falsify the design:**
+- a kernel that verifies a real program and does not refute its twin (a decorative or unsound cell);
+- Dafny failing to re-verify a program it verified while it was written (a proof too close to its resource limit to
+  be stable).
+
