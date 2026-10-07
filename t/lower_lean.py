@@ -6130,6 +6130,12 @@ class Lower:
             # grind closes, 0.35 s)
             alts.append("((simp (disch := omega) only [t_seq_update_get]); "
                         + self._gr() + ")")
+        # PREDICT T68: grind can derive `i = 0` from an invariant's disjunction and the branch facts and still not carry
+        # it through `s[i.toNat]!` to meet `s[0]!` (px4_hysteresis_switches' first iteration, measured: grind fails).
+        # simp_all substitutes the derived equality everywhere and normalizes `Int.toNat 0`. Last, after every other
+        # alternative, so a goal that proved before proves by the same branch (arXiv 2607.22972's failure-triggered
+        # cascade).
+        alts += ["(simp_all; done)", "(simp_all; " + self._gr() + ")"]
         closer = "(first | " + " | ".join(alts) + ")"
         return ("((repeat' apply And.intro) <;> (" + "; ".join(lines)
                 + "; " + closer + "))")

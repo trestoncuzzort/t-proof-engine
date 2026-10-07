@@ -37,12 +37,27 @@ CACHE = HERE.parent / "out" / "px4" / PX4_COMMIT
 HEADERS = ["src/lib/mathlib/mathlib.h", "src/lib/mathlib/math/Functions.hpp", "src/lib/mathlib/math/Limits.hpp",
            "src/lib/mathlib/math/SearchMin.hpp", "src/lib/mathlib/math/TrajMath.hpp",
            "src/lib/mathlib/math/Utilities.hpp", "src/lib/mathlib/math/filter/AlphaFilter.hpp",
-           "src/lib/slew_rate/SlewRate.hpp"]
+           "src/lib/slew_rate/SlewRate.hpp", "src/lib/hysteresis/hysteresis.h", "src/lib/hysteresis/hysteresis.cpp",
+           "src/lib/collision_prevention/ObstacleMath.hpp", "src/lib/collision_prevention/ObstacleMath.cpp"]
+SOURCES = ["src/lib/hysteresis/hysteresis.cpp", "src/lib/collision_prevention/ObstacleMath.cpp"]
 MATRIX = ["AxisAngle", "Dcm", "Dcm2", "Dual", "Euler", "LeastSquaresSolver", "Matrix", "PseudoInverse", "Quaternion",
           "Scalar", "Slice", "SparseVector", "SquareMatrix", "Vector", "Vector2", "Vector3", "Vector4", "filter",
           "helper_functions", "integration", "math"]
 STUB = ("// Stand-in for PX4's platform header: only the names the math headers use.\n#pragma once\n#include <cmath>\n"
-        "#define PX4_ISFINITE(x) std::isfinite(x)\n#define M_TWOPI_F 6.28318530717958647692f\n")
+        "#define PX4_ISFINITE(x) std::isfinite(x)\n#define M_TWOPI_F 6.28318530717958647692f\n"
+        "#define M_PI_F 3.14159265358979323846f\n")
+HRT_STUB = ("// Stand-in for PX4's timer header: only the type hysteresis.h uses.\n#pragma once\n#include <cstdint>\n"
+            "typedef uint64_t hrt_abstime;\n")
+# A Hysteresis in a given (state, requested, last) reached through PX4's public API only: construct at `state`; with
+# the hysteresis time from `state` at INT64_MAX, set_state_and_update(requested, last) records the request and its
+# time and cannot switch (last + INT64_MAX does not wrap for last < 2^63); then the task's own times are set.
+_HYST_PRE = ("systemlib::Hysteresis h(state); h.set_hysteresis_time_from(state, (hrt_abstime)INT64_MAX); "
+             "h.set_state_and_update(requested, (hrt_abstime)last); "
+             "h.set_hysteresis_time_from(true, (hrt_abstime)time_from_true); "
+             "h.set_hysteresis_time_from(false, (hrt_abstime)time_from_false); ")
+_HYST_RUN = ("systemlib::Hysteresis h; h.set_hysteresis_time_from(true, (hrt_abstime)time_from_true); "
+             "h.set_hysteresis_time_from(false, (hrt_abstime)time_from_false); "
+             "for (size_t i = 0; i < times.size(); i++) h.set_state_and_update({new}, (hrt_abstime)times[i]); ")
 
 # task -> (C++ expression calling PX4 on the parameters, result kind)
 CALLS = {
@@ -65,7 +80,19 @@ CALLS = {
                         "return sr.update(new_value, (float)dt); }()", "float"),
     "px4_alpha_update": ("[&]{ AlphaFilter<double> f; f.setAlpha((float)alpha); f.reset(state); "
                          "return f.update(sample); }()", "float"),
+    "px4_hysteresis_update": ("[&]{ " + _HYST_PRE + "h.update((hrt_abstime)now); return h.get_state(); }()", "bool"),
+    "px4_hysteresis_set": ("[&]{ " + _HYST_PRE + "h.set_state_and_update(new_state, (hrt_abstime)now); "
+                           "return h.get_state(); }()", "bool"),
+    "px4_hysteresis_holds": ("[&]{ " + _HYST_RUN.format(new="news[i] != 0") + "return h.get_state(); }()", "bool"),
+    "px4_hysteresis_switches": ("[&]{ " + _HYST_RUN.format(new="true") + "return h.get_state(); }()", "bool"),
+    "px4_wrap_bin": ("ObstacleMath::wrap_bin((int)bin, (int)bin_count)", "int"),
+    "px4_wrap_bin_72": ("ObstacleMath::wrap_bin((int)bin, 72)", "int"),
 }
+FINDINGS = HERE / "findings"
+# a task under findings/ restates a PX4 function with the contract it needs and without the `requires` PX4's callers
+# do not establish; the kernels refute it, and PX4's own code is run at the refuting input and at the probes below
+FINDING_OF = {"px4_wrap_bin_any": "px4_wrap_bin"}
+PROBES = {"px4_wrap_bin_any": [{"bin": -73, "bin_count": 72}]}
 # parameters PX4's own signature narrows to binary32 (`float`) before use, though the template is at double
 NARROWED = {"px4_alpha_update": ["alpha"], "px4_slew_update": ["dt"]}
 
@@ -83,13 +110,25 @@ def fetch_px4() -> Path:
             url = f"https://raw.githubusercontent.com/PX4/PX4-Autopilot/{PX4_COMMIT}/{f}"
             with urllib.request.urlopen(url, timeout=60) as r:
                 dst.write_bytes(r.read())
-    stub = root / "stub" / "px4_platform_common" / "defines.h"
-    stub.parent.mkdir(parents=True, exist_ok=True)
-    stub.write_text(STUB)
+    for rel, text in (("px4_platform_common/defines.h", STUB), ("drivers/drv_hrt.h", HRT_STUB)):
+        stub = root / "stub" / rel
+        stub.parent.mkdir(parents=True, exist_ok=True)
+        stub.write_text(text)
     return root
 
 
+def _cpp_type(ty) -> str:
+    if ty == "seq":
+        return "std::vector<int64_t>"
+    if isinstance(ty, dict) and "seq" in ty:
+        return f"std::vector<{_cpp_type(ty['seq'])}>"
+    return {"float": "double", "bool": "bool"}.get(ty, "int64_t")
+
+
 def _cpp_lit(v, ty) -> str:
+    if ty == "seq" or (isinstance(ty, dict) and "seq" in ty):
+        elem = "int" if ty == "seq" else ty["seq"]
+        return "{" + ", ".join(_cpp_lit(x, elem) for x in v) + "}"
     if ty == "bool":
         return "true" if v else "false"
     if ty == "float":
@@ -97,13 +136,13 @@ def _cpp_lit(v, ty) -> str:
     return f"INT64_C({int(v)})"
 
 
-def program(task: dict, ref) -> tuple[str, list, list]:
-    expr, kind = CALLS[task["name"]]
-    pts = ref.points[:POINTS]
+def program(task: dict, ref, call: str | None = None, pts: list | None = None) -> tuple[str, list, list]:
+    expr, kind = CALLS[call or task["name"]]
+    pts = ref.points[:POINTS] if pts is None else pts
     lines, expect, inputs = [], [], []
     for env0, real in pts:
-        decl = " ".join(f"{'double' if p['type'] == 'float' else ('bool' if p['type'] == 'bool' else 'int64_t')} "
-                        f"{p['name']} = {_cpp_lit(env0[p['name']], p['type'])};" for p in task["params"])
+        decl = " ".join(f"{_cpp_type(p['type'])} {p['name']} = {_cpp_lit(env0[p['name']], p['type'])};"
+                        for p in task["params"])
         if kind == "float":
             show = f'printf("%a\\n", (double)({expr}));'
             expect.append(float(real).hex())
@@ -112,10 +151,52 @@ def program(task: dict, ref) -> tuple[str, list, list]:
             expect.append(str(int(real)))
         lines.append(f"  {{ {decl} {show} }}")
         inputs.append({k: interp._j(v) for k, v in env0.items()})
-    src = ("#include <cinttypes>\n#include <cstdio>\n#include <mathlib/mathlib.h>\n#include <matrix/math.hpp>\n"
-           "#include <slew_rate/SlewRate.hpp>\n#include <mathlib/math/filter/AlphaFilter.hpp>\n"
+    src = ("#include <cinttypes>\n#include <cstdio>\n#include <vector>\n#include <mathlib/mathlib.h>\n"
+           "#include <matrix/math.hpp>\n#include <slew_rate/SlewRate.hpp>\n"
+           "#include <mathlib/math/filter/AlphaFilter.hpp>\n#include <hysteresis/hysteresis.h>\n"
+           "#include <collision_prevention/ObstacleMath.hpp>\n"
            "int main() {\n" + "\n".join(lines) + "\n  return 0;\n}\n")
     return src, expect, inputs
+
+
+def _compile_run(src: str, px4: Path) -> tuple[list[str] | None, str]:
+    with tempfile.TemporaryDirectory(prefix="t-px4-") as d:
+        cpp, exe = Path(d) / "p.cpp", Path(d) / "p"
+        cpp.write_text(src)
+        p = subprocess.run(["g++", "-std=c++17", "-O1", "-ffp-contract=off", "-w", f"-I{px4}/src/lib",
+                            f"-I{px4}/src/lib/matrix", f"-I{px4}/stub", str(cpp)]
+                           + [str(px4 / f) for f in SOURCES] + ["-o", str(exe)],
+                           capture_output=True, text=True, timeout=300)
+        if p.returncode != 0:
+            return None, "compile error: " + (p.stderr.strip().splitlines() or ["?"])[0][:200]
+        return subprocess.run([str(exe)], capture_output=True, text=True, timeout=60).stdout.splitlines(), ""
+
+
+def finding(path: Path, px4: Path) -> dict:
+    """A findings/ task: the interpreter's refuting input (harness.real_witness, the input every kernel's refutation
+    certificate replays) and the PROBES, each run through PX4's own code. The finding stands when PX4 returns there
+    what t's body returns and that value breaks the contract."""
+    task = tasks_io.load_task(str(path))
+    name, call = task["name"], FINDING_OF[task["name"]]
+    harness._set_ctx(task)
+    ref = interp.Reference(task)
+    w = harness.real_witness(task)
+    envs = ([{p["name"]: w[p["name"]] for p in task["params"]}] if w else []) + PROBES.get(name, [])
+    funs = interp.funs_of(task, task["body"])
+    pts, broken = [], []
+    for env0 in envs:
+        env = ref._start(dict(env0))
+        interp.exec_body(task["body"], env, funs, interp.St())
+        pts.append((env0, env[ref.ret]))
+        broken.append(not all(interp.ev(c, env, funs, interp.St()) for c in task["ensures"]))
+    src, expect, inputs = program(task, ref, call, pts)
+    got, err = _compile_run(src, px4)
+    if got is None:
+        return {"name": name, "px4_call": CALLS[call][0], "status": err}
+    rows = [{"input": i, "t": e, "px4": g, "breaks_contract": b} for i, e, g, b in zip(inputs, expect, got, broken)]
+    ok = len(got) == len(expect) and all(r["t"] == r["px4"] and r["breaks_contract"] for r in rows)
+    return {"name": name, "px4_call": CALLS[call][0], "rows": rows,
+            "status": "PX4 breaks the contract here, as t's body does" if ok else "NOT REPRODUCED"}
 
 
 def diff_task(path: Path, px4: Path) -> dict:
@@ -126,15 +207,9 @@ def diff_task(path: Path, px4: Path) -> dict:
     harness._set_ctx(task)
     ref = interp.Reference(task)
     src, expect, inputs = program(task, ref)
-    with tempfile.TemporaryDirectory(prefix="t-px4-") as d:
-        cpp, exe = Path(d) / "p.cpp", Path(d) / "p"
-        cpp.write_text(src)
-        p = subprocess.run(["g++", "-std=c++17", "-O1", "-ffp-contract=off", "-w", f"-I{px4}/src/lib",
-                            f"-I{px4}/src/lib/matrix", f"-I{px4}/stub", str(cpp), "-o", str(exe)],
-                           capture_output=True, text=True, timeout=300)
-        if p.returncode != 0:
-            return {"name": name, "status": "compile error: " + (p.stderr.strip().splitlines() or ["?"])[0][:200]}
-        out = subprocess.run([str(exe)], capture_output=True, text=True, timeout=60).stdout.splitlines()
+    out, err = _compile_run(src, px4)
+    if out is None:
+        return {"name": name, "status": err}
     norm = (lambda s: float.fromhex(s).hex()) if CALLS[name][1] == "float" else (lambda s: s.strip())
     got = [norm(x) for x in out]
     bad = [i for i, (e, g) in enumerate(zip(expect, got)) if e != g]
@@ -173,9 +248,12 @@ def main(argv=None) -> int:
     args = ap.parse_args(argv)
     px4 = fetch_px4()
     results = [diff_task(p, px4) for p in sorted(HERE.glob("*.t"))]
+    found = [finding(p, px4) for p in sorted(FINDINGS.glob("*.t"))]
     for r in results:
         print(f"{r['name']}: {r['status']}" + (f" ({r['points']} points)" if r.get("points") else "")
               + (f" first: {json.dumps(r['first'])}" if r.get("first") else ""))
+    for r in found:
+        print(f"finding {r['name']}: {r['status']}" + "".join(f"\n  {json.dumps(x)}" for x in r.get("rows", [])))
     if args.table:
         agree = [r for r in results if r["status"] == "agrees"]
         lines = ["# PX4's code against its t transcription", "",
@@ -188,8 +266,19 @@ def main(argv=None) -> int:
         for r in results:
             lines.append(f"| {r['name']} | `{r.get('px4_call', '')}` | {r['status']} | {r.get('points', '')} | "
                          f"{json.dumps(r['first']) if r.get('first') else ''} |")
+        if found:
+            lines += ["", "## Contracts PX4's code breaks", "",
+                      "Each task under `t/flight/findings/` restates a PX4 function with its contract and without the "
+                      "`requires` its callers do not establish. The input below is where the kernels' refutation "
+                      "certificates point (or a probe); PX4's own code is run there.", "",
+                      "| t task | PX4 call | input | t | PX4 | breaks the contract | status |", "|---|---|---|---|---|---|---|"]
+            for r in found:
+                for x in r.get("rows", [{}]):
+                    lines.append(f"| {r['name']} | `{r['px4_call']}` | {json.dumps(x.get('input', ''))} | {x.get('t', '')} | "
+                                 f"{x.get('px4', '')} | {x.get('breaks_contract', '')} | {r['status']} |")
         Path(args.table).write_text("\n".join(lines) + "\n")
-    return 1 if any(r["status"] == "DIFFERS" for r in results) else 0
+    return 1 if any(r["status"] == "DIFFERS" for r in results) or any(r["status"] == "NOT REPRODUCED" for r in found) \
+        else 0
 
 
 if __name__ == "__main__":

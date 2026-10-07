@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """test_flight.py: t/flight/, PX4's functions restated in t. Every task is well-formed, its contract admits no
-survivor (t/audit.py), the README names it, and the PX4 harness either calls PX4 for it or says why not. No
-network, compiler or kernel."""
+survivor (t/audit.py), the README names it, and the PX4 harness either calls PX4 for it or says why not. Every task
+under findings/ is refuted by the interpreter and names the PX4 call it is checked against. No network, compiler or
+kernel."""
 from __future__ import annotations
 
 import sys
@@ -34,3 +35,17 @@ def test_every_task_is_tied_to_px4():
         name = tasks_io.load_task(str(p))["name"]
         assert f"| {name} |" in readme, name
         assert (name in px4_diff.CALLS) != (name in px4_diff.NOT_DIFFED), name
+
+
+FINDINGS = sorted((HERE / "flight" / "findings").glob("*.t"))
+
+
+def test_every_finding_is_refuted_and_tied_to_px4():
+    readme = (HERE / "flight" / "README.md").read_text()
+    assert FINDINGS
+    for p in FINDINGS:
+        task = tasks_io.load_task(str(p))
+        assert check_wf.check_wf(task) == [], p
+        assert audit.classify(task)["status"] == "real-violates-spec", p.name
+        assert task["name"] in px4_diff.FINDING_OF and px4_diff.FINDING_OF[task["name"]] in px4_diff.CALLS, p.name
+        assert f"| {task['name']} |" in readme, task["name"]

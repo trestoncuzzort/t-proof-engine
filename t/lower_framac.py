@@ -5754,6 +5754,13 @@ def cexpr(e: dict, env: dict, funs: dict, task_name: str,
         return f"({quo} - {neg} * {sign_y})"
     if op in ("==", "!=") and _dt_of(typ(args[0], env, funs)) is not None:
         raise NotImplementedError("framac: `==` on datatypes in executable position (PREDICT T37) is not lowered yet")
+    if op in ("==", "!=") and typ(args[0], env, funs) == "bool":
+        # PREDICT T68: a t bool is carried by a C int, and WP's model of an int bool may hold any truthy value. C's
+        # `a != b` on two of them compares the ints, so 1 and 2 count as different (CERT EXP20-C's class), and a
+        # program true of t's bools went unproved (px4_hysteresis_set, px4_hysteresis_switches). `!x` is 0 or 1, so
+        # comparing the negations compares the truth values, as `pred()`'s `<==>` already does in ACSL.
+        a, b = (cexpr(x, env, funs, task_name, _div_style) for x in args)
+        return f"((!({a})) {CMP[op]} (!({b})))"
     if op in ("==", "!="):
         t0 = typ(args[0], env, funs)
         if t0 == "seq" or is_nested_seq_type(t0):

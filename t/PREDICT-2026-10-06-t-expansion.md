@@ -3084,3 +3084,67 @@ What this establishes: twelve functions from PX4's shipping autopilot, restated 
 in seven independent kernels against contracts with no surviving mutant. PX4's own C++ computes what the proved
 program computes on every point compared. The float functions are proved only in the two industrial toolchains,
 and three of them do not yet prove at machine width.
+
+## T68 registered (2026-10-07 22:04Z, after hand runs and before the clean-clone run): PX4's hysteresis, an obstacle-map index PX4's callers can push negative, and two lowering fixes found on the way
+
+**What is added.**
+- Six PX4 functions in `t/flight/`, each restated statement by statement (`t/flight/README.md` gives file and line):
+  - `systemlib::Hysteresis`, the time hysteresis commander and the land detector use:
+    - `update` and `set_state_and_update`, each with a full functional contract;
+    - `holds`: a default `Hysteresis` driven over any sample sequence never turns true while every sample is within
+      `time_from_false` of the first;
+    - `switches`: it is true at the end once a `true` request has held across `time_from_false`.
+  - `ObstacleMath::wrap_bin`, both for any `bin_count` and at `CollisionPrevention`'s `BIN_COUNT` = 72. Its
+    contract (the result is a bin index congruent to `bin`) is PX4's own: `ObstacleMathTest.WrapBin` expects -1 to
+    wrap to 71. It holds only for `bin >= -bin_count`.
+- `t/flight/findings/px4_wrap_bin_any.t`: the same function without that `requires`, with C++'s truncating `%`
+  spelled out. The kernels refute it. `px4_diff.py` runs PX4's compiled `wrap_bin` at the refuting input and at
+  `(-73, 72)`: PX4 returns -1 at both, as t's body does.
+  - `CollisionPrevention::_addDistanceSensorData` computes its lowest bin from a field of view `h_fov` that nothing
+    bounds; the MAVLink receiver copies `horizontal_fov` unchanged.
+  - Above about 12.65 rad the lowest bin is below -72, and the four 72-entry obstacle-map arrays are indexed
+    negatively (README; drafted upstream as `internal/UPSTREAM-2026-10-07.md` item 8, not filed).
+- `px4_diff.py` drives PX4's real `Hysteresis` class. It reaches each step's starting fields through PX4's public
+  methods only.
+- **Frama-C, bool comparison** (receipt 4b2df69748aa):
+  - A t bool is carried by a C int, and the lowering compiled bool `a != b` in executable C as the integer `!=`.
+    WP therefore considered `req = 2`, and `set`'s ensures 8 and 9 and `switches`' invariant 3, all true of t's
+    bools, went unproved.
+  - Bool `==`/`!=` now compares the negations, `(!(a)) != (!(b))`. For 0 and 1 this is the same comparison.
+  - The lowered text changes for the four hysteresis tasks only; every other task's Frama-C source is
+    byte-identical.
+- **Lean, loop closer** (receipt 98083e3f6f63):
+  - `grind` derives `i = 0` but does not carry it through `times[i.toNat]!` to `times[0]!`.
+  - `(simp_all; done)` and `(simp_all; grind)` are appended as the last alternatives, so a goal that proved before
+    proves by the same branch.
+  - 26 tasks' Lean sources change. Measured over all 26: the 21 verified before stay verified, the 3 not verified
+    stay so, and `holds` and `switches` now verify.
+- `holds`' requests are a seq of ints, nonzero for true, because `seq<bool>` is not lowered in five kernels yet.
+
+**Measured before this registration** (hand runs; each count pasted from the table's own summary line):
+- New tasks over the seven kernels (verified with the twin refuted):
+  - `update`, `set`, `wrap_bin_72`: all seven.
+  - `holds`, `switches`: six of seven; Rocq stops at an unsolved verification condition after about two minutes.
+  - `wrap_bin` (any `bin_count`): F* only. Its `bin % bin_count` with a symbolic modulus is the non-linear wall
+    the integer `wrap` hits.
+  - `px4_wrap_bin_any`: refuted in all seven.
+- `px4_diff.py`: "routines compared: 23; agree on every point: 22; points: 6677". AlphaFilter agrees once its
+  binary32 `alpha` is applied. The finding is reproduced at both inputs.
+- `t/ship.py` on the six new tasks: "ships for every int32 input: 2", "ships within an envelope: 3", "no envelope
+  found: 0", "contract open at machine width: 1".
+  - `switches` and `wrap_bin_72` ship for every int32 input.
+  - `update` and `set` ship within ±2^29, and `holds` within ±2^21. ship's width is t's `int` lowered to a 32-bit
+    `int`; PX4's `hrt_abstime` is 64-bit unsigned.
+  - `wrap_bin`'s contract is open at machine width.
+- The whole t suite passes (792 passed, 43 skipped, 1 xfailed), with `t/test_flight.py` (findings included) and
+  `t/test_bool_compare_and_lean_cascade.py`.
+
+**Bars**, for a clean clone at this registration's commit:
+(1) `t/FLIGHT.md` (24 tasks): "Verified with the twin refuted in all seven columns: 15 of 24 tasks". `holds` and
+`switches` are verified in the six kernels other than Rocq, and `wrap_bin` in F* only.
+(2) `t/flight/findings/` verified: `px4_wrap_bin_any` refuted in all seven.
+(3) `t/PX4-DIFF.md`: "routines compared: 23; agree on every point: 22". AlphaFilter agrees once narrowing is
+applied, and the finding reads "PX4 breaks the contract here, as t's body does".
+(4) `t/SHIP-FLIGHT.md` over all 24: 15 for every int32 input, 4 within an envelope, 1 with no envelope, 4 open.
+(5) The Lean column over `t/tasks/`, `t/autonomy/` and `t/algoveri/` reads 89, 15 and 1 verified with the twin
+refuted, as installed. The bar is that no verified cell is lost to the closer change.
