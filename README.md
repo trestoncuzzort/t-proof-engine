@@ -26,25 +26,25 @@ never weakens it.
 
 ## Where it stands
 
-Measured from a clean clone of this repository on 2026-10-07 over the 101 committed tasks
+Measured from a clean clone of this repository on 2026-10-07 over the 104 committed tasks
 ([t/AGREEMENT.md](t/AGREEMENT.md)):
 
 | kernel | proved, twin refuted | carried, not proved | refused by name |
 |---|---|---|---|
-| Dafny | 101 | 0 | 0 |
-| Verus | 93 | 1 | 7 |
-| Rocq | 63 | 0 | 38 |
-| Lean 4 | 76 | 3 | 22 |
-| F\* | 60 | 2 | 39 |
-| SPARK | 57 | 3 | 41 |
-| Frama-C | 50 | 1 | 50 |
+| Dafny | 104 | 0 | 0 |
+| Verus | 96 | 1 | 7 |
+| Rocq | 65 | 1 | 38 |
+| Lean 4 | 80 | 3 | 21 |
+| F\* | 63 | 2 | 39 |
+| SPARK | 60 | 3 | 41 |
+| Frama-C | 54 | 1 | 49 |
 
 - In every kernel, the twin of every proved program is refuted (100%).
-- 49 of the 101 tasks are proved, with the twin refuted, in all seven kernels.
+- 52 of the 104 tasks are proved, with the twin refuted, in all seven kernels.
 - Datatypes with fields (records and non-recursive sums, PREDICT T23) and recursive datatypes (trees, T25) are proved
   in Dafny, Verus and Lean; the other four refuse them by name. A quantifier over a seq's elements is stated in all
-  seven, over a set's in Dafny and Verus (T26). Finite sets are carried in Lean too, on core Std's extensional tree
-  set (T29).
+  seven, over a set's in Dafny, Verus and Lean (T26, T30). Finite sets are carried in Lean too, on core Std's
+  extensional tree set (T29). Frama-C gives a seq local its own caller-provided buffer (T31).
 - Most refusals are of constructs added to the language on 2026-10-06, which the other kernels are being taught
   now.
 - [t/ALGOVERI.md](t/ALGOVERI.md): 27 of AlgoVeri's contracts in seven kernels, regenerated from a clean clone for

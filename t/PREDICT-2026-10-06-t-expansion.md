@@ -1656,6 +1656,46 @@ doubled_head:
 (2) The other seven tasks keep their Lean verdicts.
 (3) No other cell moves for this change.
 
+### T30, T31 and T32 read (2026-10-07 05:53Z): every bar held.
+
+Both tables were regenerated from a clean clone at 9095774, which carries T30, T31 and T32 and not T33 or T34: the
+matrix of 104 (`t/AGREEMENT.md`) and the AlgoVeri table of 27 (`t/ALGOVERI.md`).
+
+**T30**, set-ranged quantifiers in Lean:
+(1) **Held:** all_pos_set reads verified with the twin refuted in Lean, making three kernels.
+(2) **Held:** AlgoVeri's zig, zig_zag and zig_zig read unproved/refuted in Lean, where they abstained. search and
+insert abstain.
+(3) **Held:** no other cell moved.
+
+**T31**, seq locals in Frama-C:
+(1) **Held:** palindrome reads verified/refuted in Frama-C. All seven reach 50 on the 101.
+(2) **Held**, as T32 amended:
+- set_first reads verified/refuted in all seven.
+- rev_equal does in six, with Rocq's real unproved.
+- doubled_head does in all seven: its Lean clause was replaced by T32's bar (1) before the run.
+
+(3) **Held:** no other cell moved, and Frama-C gained 4 (50 to 54).
+
+**T32**, a map's element at a Nat index in Lean:
+(1) **Held:** doubled_head reads verified/refuted in Lean.
+(2) **Held:** the other seven tasks kept their Lean verdicts, odd_positions still unproved/refuted.
+(3) **Held:** no other cell moved.
+
+**The matrix of 104, by kernel (verified with the twin refuted):**
+
+| kernel | count |
+|---|---|
+| Dafny | 104 |
+| Verus | 96 |
+| Lean | 80 |
+| Rocq | 65 |
+| F* | 63 |
+| SPARK | 60 |
+| Frama-C | 54 |
+
+All seven: 52 (49 of the 101, plus palindrome, set_first and doubled_head). AlgoVeri is unchanged at Dafny 27,
+Verus 9, F* 5, SPARK 3, Frama-C 2, Lean 1, Rocq 1, with all seven 1.
+
 ## T33 registered (2026-10-07 05:24Z, after hand probes and before the clean-clone run that follows clean25): one orientation for a seq equality (Rocq)
 
 T31's rev_equal is verified/refuted in six kernels; Rocq's real is unproved. The code tests `u == b` with `u = rev(a)`

@@ -1,4 +1,4 @@
-# t cross-kernel agreement, 2026-10-07 05:12Z
+# t cross-kernel agreement, 2026-10-07 05:52Z
 
 Cell = real outcome / twin outcome. Agreement means `verified / refuted` in every present column. A real-VERIFIED, twin-VERIFIED cell reads `verified / decorative` (the spec cannot tell real and twin apart) or `verified / unsound` (the twin's own measured witness says a sound kernel must refute it, and this one did not); neither counts as agreement.
 
@@ -9,9 +9,9 @@ Cell = real outcome / twin outcome. Agreement means `verified / refuted` in ever
 | bracket_match | verified / refuted | verified / refuted | timeout / refuted | abstain / abstain | abstain / abstain | abstain / abstain | unproved / refuted |
 | insert | verified / refuted | verified / refuted | abstain / abstain | abstain / abstain | abstain / abstain | abstain / abstain | abstain / abstain |
 | search | verified / refuted | verified / refuted | abstain / abstain | abstain / abstain | abstain / abstain | abstain / abstain | abstain / abstain |
-| zig | verified / refuted | unproved / unproved | abstain / abstain | abstain / abstain | abstain / abstain | abstain / abstain | abstain / abstain |
-| zig_zag | verified / refuted | unproved / unproved | abstain / abstain | abstain / abstain | abstain / abstain | abstain / abstain | abstain / abstain |
-| zig_zig | verified / refuted | unproved / unproved | abstain / abstain | abstain / abstain | abstain / abstain | abstain / abstain | abstain / abstain |
+| zig | verified / refuted | unproved / unproved | abstain / abstain | abstain / abstain | unproved / refuted | abstain / abstain | abstain / abstain |
+| zig_zag | verified / refuted | unproved / unproved | abstain / abstain | abstain / abstain | unproved / refuted | abstain / abstain | abstain / abstain |
+| zig_zig | verified / refuted | unproved / unproved | abstain / abstain | abstain / abstain | unproved / refuted | abstain / abstain | abstain / abstain |
 | bubble_sort | verified / refuted | unproved / refuted | abstain / abstain | abstain / abstain | unproved / unproved | abstain / abstain | timeout / timeout |
 | discrete_log_naive | verified / refuted | verified / refuted | abstain / abstain | abstain / abstain | verified / unproved | abstain / abstain | abstain / abstain |
 | fast_exponential | verified / refuted | unproved / refuted | timeout / refuted | verified / refuted | unproved / refuted | unproved / refuted | unproved / refuted |
@@ -67,7 +67,7 @@ Of the 0 tasks in six, none are blocked alone.
 | verus | 27 | 10 | 9 of 10 (90%) | 0 |
 | spark | 14 | 3 | 3 of 3 (100%) | 13 |
 | framac | 2 | 2 | 2 of 2 (100%) | 25 |
-| lean | 11 | 2 | 1 of 2 (50%) | 16 |
+| lean | 14 | 2 | 1 of 2 (50%) | 13 |
 | rocq | 3 | 1 | 1 of 1 (100%) | 24 |
 | fstar | 17 | 5 | 5 of 5 (100%) | 10 |
 
