@@ -2944,3 +2944,26 @@ Regenerated from a clean clone at 2517d84, and installed.
 `t/test_contract_repair.py`). dawnr, which carries this engine under its own `t/`, already has a `t/repair.py`: a
 model-driven proof-repair loop that five of its modules import. The engine sync overwrote it, and the overwrite was
 caught before any commit. `cli.py repair` is unchanged. The entries above keep the old name as written.
+
+## T65 registered (2026-10-07 19:35Z, after a Frama-C column re-run and before the clean-clone run): R5, the frame gap closed by the entry state
+
+**The change.** In Frama-C, a call to a spec function whose sequence arguments are all inputs no code writes (a `seq`
+parameter, or an array outside `modifies`) is now read at the function's entry state, `f{Pre}(...)`, instead of
+`f{Here}(...)`. The value is the same, since nothing those arguments name is ever written. Read at `Pre`, a write
+elsewhere (the result buffer, an accumulator) needs no frame fact. WP does not derive that fact for a recursive
+logic function, and it was the gap that left filter_pos stepping out at 1,000,000 steps (T55). ACSL's `reads` clause,
+the textbook route, is marked experimental in the ACSL manual (speclang, "Memory footprint specification"). This
+answers upstream draft 7 locally. Certificates keep `{Here}`: their sequences are arrays they declare and fill
+themselves.
+
+**Measured before this registration, stated plainly:**
+- **filter_pos's file by hand:** 32 of 32 goals.
+- **The whole Frama-C column re-run** (tasks, AlgoVeri, autonomy): filter_pos timeout/refuted -> verified/refuted;
+  no other cell moves (tasks 70 -> 71, AlgoVeri 2, autonomy 21).
+- **The first version** also read `{Pre}` inside certificates, which unrefuted count_matches' twin; the rule is now
+  off there, and the cell is restored.
+- **Suite:** passes.
+
+**Bars**, for the clean-clone table at this registration's commit:
+(1) Frama-C 71; every other kernel unchanged; all seven 66 of 114 (filter_pos returns).
+(2) The autonomy table does not move.
