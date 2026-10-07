@@ -14,7 +14,7 @@ from a wrong one proves nothing. t is a small language in which a routine and it
 lowered mechanically into seven independently built proof systems. A cell of the resulting table counts only if two
 things hold. First, the kernel proves the real program. Second, it refutes the routine's **twin**, a one-edit mutant
 chosen by a search for an input where the mutant breaks the contract, by accepting a certificate at that input. Over
-114 tasks, 65 are proved with their twins refuted in all seven kernels. A specification audit runs every one-edit
+114 tasks, 64 are proved with their twins refuted in all seven kernels. A specification audit runs every one-edit
 mutant by execution and has the kernel prove the ones the spec cannot tell apart. Over 316 Dafny-verified DafnyBench
 programs, Dafny also proves a different, one-edit program against the same contract in 44; read by hand, 23 of those
 are gaps in the specification. Each kernel refuses by name what it cannot
@@ -67,7 +67,7 @@ invariants, early exits, recursion, methods and lemmas. Since 2026-10-07 it also
 
 ## 4. Results
 
-**The matrix** (114 tasks; `t/AGREEMENT.md`, clean clone at 94fb961):
+**The matrix** (114 tasks; `t/AGREEMENT.md`, clean clone at 1bc4dc6):
 
 | kernel | proved, twin refuted | carried, not proved | refused by name |
 |---|---|---|---|
@@ -77,9 +77,9 @@ invariants, early exits, recursion, methods and lemmas. Since 2026-10-07 it also
 | Rocq | 82 | 4 | 28 |
 | F\* | 82 | 6 | 26 |
 | SPARK | 78 | 6 | 30 |
-| Frama-C | 69 | 3 | 42 |
+| Frama-C | 68 | 4 | 42 |
 
-- 65 of the 114 tasks are proved with the twin refuted in **all seven**.
+- 64 of the 114 tasks are proved with the twin refuted in **all seven**.
 - In Dafny, Lean and Frama-C every proved program's twin is refuted. In Verus, Rocq, F\* and SPARK, 2, 2, 2 and 1
   heap twins are not refuted yet: no certificate yet for a twin that differs only in the array, or a timeout.
 - The heap reaches the five kernels without native arrays by copy-in/copy-out (PREDICT T53). With no aliasing,
@@ -142,6 +142,11 @@ Run on t's own suites, the audit found seven of its own specs too weak, each of 
 - rate_limit, where the direction of a limited step is unstated;
 - pid_step, where the limit a saturated command takes is unstated;
 - tree_insert, where the search-tree order is unstated.
+
+Six were rewritten to pin their results down (PREDICT T55). Each now kills every behaviour-changing mutant, and the
+suite's audit reads 1,568 of 1,570 killed. The stronger filter_pos costs Frama-C one cell: WP has no frame fact for a
+recursive logic function over memory, and the loop invariant steps out. A stronger contract is harder to prove, and
+the matrix now counts the harder one.
 
 ## 5. What the kernels taught
 

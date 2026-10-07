@@ -3,8 +3,8 @@
 Every one-edit mutant of each body, classed by the interpreter over the task's bounded domain (t/audit.py): **killed** (the spec rejects its result somewhere), **same** (computes the same everywhere), **diverges** (runs out of steps where the real body ends), **survivor** (computes something different, and the spec accepts it everywhere).
 
 - tasks: 25; audited: 25; not audited: none
-- behaviour-changing mutants the specs kill: 810 of 813 (99.6%)
-- tasks whose spec admits a survivor: 2 of 25
+- behaviour-changing mutants the specs kill: 812 of 813 (99.9%)
+- tasks whose spec admits a survivor: 1 of 25
 - dafny: real body verified in 18 of 25; of those, a survivor proved too (a wrong program with a proof) in 1
 
 | task | mutants | killed | same | diverges | survivors | proved by the kernel | a survivor: change at input |
@@ -24,7 +24,7 @@ Every one-edit mutant of each body, classed by the interpreter over the task's b
 | mode_transition | 30 | 28 | 2 | 0 | 0 | 0 |  |
 | nearest_index | 26 | 21 | 2 | 2 | 1 | 1 | compare-flip#1: `if d[i] < d[k] {` -> `if d[i] <= d[k] {` at d=[0, 0] -> real 0, twin 1 |
 | peak_reading | 24 | 19 | 3 | 2 | 0 | 0 |  |
-| pid_step | 76 | 72 | 2 | 0 | 2 | (real abstain) | wrong-var#36: `u := umin;` -> `u := umax;` at err=0.0, integ=1.0, kp=0.0, ki=-1.0, umin=0.0, umax=1.0 -> real 0.0, twin 1.0 |
+| pid_step | 76 | 74 | 2 | 0 | 0 | (real abstain) |  |
 | readings_in_band | 49 | 43 | 1 | 5 | 0 | 0 |  |
 | sample_push | 17 | 14 | 3 | 0 | 0 | 0 |  |
 | saturate_all | 12 | 12 | 0 | 0 | 0 | 0 |  |

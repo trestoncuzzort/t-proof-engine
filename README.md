@@ -37,11 +37,11 @@ Measured from a clean clone of this repository on 2026-10-07 over the 114 commit
 | Rocq | 82 | 4 | 28 |
 | F\* | 82 | 6 | 26 |
 | SPARK | 78 | 6 | 30 |
-| Frama-C | 69 | 3 | 42 |
+| Frama-C | 68 | 4 | 42 |
 
 - In Dafny, Lean and Frama-C the twin of every proved program is refuted. In Verus, Rocq, F* and SPARK, 2, 2, 2 and 1
   heap twins are not refuted yet: no certificate yet for a twin that differs only in the array, or a timeout.
-- 65 of the 114 tasks are proved, with the twin refuted, in all seven kernels.
+- 64 of the 114 tasks are proved, with the twin refuted, in all seven kernels.
 - Datatypes with fields (records and non-recursive sums, PREDICT T23) and recursive datatypes (trees, T25) are proved
   in Dafny, Verus, Lean, Rocq and F* (T34, T35); SPARK and Frama-C carry the non-recursive ones (T36, T37), so
   color_code, shape_area, manhattan and rect_area are verified with the twin refuted in all seven. A quantifier over a seq's elements is stated in
@@ -59,7 +59,8 @@ Measured from a clean clone of this repository on 2026-10-07 over the 114 commit
   Over 316 Dafny-verified DafnyBench programs ([t/AUDIT-DAFNYBENCH.md](t/AUDIT-DAFNYBENCH.md)), Dafny also proves a
   different program against the same contract in 44. Read by hand, 23 are gaps
   ([t/dafnybench/CLASSIFIED.md](t/dafnybench/CLASSIFIED.md)), among them four weak specs MutDafny's authors found
-  by hand. On t's own suites it found seven specs to strengthen.
+  by hand. On t's own suites it found seven specs to strengthen, and six were strengthened (T55). tree_insert's
+  search-tree order is the one still open.
 - [t/AUTONOMY.md](t/AUTONOMY.md): 25 navigation, guidance and control routines (`t/autonomy/`). Verified with the
   twin refuted: Frama-C 21, SPARK 20, Dafny 18, F* 17, Lean 15, Verus 14, Rocq 14; 13 in all seven.
 - Most refusals are of constructs added to the language on 2026-10-06, which the other kernels are being taught

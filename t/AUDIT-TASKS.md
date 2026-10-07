@@ -3,9 +3,9 @@
 Every one-edit mutant of each body, classed by the interpreter over the task's bounded domain (t/audit.py): **killed** (the spec rejects its result somewhere), **same** (computes the same everywhere), **diverges** (runs out of steps where the real body ends), **survivor** (computes something different, and the spec accepts it everywhere).
 
 - tasks: 114; audited: 114; not audited: none
-- behaviour-changing mutants the specs kill: 1541 of 1570 (98.2%)
-- tasks whose spec admits a survivor: 6 of 114
-- dafny: real body verified in 111 of 114; of those, a survivor proved too (a wrong program with a proof) in 5
+- behaviour-changing mutants the specs kill: 1568 of 1570 (99.9%)
+- tasks whose spec admits a survivor: 1 of 114
+- dafny: real body verified in 111 of 114; of those, a survivor proved too (a wrong program with a proof) in 1
 
 | task | mutants | killed | same | diverges | survivors | proved by the kernel | a survivor: change at input |
 |---|---|---|---|---|---|---|---|
@@ -25,7 +25,7 @@ Every one-edit mutant of each body, classed by the interpreter over the task's b
 | contains | 20 | 17 | 0 | 3 | 0 | 0 |  |
 | count_evens_skip | 36 | 31 | 0 | 5 | 0 | 0 |  |
 | count_matches | 28 | 25 | 0 | 3 | 0 | 0 |  |
-| count_pos_for | 39 | 17 | 0 | 4 | 18 | 1 | collapse-if: `if x > 0 {` -> `c := c + 1;` at s=[0] -> real 0, twin 1 |
+| count_pos_for | 39 | 35 | 0 | 4 | 0 | 0 |  |
 | count_vowels | 42 | 38 | 2 | 2 | 0 | 0 |  |
 | cube | 6 | 6 | 0 | 0 | 0 | 0 |  |
 | deadband | 9 | 9 | 0 | 0 | 0 | (real abstain) |  |
@@ -36,11 +36,11 @@ Every one-edit mutant of each body, classed by the interpreter over the task's b
 | double_all | 18 | 16 | 0 | 2 | 0 | 0 |  |
 | doubled | 4 | 4 | 0 | 0 | 0 | 0 |  |
 | doubled_head | 9 | 9 | 0 | 0 | 0 | 0 |  |
-| evens | 6 | 5 | 0 | 0 | 1 | 1 | off-by-one#3: `var u: seq := [x for x in s if x % 2 == 0];` -> `var u: seq := [x for x in s if x % 2 == -1];` at s=[0] -> real [0], twin [] |
+| evens | 6 | 6 | 0 | 0 | 0 | 0 |  |
 | every_other | 27 | 27 | 0 | 0 | 0 | 0 |  |
 | factorial | 16 | 11 | 0 | 5 | 0 | 0 |  |
 | fib | 24 | 14 | 0 | 10 | 0 | 0 |  |
-| filter_pos | 22 | 14 | 0 | 2 | 6 | 1 | off-by-one#3: `while i < len(s)` -> `while i < len(s) + -1` at s=[1] -> real [1], twin [] |
+| filter_pos | 22 | 20 | 0 | 2 | 0 | 0 |  |
 | find_zero | 18 | 16 | 0 | 2 | 0 | 0 |  |
 | first_even | 27 | 25 | 0 | 2 | 0 | 0 |  |
 | first_sorted | 4 | 4 | 0 | 0 | 0 | 0 |  |
@@ -52,7 +52,7 @@ Every one-edit mutant of each body, classed by the interpreter over the task's b
 | has_duplicate | 39 | 28 | 5 | 6 | 0 | 0 |  |
 | has_elem | 10 | 10 | 0 | 0 | 0 | 0 |  |
 | has_negative | 4 | 4 | 0 | 0 | 0 | 0 |  |
-| index_map | 19 | 15 | 0 | 3 | 1 | 1 | wrong-var#1: `m := m[x := i];` -> `m := m[x := x];` at s=[1] -> real [[1, 0]], twin [[1, 1]] |
+| index_map | 19 | 16 | 0 | 3 | 0 | 0 |  |
 | index_of | 23 | 21 | 0 | 2 | 0 | 0 |  |
 | is_prime | 22 | 17 | 1 | 4 | 0 | 0 |  |
 | largest | 3 | 3 | 0 | 0 | 0 | 0 |  |
@@ -79,7 +79,7 @@ Every one-edit mutant of each body, classed by the interpreter over the task's b
 | probe_names_upper | 19 | 16 | 3 | 0 | 0 | 0 |  |
 | probe_names_verus | 19 | 16 | 3 | 0 | 0 | 0 |  |
 | put_key | 4 | 4 | 0 | 0 | 0 | 0 |  |
-| rate_limit | 34 | 31 | 2 | 0 | 1 | (real abstain) | wrong-operator#2: `r := prev - step;` -> `r := prev + step;` at prev=1.0, target=-1.0, step=1.0 -> real 0.0, twin 2.0 |
+| rate_limit | 34 | 32 | 2 | 0 | 0 | (real abstain) |  |
 | rect_area | 4 | 4 | 0 | 0 | 0 | 0 |  |
 | relu_all | 13 | 11 | 2 | 0 | 0 | 0 |  |
 | remainder | 5 | 5 | 0 | 0 | 0 | 0 |  |

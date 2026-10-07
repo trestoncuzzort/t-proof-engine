@@ -2482,3 +2482,14 @@ reach inside a list).
 (2) `t/AUTONOMY.md` unchanged (pid_step stays a timeout in SPARK and Frama-C).
 (3) `t/AUDIT-TASKS.md`: 1 of 114 tasks admits a survivor (tree_insert). `t/AUDIT-AUTONOMY.md`: 1 of 25
 (nearest_index, a tie).
+
+### T55 read (2026-10-07 14:25Z): every registered bar held.
+
+The tables were regenerated from a clean clone at 1bc4dc6 on an idle machine, and are installed.
+(1) **Held:** Frama-C 68 (filter_pos now timeout/refuted); every other kernel unchanged (Dafny 111, Verus 102, Lean
+89, Rocq 82, F* 82, SPARK 78); all seven 64 of 114. No other cell moved.
+(2) **Held:** `t/AUTONOMY.md` unchanged.
+(3) **Held:** `t/AUDIT-TASKS.md` reads 1 of 114 (tree_insert, the named gap), with 1,568 of 1,570 behaviour-changing
+mutants killed. `t/AUDIT-AUTONOMY.md` reads 1 of 25 (nearest_index's tie), 812 of 813 killed.
+- **What it cost:** one all-seven cell. A stronger contract is harder to prove, and Frama-C's missing frame fact for
+  recursive logic functions over memory now blocks two tasks (double_all and filter_pos) instead of one.

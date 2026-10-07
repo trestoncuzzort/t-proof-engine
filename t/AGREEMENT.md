@@ -1,4 +1,4 @@
-# t cross-kernel agreement, 2026-10-07 13:07Z
+# t cross-kernel agreement, 2026-10-07 14:20Z
 
 Cell = real outcome / twin outcome. Agreement means `verified / refuted` in every present column. A real-VERIFIED, twin-VERIFIED cell reads `verified / decorative` (the spec cannot tell real and twin apart) or `verified / unsound` (the twin's own measured witness says a sound kernel must refute it, and this one did not); neither counts as agreement.
 
@@ -35,7 +35,7 @@ Cell = real outcome / twin outcome. Agreement means `verified / refuted` in ever
 | every_other | verified / refuted | verified / refuted | verified / refuted | verified / refuted | verified / refuted | verified / refuted | verified / refuted |
 | factorial | verified / refuted | verified / refuted | verified / refuted | verified / refuted | verified / refuted | verified / refuted | verified / refuted |
 | fib | verified / refuted | verified / refuted | verified / refuted | verified / refuted | verified / refuted | verified / refuted | verified / refuted |
-| filter_pos | verified / refuted | verified / refuted | verified / refuted | verified / refuted | verified / refuted | verified / refuted | verified / refuted |
+| filter_pos | verified / refuted | verified / refuted | verified / refuted | timeout / refuted | verified / refuted | verified / refuted | verified / refuted |
 | find_zero | verified / refuted | verified / refuted | verified / refuted | verified / refuted | verified / refuted | verified / refuted | verified / refuted |
 | first_even | verified / refuted | verified / refuted | verified / refuted | verified / refuted | verified / refuted | verified / refuted | verified / refuted |
 | first_sorted | verified / refuted | verified / refuted | abstain / abstain | abstain / abstain | verified / refuted | verified / refuted | abstain / abstain |
@@ -136,7 +136,7 @@ Verdict basis: every source file hashed; e.g. `abs.dfy` 9fe1e7e805cfacce…, `ab
 
 | kernel | sole blocker of | co-blocker of | tasks it alone keeps out of all seven |
 |---|---|---|---|
-| framac | 3 | 41 | double_all, grid_row_sums, swap_rows |
+| framac | 4 | 41 | double_all, filter_pos, grid_row_sums, swap_rows |
 | dafny | 0 | 2 | (none) |
 | verus | 0 | 11 | (none) |
 | spark | 0 | 35 | (none) |
@@ -144,7 +144,7 @@ Verdict basis: every source file hashed; e.g. `abs.dfy` 9fe1e7e805cfacce…, `ab
 | rocq | 0 | 31 | (none) |
 | fstar | 0 | 31 | (none) |
 
-Of the 3 tasks in six, 3 are framac alone.
+Of the 4 tasks in six, 4 are framac alone.
 
 ## Per kernel
 
@@ -153,9 +153,9 @@ Of the 3 tasks in six, 3 are framac alone.
 | dafny | 111 | 111 | 111 of 111 (100%) | 3 |
 | verus | 107 | 104 | 102 of 104 (98%) | 7 |
 | spark | 84 | 79 | 78 of 79 (98%) | 30 |
-| framac | 72 | 69 | 69 of 69 (100%) | 42 |
+| framac | 72 | 68 | 68 of 68 (100%) | 42 |
 | lean | 93 | 89 | 89 of 89 (100%) | 21 |
 | rocq | 86 | 84 | 82 of 84 (97%) | 28 |
 | fstar | 88 | 84 | 82 of 84 (97%) | 26 |
 
-Verified with the twin refuted in all seven columns: 65 of 114 tasks.
+Verified with the twin refuted in all seven columns: 64 of 114 tasks.
