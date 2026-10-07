@@ -291,3 +291,17 @@ dc2c168fbaca):
    - Lean's structurally recursive tasks with `requires`;
    - ring-buffer `mod` in Verus, Lean, Rocq and F*;
    - Frama-C's frame fact for recursive logic functions.
+
+**State of the programme, 2026-10-07 19:40Z** (each measured from a clean clone, PREDICT T61-T65):
+
+| item | what landed | measured |
+|---|---|---|
+| R1 + R2 | `cli.py repair`: grammar + Daikon-style fits, survivor cover, R1b loop invariants, kernel proof, source patches | 25 of 72 benchmark gaps repaired with a proof; 21 input-blind vericoding solutions found |
+| R4 | `cli.py build`: proven C (gcc) and Dafny (Python) executables against the interpreter | 9,961 runs, no lowering bug; every C disagreement is int width |
+| R4b | `cli.py ship`: the C proved again at machine width (WP Typed + RTE), with a proved operating envelope | 61 routines for every int32 input, 12 within an envelope |
+| R4c | loop bounds inferred from observed states, pruned by Houdini, for the width proof | 63 for every int32 input |
+| R5 | Frama-C's frame gap closed by reading read-only inputs at `Pre` | filter_pos back in all seven (clean40 reading) |
+| R3 | not started: needs dawnr's Lean and Verus lifters to cover more than 66 of vericoding's 2,334 Verus specs | |
+
+Next, in order: the Rocq and Lean recursion items of R5, which restore tree_insert in both; the ring-buffer `mod`;
+then R3's lifters.
