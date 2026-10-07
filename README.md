@@ -33,8 +33,8 @@ Measured from a clean clone of this repository on 2026-10-07 over the 114 commit
 |---|---|---|---|
 | Dafny | 111 | 0 | 3 |
 | Verus | 104 | 3 | 7 |
-| Lean 4 | 89 | 4 | 21 |
-| Rocq | 84 | 2 | 28 |
+| Lean 4 | 88 | 4 | 22 |
+| Rocq | 83 | 3 | 28 |
 | F\* | 84 | 4 | 26 |
 | SPARK | 79 | 5 | 30 |
 | Frama-C | 70 | 2 | 42 |
@@ -63,8 +63,8 @@ Measured from a clean clone of this repository on 2026-10-07 over the 114 commit
   two specs are met by a constant), and Dafny in 39 of 425 in its Dafny track (31 gaps); in HumanEval-Dafny, 5 of 39.
   Across five benchmark corpora that is 72 gaps, each with a proof. ACSL by Example and vericoding's Lean track kill
   every mutant
-  ([t/vericoding/CLASSIFIED.md](t/vericoding/CLASSIFIED.md), PREDICT T56). On t's own suites it found seven specs to strengthen, and six were strengthened (T55). tree_insert's
-  search-tree order is the one still open.
+  ([t/vericoding/CLASSIFIED.md](t/vericoding/CLASSIFIED.md), PREDICT T56). On t's own suites it found seven specs to strengthen, and all seven were (T55, T60): the task suite's audit now
+  kills 1,578 of 1,578 behaviour-changing mutants.
 - [t/AUTONOMY.md](t/AUTONOMY.md): 25 navigation, guidance and control routines (`t/autonomy/`). Verified with the
   twin refuted: Frama-C 21, SPARK 20, Dafny 18, F* 18, Lean 15, Verus 15, Rocq 15; 14 in all seven.
 - Most refusals are of constructs added to the language on 2026-10-06, which the other kernels are being taught

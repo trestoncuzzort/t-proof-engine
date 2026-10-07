@@ -2717,3 +2717,16 @@ spec fn its ensures calls. This is the reveal a lemma's induction step already g
 Frama-C 70 unchanged; all seven 65.
 (2) The AlgoVeri table does not move.
 (3) `t/AUDIT-TASKS.md`: 0 of 114 tasks admit a survivor.
+
+### T60 read (2026-10-07 18:10Z): every bar held.
+
+Regenerated from a clean clone at 07311fa, and installed.
+(1) **Held:** Lean 88 (tree_insert refused by name) and Rocq 83 (tree_insert unproved); every other kernel unchanged;
+all seven 65.
+(2) **Held:** the AlgoVeri table did not move.
+(3) **Held:** `t/AUDIT-TASKS.md` reads 0 of 114 tasks admitting a survivor: 1,578 of 1,578 behaviour-changing mutants
+killed. With T55, every gap the audit found in t's own task suite is closed. The autonomy suite's one survivor is
+nearest_index's tie, intended.
+- **What it cost:** two cells, the same trade as T55. Rocq's structural induction needs its hypothesis generalized
+  over the parameters a recursive call changes. Lean needs structurally recursive tasks with `requires`. Both are
+  named open items.

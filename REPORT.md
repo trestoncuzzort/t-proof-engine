@@ -68,14 +68,14 @@ invariants, early exits, recursion, methods and lemmas. Since 2026-10-07 it also
 
 ## 4. Results
 
-**The matrix** (114 tasks; `t/AGREEMENT.md`, clean clone at f4d5570):
+**The matrix** (114 tasks; `t/AGREEMENT.md`, clean clone at 07311fa):
 
 | kernel | proved, twin refuted | carried, not proved | refused by name |
 |---|---|---|---|
 | Dafny | 111 | 0 | 3 |
 | Verus | 104 | 3 | 7 |
-| Lean 4 | 89 | 4 | 21 |
-| Rocq | 84 | 2 | 28 |
+| Lean 4 | 88 | 4 | 22 |
+| Rocq | 83 | 3 | 28 |
 | F\* | 84 | 4 | 26 |
 | SPARK | 79 | 5 | 30 |
 | Frama-C | 70 | 2 | 42 |
@@ -169,10 +169,10 @@ Run on t's own suites, the audit found seven of its own specs too weak, each of 
 - pid_step, where the limit a saturated command takes is unstated;
 - tree_insert, where the search-tree order is unstated.
 
-Six were rewritten to pin their results down (PREDICT T55). Each now kills every behaviour-changing mutant, and the
-suite's audit reads 1,568 of 1,570 killed. The stronger filter_pos costs Frama-C one cell: WP has no frame fact for a
-recursive logic function over memory, and the loop invariant steps out. A stronger contract is harder to prove, and
-the matrix now counts the harder one.
+All seven were rewritten to pin their results down (PREDICT T55, T60; tree_insert now states the bounded search-tree
+order). Each kills every behaviour-changing mutant, and the suite's audit reads 1,578 of 1,578 killed. The stronger filter_pos costs Frama-C one cell: WP has no frame fact for a
+recursive logic function over memory, and the loop invariant steps out. The stronger tree_insert costs Rocq and Lean
+one cell each. A stronger contract is harder to prove, and the matrix now counts the harder one.
 
 ## 5. What the kernels taught
 
