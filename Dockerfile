@@ -13,7 +13,7 @@ RUN apt-get update -q \
  && apt-get install -y --no-install-recommends \
       ca-certificates curl git unzip xz-utils python3 \
       build-essential m4 pkg-config libgmp-dev zlib1g-dev autoconf \
-      libicu74 libgomp1 \
+      libicu74 libgomp1 graphviz \
  && rm -rf /var/lib/apt/lists/*
 
 RUN useradd --create-home --shell /bin/bash prover
@@ -57,13 +57,14 @@ RUN curl -fsSL https://raw.githubusercontent.com/leanprover/elan/master/elan-ini
  && lean --version
 
 # Rocq 9.2 and Frama-C 33.0 in one opam switch on OCaml 4.14.4, with alt-ergo-free 2.4.3 (never alt-ergo 2.6, which
-# is not free for commercial use). opam cannot nest its bwrap sandbox inside a container (opam FAQ).
+# is not free for commercial use). opam cannot nest its bwrap sandbox inside a container (opam FAQ). Frama-C's
+# opam file needs graphviz (conf-graphviz), installed above.
 RUN fetch https://github.com/ocaml/opam/releases/download/2.5.2/opam-2.5.2-x86_64-linux \
       edfca2630c373b44b7ee1c2f81cd8dcf67468d0db57d6c02158de553ac63dbd4 .local/bin/opam \
  && chmod +x .local/bin/opam \
  && opam init -y --bare --disable-sandboxing --no-setup \
  && opam switch create -y default ocaml-base-compiler.4.14.4 \
- && opam pin add -y -n rocq-stdlib https://github.com/rocq-prover/stdlib/releases/download/V9.2.0/stdlib-9.2.0.tar.gz \
+ && opam pin add -y -n rocq-stdlib.9.2.0 https://github.com/rocq-prover/stdlib/releases/download/V9.2.0/stdlib-9.2.0.tar.gz \
  && opam install -y rocq-core.9.2.0 coq-core.9.2.0 rocq-stdlib why3.1.8.2 frama-c.33.0 alt-ergo-free.2.4.3 \
  && opam clean -a -c -s --logs \
  && why3 config detect \
