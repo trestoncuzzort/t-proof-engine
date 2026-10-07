@@ -23,7 +23,6 @@ import lower_dafny  # noqa: E402
 import lower_framac  # noqa: E402
 import lower_fstar  # noqa: E402
 import lower_lean  # noqa: E402
-import lower_rocq  # noqa: E402
 import lower_spark  # noqa: E402
 import lower_verus  # noqa: E402
 import surface  # noqa: E402
@@ -196,9 +195,10 @@ def test_tree_certificates_g12():
        "Dafny's certificate prints a ground set as a display")
 
 
-def test_four_kernels_refuse_by_name():
+def test_three_kernels_refuse_by_name():
+    # Rocq lowers datatypes since PREDICT T34 (test_rocq_datatypes.py)
     task = load("tree_sum")
-    for mod in (lower_rocq, lower_fstar, lower_spark, lower_framac):
+    for mod in (lower_fstar, lower_spark, lower_framac):
         try:
             mod.lower(task, task["body"])
             ok(False, f"{mod.__name__} refuses")

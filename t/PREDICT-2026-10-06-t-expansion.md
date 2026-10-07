@@ -1684,3 +1684,47 @@ whose rendered function sorts first leads, with its own length as the bound.
 (1) rev_equal reads verified/refuted in Rocq. With T31's six, it is then verified/refuted in all seven.
 (2) double_all, palindrome and swap_rows keep their Rocq verdicts.
 (3) No other cell moves against clean25's table.
+
+## T34 registered (2026-10-07 05:49Z, after hand probes and before the clean-clone runs): datatypes in Rocq
+
+The zoom-out's decision 5 (internal/RESEARCH-2026-10-07-zoom-out.md), first half. Rocq refused every datatype.
+Receipt 3366ce62013e: the Rocq reference on inductive types and on reasoning with them. SPEC.md "Datatypes" v1, v2
+and v3 carry the Rocq notes.
+
+**Design.**
+- **Types.** A t datatype is Rocq's own `Inductive`: `dt_<D>` is the type and `dt_<D>_<C>` a constructor. A field is
+  the constructor's argument, of type int, bool or a datatype.
+- **Equality.** `==` is Leibniz equality in a Prop. In a bool it is a decider built by `decide equality`.
+- **Expressions.** `case` is Rocq's `match`. `e.f` is a projection, and its definedness obligation (the constructor
+  declares `f`) is a lemma proved by cases.
+- **Proofs.** A straight-line proof first destructs each matched variable and each decided equality (`t_dt_cases`),
+  then runs the usual search.
+- **Recursion.** A spec fun or task whose measure is a datatype parameter is a structural `Fixpoint`, so the guard
+  checker is the termination proof. Its contract is proved by induction:
+  - each case is unfolded one step;
+  - an `if` the unfolding cannot pass is destructed;
+  - the inductive hypotheses' conjuncts are split, and their `= true` facts rewritten in.
+- **Certificates.** A certificate grounds a constructor witness as its term.
+- **Refused by name:** a seq, set or pair field.
+
+**Measured before this registration, stated plainly.**
+- **Rocq, `cli verify`, the 12 datatype tasks:**
+  - Nine COUNT: color_code, shape_area, manhattan, rect_area, tree_sum, tree_count, tree_height, tree_mirror and
+    tree_insert.
+  - bag_size and checked_tail abstain by name (a seq field).
+  - some_negative, a loop over an Opt state, lowers and reads unproved/unproved.
+- **AlgoVeri, the six datatype programs:**
+  - The five BST programs still abstain by name, on the set-ranged quantifier.
+  - discrete_log_naive (a loop with an Option return) lowers and reads unproved/unproved.
+  - None is malformed.
+- **Byte identity:** of the 104 tasks and 27 AlgoVeri programs, exactly 26 lowerings change:
+  - the Rocq real and twin of the 12 datatype tasks (bag_size and checked_tail only in their refusal text);
+  - discrete_log_naive's Rocq real and twin.
+- **Suite:** the whole suite passes (719). The two tests that pinned "Rocq refuses datatypes" now pin the three
+  kernels that still do, as this registration intends.
+
+**Bars**, for the clean-clone matrix and AlgoVeri table that follow T33's registration:
+(1) The nine read verified/refuted in Rocq; Rocq gains 9.
+(2) Each of the nine is then verified/refuted in Dafny, Verus, Lean and Rocq, four kernels, where it was three.
+(3) bag_size and checked_tail abstain in Rocq. some_negative reads unproved in Rocq, and AlgoVeri's
+discrete_log_naive reads unproved there. No other cell moves for this change.

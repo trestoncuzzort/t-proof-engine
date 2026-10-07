@@ -1517,7 +1517,12 @@ same measured-cost posture its finite-set wave already logged; F*'s own
 `type D = | C1 | C2 | ...`; Frama-C through a tagged struct with an ACSL
 exhaustiveness predicate, since C's `enum` is an unchecked int with no WP
 support of its own for a case split), unbuilt and unmeasured against their
-own kernels this landing, named honestly rather than guessed at. The
+own kernels this landing, named honestly rather than guessed at. Rocq
+since 2026-10-07 (PREDICT T34): the `Inductive` itself, `dt_<D>` the type and
+`dt_<D>_<C>` a constructor; `==` is Leibniz equality in a Prop and a
+decider built by `decide equality` in a bool; `case` is Rocq's own `match`;
+a proof first destructs each matched variable and each decided equality
+(`t_dt_cases`), then closes every case by the usual search. The
 lifter's own mapping (source-side admission of Dafny `datatype`/`match`
 into this shape) is LIFTER-DECISIONS.md row 53, which this landing leaves
 open: `lift_classify`/`lift_parse` still refuse every method and file the
@@ -1608,7 +1613,10 @@ mutation site, so every existing rung reaches it. `swap-ctor` is unchanged.
 
 In all three, the certificate reads a datatype witness back through the parser, and a value witness may be a
 datatype. A field or a match binder named like a kernel's keyword is renamed with its uses (`names.py`), as every
-other identifier is. SPARK, Rocq, F* and Frama-C refuse every datatype by name, as in v1.
+other identifier is. SPARK, F* and Frama-C refuse every datatype by name, as in v1. Rocq since 2026-10-07 (PREDICT
+T34): a field is the constructor's argument, of type int, bool or a datatype (a seq, set or pair field refuses by
+name), and `e.f` is the projection `dt_<D>_f_<f>`, whose value at a constructor without `f` is a placeholder; the
+definedness obligation that `e` was built by a constructor declaring `f` is a lemma, proved by cases.
 
 **Byte identity.** Every lowering of the 88 committed tasks and the 21 AlgoVeri tasks was compared before and
 after this landing: real and twin, in all seven kernels, with the twin's witness (1,320 and 315 entries). All are
@@ -1696,7 +1704,11 @@ The kernels check this, each by its own order. The interpreter's opt-in measure 
     with the function equations.
   - A measure that is not a parameter, and a structurally recursive task with a `requires`, are refused by name.
 
-SPARK, Rocq, F* and Frama-C refuse every datatype by name, as in v1.
+SPARK, F* and Frama-C refuse every datatype by name, as in v1. Rocq since 2026-10-07 (PREDICT T34): a spec fun or a
+task whose measure is a datatype parameter is Rocq's own structural `Fixpoint`, whose guard checker is the
+termination proof, and the contract is proved by induction on that parameter, each case unfolded one step. An `if`
+the unfolding cannot pass is destructed and the step repeated; the inductive hypotheses' conjuncts are split and their
+`= true` facts rewritten in. A loop over a datatype state lowers and is not yet proved (some_negative).
 
 **Certificates and obligations over trees (G12, PREDICT T27).** Measured on AlgoVeri's BST contracts, which
 recurse on trees and range over sets:
