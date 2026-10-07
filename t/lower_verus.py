@@ -2690,6 +2690,61 @@ def _has_chained_at(e) -> bool:
     return False
 
 
+_NATIVE_OPS = frozenset({"+", "-", "*", "neg", "div", "mod", "==", "!=", "<", "<=", ">", ">=", "not", "and", "or",
+                         "implies"})
+
+
+def _vhoist(e: dict, name: str) -> dict:
+    """SPEC.md "Datatypes (v3): recursion" (2026-10-07): a self-call (a proof fn call) inside an argument of a spec
+    function (a spec_fun, or a library op printed as one, `t_max`) is a Verus mode error ("cannot call function ... with
+    mode proof", measured on tree_height), so it is bound by a `let` first, at the top of the expression or of the
+    match arm it sits in. Only calls every path through that block evaluates are moved: never out of an `if`
+    branch, a short-circuit operand or a binder's body. Returns `e` itself when nothing moves."""
+    ctr = [0]
+
+    def walk(x, in_spec, binds):
+        if not isinstance(x, dict):
+            return x
+        if "call" in x:
+            c = x["call"]
+            args = [walk(a, in_spec or c["fun"] != name, binds) for a in c["args"]]
+            new = {"call": {**c, "args": args}}
+            if c["fun"] == name and in_spec:
+                v = f"t_h{ctr[0]}"
+                ctr[0] += 1
+                binds.append([v, new])
+                return {"var": v}
+            return new
+        if "match" in x:
+            m = x["match"]
+            arms = []
+            for a in m["arms"]:
+                inner: list = []
+                body = walk(a["body"], False, inner)
+                arms.append({**a, "body": {"_vlet": {"binds": inner, "body": body}} if inner else body})
+            return {"match": {"scrutinee": walk(m["scrutinee"], in_spec, binds), "arms": arms}}
+        if "ite" in x:
+            c = x["ite"]
+            return {"ite": {**c, "cond": walk(c["cond"], in_spec, binds)}}
+        if x.get("op") in ("and", "or", "implies"):
+            return {**x, "args": [walk(x["args"][0], in_spec, binds)] + list(x["args"][1:])}
+        if "op" in x:
+            spec = x["op"] not in _NATIVE_OPS
+            return {**x, "args": [walk(a, in_spec or spec, binds) for a in x["args"]]}
+        if "ctor" in x:
+            c = x["ctor"]
+            return {"ctor": {**c, "args": [walk(a, in_spec, binds) for a in c.get("args", [])]}}
+        if "field" in x:
+            return {"field": {**x["field"], "of": walk(x["field"]["of"], in_spec, binds)}}
+        return x
+
+    top: list = []
+    out = walk(e, False, top)
+    if top:
+        out = {"_vlet": {"binds": top, "body": out}}
+    return e if out == e else out
+
+
 def expr(e: dict, vty: str | None = None) -> str:
     """`vty`, when given, is the VERUS type string (as `_vty` renders it,
     e.g. "Seq<Seq<int>>") that `e` is KNOWN to have from its own use site --
@@ -2735,6 +2790,10 @@ def expr(e: dict, vty: str | None = None) -> str:
         if not e["_nested_seq"]:
             return "Seq::<Seq<int>>::empty()"
         return "seq![" + ", ".join(expr(r) for r in e["_nested_seq"]) + "]"
+    if "_vlet" in e:
+        # _vhoist's binding block (SPEC.md "Datatypes (v3): recursion")
+        lets = "".join(f"let {v} = {expr(c)}; " for v, c in e["_vlet"]["binds"])
+        return f"{{ {lets}{expr(e['_vlet']['body'], vty)} }}"
     if "int" in e:
         return f"({e['int']}int)" if _SUFFIX_INT else str(e["int"])
     if "var" in e:
@@ -2753,7 +2812,9 @@ def expr(e: dict, vty: str | None = None) -> str:
         # ever follows.
         c = e["ctor"]
         if c.get("args"):
-            cargs = ", ".join(expr(a) for a in c["args"])
+            fields = _ctor_fields(c["dtype"], c["name"])
+            cargs = ", ".join(f"Box::new({expr(a)})" if i < len(fields) and _is_dt_field(fields[i]) else expr(a)
+                              for i, a in enumerate(c["args"]))
             return f"{c['dtype']}::{c['name']}({cargs})"
         return f"{c['dtype']}::{c['name']}"
     if "field" in e:
@@ -2775,7 +2836,8 @@ def expr(e: dict, vty: str | None = None) -> str:
             names = [f["name"] for f in c.get("fields", [])]
             if fld["name"] in names:
                 pats = ", ".join("t_fv" if n == fld["name"] else "_" for n in names)
-                arms.append(f"{_vctor(c['name'])}({pats}) => t_fv")
+                boxed = _is_dt_field(c["fields"][names.index(fld["name"])])
+                arms.append(f"{_vctor(c['name'])}({pats}) => {'*t_fv' if boxed else 't_fv'}")
             else:
                 carried_all = False
         if not carried_all:
@@ -2794,12 +2856,11 @@ def expr(e: dict, vty: str | None = None) -> str:
         # belongs to.
         m = e["match"]
         scrut = expr(m["scrutinee"])
+        afields = _arm_fields(m["arms"])
+        heads = [_arm_head(a, afields.get(a["ctor"], [])) for a in m["arms"]]
         arms = ", ".join(
-            "%s%s => %s" % (
-                _vctor(a["ctor"]),
-                "(%s)" % ", ".join(a["binders"]) if a.get("binders") else "",
-                expr(a["body"], vty))
-            for a in m["arms"])
+            "%s => %s" % (head, ("{ %s%s }" % (lets, expr(a["body"], vty))) if lets else expr(a["body"], vty))
+            for a, (head, lets) in zip(m["arms"], heads))
         return f"(match {scrut} {{ {arms} }})"
     if "call" in e:
         c = e["call"]
@@ -3639,6 +3700,52 @@ def subst(e: dict, m: dict) -> dict:
                                     if k not in a.get("binders", [])})}
                      for a in mm["arms"]]}}
     return {"op": e["op"], "args": [subst(a, m) for a in e.get("args", [])]}
+
+
+def _is_dt_field(f: dict) -> bool:
+    """A field of a datatype type, which a Rust enum holds as Box<D> (SPEC.md "Datatypes (v3): recursion")."""
+    return isinstance(f.get("type"), dict) and "datatype" in f["type"]
+
+
+def _ctor_fields(dtype: str, cname: str) -> list:
+    d = _SCOPE_DTYPES.get(dtype) or {}
+    return next((c.get("fields") or [] for c in d.get("ctors", []) if c["name"] == cname), [])
+
+
+def _arm_fields(arms: list) -> dict:
+    """Constructor name -> its fields, for the datatype whose constructors these arms name."""
+    names = {a["ctor"] for a in arms}
+    for d in _SCOPE_DTYPES.values():
+        ctors = {c["name"]: c for c in d.get("ctors", [])}
+        if names <= set(ctors):
+            return {n: ctors[n].get("fields") or [] for n in ctors}
+    return {}
+
+
+def _reads_var(e, name: str) -> bool:
+    if isinstance(e, dict):
+        if e.get("var") == name:
+            return True
+        return any(_reads_var(v, name) for v in e.values())
+    if isinstance(e, list):
+        return any(_reads_var(v, name) for v in e)
+    return False
+
+
+def _arm_head(a: dict, fields: list) -> tuple[str, str]:
+    """An arm's pattern and the lets that read its boxed binders: a datatype field is a Box<D>, bound under a fresh
+    name and read as `let b = *t_box_b;`, so the arm body prints unchanged (measured 2026-10-07: Verus accepts a
+    recursive call on such a let-bound value under `decreases`, and rejects one on the Box itself, E0308)."""
+    binders = a.get("binders") or []
+    pats, lets = [], []
+    for b, f in zip(binders, fields):
+        if _is_dt_field(f):
+            pats.append(f"t_box_{b}")
+            if _reads_var(a["body"], b):
+                lets.append(f"let {b} = *t_box_{b}; ")
+        else:
+            pats.append(b)
+    return _vctor(a["ctor"]) + (f"({', '.join(pats)})" if binders else ""), "".join(lets)
 
 
 def _vctor(c: str) -> str:
@@ -4685,7 +4792,7 @@ class _V1:
                 lines += _sort_lemma_lines(e, ind)
                 self._assert_defined(e, lines, ind)
                 self._assert_nested_eq(e, scope, lines, ind)
-                lines.append(f"{ind}{name} = {expr(e, scope[name][0])};")
+                lines.append(f"{ind}{name} = {expr(_vhoist(e, self.task['name']), scope[name][0])};")
             elif "return" in s:
                 rname, e = s["return"]
                 assert rname == self.task["returns"][0]["name"], \
@@ -5283,7 +5390,8 @@ class _V1:
             # SPEC.md "Datatypes (v2): fields" (2026-10-07): a constructor with fields is a tuple variant, the
             # shape this file's ctor and match printing already writes (`C(a, b)`, `C(x, y) => ...`); Verus guide,
             # "Enum": declared with round parentheses
-            ctors = ", ".join(c["name"] + ("(" + ", ".join(_vty(f["type"]) for f in c["fields"]) + ")"
+            ctors = ", ".join(c["name"] + ("(" + ", ".join(f"Box<{_vty(f['type'])}>" if _is_dt_field(f)
+                                                     else _vty(f["type"]) for f in c["fields"]) + ")"
                                            if c.get("fields") else "") for c in d["ctors"])
             # a constructor named like its datatype (a record, `datatype Point = Point(x: int, y: int)`) makes a
             # glob import ambiguous (rustc E0659, measured 2026-10-07): import the other variants only, and

@@ -814,7 +814,7 @@ def ev(e: dict, env: dict, funs: dict, st: St):
         # silently assumed away.
         dec = f.get("decreases")
         if st.check_measures and dec is not None:
-            callee_m = ev(dec, sub, funs, st)
+            callee_m = _measure_value(ev(dec, sub, funs, st))
             stack = st._measure_stack
             if stack and stack[-1][0] == c["fun"]:
                 caller_m = stack[-1][1]
@@ -1473,21 +1473,51 @@ def ladders(task: dict) -> dict:
                 if not fields:
                     vals.append(Ctor(d["name"], c["name"], ()))
                     continue
+                if any(isinstance(f["type"], dict) for f in fields):
+                    continue   # a constructor with a datatype field: the rounds below
                 # SPEC.md "Datatypes (v2): fields" (2026-10-07): a constructor with fields enters the ladder with
                 # its fields drawn from the near corner of their own ladders (the first few ints, both bools, the
                 # first few seqs), combined in shell order and capped, as a pair's ladder combines its components
-                firsts = [tuple(lad[f["type"]][:DT_FIELD_NEAR]) for f in fields]
-                combos = [()]
-                for col in firsts:
-                    combos = [cmb + (x,) for cmb in combos for x in col]
-                combos.sort(key=lambda cmb: sum(_shell_rank(x, firsts[i]) for i, x in enumerate(cmb)))
-                vals.extend(Ctor(d["name"], c["name"], cmb) for cmb in combos[:DT_CTOR_CAP])
+                vals.extend(_ctor_values(d["name"], c["name"], [tuple(lad[f["type"]][:DT_FIELD_NEAR]) for f in fields]))
+            # SPEC.md "Datatypes (v3): recursion" (2026-10-07): a constructor with a datatype field enters in rounds,
+            # each drawing that field from the values so far (this datatype's, or an earlier one's whole ladder),
+            # so the ladder holds every value up to depth DT_DEPTH near the corner, smallest first
+            rec = [c for c in ctors if isinstance(c, dict) and any(isinstance(f["type"], dict) for f in c.get("fields") or [])]
+            for _ in range(DT_DEPTH if rec else 0):
+                so_far = tuple(vals)
+                for c in rec:
+                    cols = [tuple((so_far if f["type"] == {"datatype": d["name"]}
+                                   else lad[f"datatype:{f['type']['datatype']}"] if isinstance(f["type"], dict)
+                                   else lad[f["type"]])[:DT_FIELD_NEAR]) for f in c["fields"]]
+                    vals.extend(v for v in _ctor_values(d["name"], c["name"], cols) if v not in vals)
             lad[f"datatype:{d['name']}"] = tuple(vals)
     return lad
 
 
 DT_FIELD_NEAR = 3        # values per field drawn from its own ladder (SPEC.md "Datatypes (v2): fields")
 DT_CTOR_CAP = 12         # values per constructor with fields, the near corner first
+DT_DEPTH = 2             # rounds of a recursive constructor over the values so far (SPEC.md "Datatypes (v3)")
+
+
+def ctor_size(v) -> int:
+    """The number of constructors in a datatype value (SPEC.md "Datatypes (v3): recursion"): a structural descent
+    lowers it, so it is the interpreter's measure for a datatype `decreases`."""
+    if isinstance(v, Ctor):
+        return 1 + sum(ctor_size(a) for a in v.args)
+    return 0
+
+
+def _measure_value(m):
+    return ctor_size(m) if isinstance(m, Ctor) else m
+
+
+def _ctor_values(dtype: str, cname: str, cols: list) -> list:
+    """Constructor values over the given field columns, in shell order, capped at DT_CTOR_CAP."""
+    combos = [()]
+    for col in cols:
+        combos = [cmb + (x,) for cmb in combos for x in col]
+    combos.sort(key=lambda cmb: sum(_shell_rank(x, cols[i]) for i, x in enumerate(cmb)))
+    return [Ctor(dtype, cname, cmb) for cmb in combos[:DT_CTOR_CAP]]
 
 
 def _shell_rank(x, col: tuple) -> int:

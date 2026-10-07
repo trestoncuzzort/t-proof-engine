@@ -446,7 +446,7 @@ _DT_CTOR = re.compile(r"^([A-Za-z_]\w*)(?:\(([^()]*)\))?$")
 _DT_FIELD = re.compile(r"^[A-Za-z_]\w*\s*:\s*(?:int|bool|nat|seq<int>|seq<seq<int>>|string)$")
 
 
-def _inert_datatype(d: dict) -> bool:
+def _inert_datatype(d: dict, dt_names: frozenset = frozenset()) -> bool:
     """True for a datatype declaration that can hide nothing: no modifier,
     no clause, no member body, and a head that is exactly `datatype Name =
     Ctor | Ctor(field: T, ...)` with T among int, bool, nat, seq<int>,
@@ -467,9 +467,20 @@ def _inert_datatype(d: dict) -> bool:
             return False
         if c.group(2) is not None:
             fields = [f.strip() for f in c.group(2).split(",")]
-            if not fields or not all(_DT_FIELD.match(f) for f in fields):
+            if not fields or not all(_DT_FIELD.match(f) or _dt_field_named(f, dt_names) for f in fields):
                 return False
     return True
+
+
+_DT_FIELD_NAMED = re.compile(r"^[A-Za-z_]\w*\s*:\s*([A-Za-z_]\w*)$")
+
+
+def _dt_field_named(field: str, dt_names: frozenset) -> bool:
+    """A field whose type is a datatype this same program declares (SPEC.md "Datatypes (v3): recursion": a tree's
+    `l: Tree`). It is inert for the same reason the declaration is; each such datatype is itself held to
+    _inert_datatype, so a name of anything else (a class, a type synonym) stays outside the vocabulary."""
+    m = _DT_FIELD_NAMED.match(field)
+    return bool(m) and m.group(1) in dt_names
 
 
 def _certificate_shape(rprint: str | None) -> tuple[list[str], str]:
@@ -486,8 +497,9 @@ def _certificate_shape(rprint: str | None) -> tuple[list[str], str]:
     methods: list[str] = []
     names: set[str] = set()
     cert: list[dict] = []
+    dt_names = frozenset(d["name"] for d in decls if d["kind"] == "datatype" and d["name"] and not d["mods"])
     for d in decls:
-        if _inert_datatype(d):
+        if _inert_datatype(d, dt_names):
             if d["name"] in names:
                 return [], f"name declared twice: {d['name']}"
             names.add(d["name"])

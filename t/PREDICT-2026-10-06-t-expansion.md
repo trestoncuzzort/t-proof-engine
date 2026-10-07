@@ -1326,3 +1326,36 @@ cell with the installed table.
 (3) **Held:** no cell of the 88 moved. Only the six new rows differ.
 (4) **Held:** per kernel, Dafny 94, Verus 86, Lean 67, Rocq 62, F* 59, SPARK 56, Frama-C 49. All seven stays 48, now
 of 94. Every kernel still refutes the twin of every real it verifies (100%).
+
+## T25 registered (2026-10-07 03:09Z, after hand probes and before the clean-clone matrix): recursive datatypes in Dafny, Verus and Lean (G10)
+
+SPEC.md "Datatypes (v3): recursion". A field may have its own datatype's type, or the type of one declared before
+it, and spec functions, lemmas and self-recursive tasks may take a datatype value as their measure. Five tasks are
+added, making 99:
+- `tree_sum` and `tree_count`: an int fold, the second with a nonnegativity clause the induction must carry;
+- `tree_mirror`: a tree result, stated as `m == mirror(tr)`;
+- `tree_insert`: BST-order insertion, a self-call under an `if` inside a match arm;
+- `tree_height`: `max` of the two recursive results.
+
+Receipt fb16ecad608c (Verus decreases-to; Box probe). The Lean design reuses 134d11c182fc (TPIL ch. 7, the
+recursor), with the tree probe measured.
+
+**Measured before this registration, stated plainly.**
+- **Hand probes:** all five COUNT in Dafny, Verus and Lean on scratch runs (15 cells). `tree_insert` was re-run
+  under its committed name: its spec function was renamed from `has`, which is a Verus keyword.
+- **Two defects in a first statement, fixed before committing:**
+  - `tree_mirror` was first stated by its total and size alone, which the identity function also meets. The twin
+    harness rightly found no refutable twin, so the contract was strengthened to `m == mirror(tr)`.
+  - `tree_height` failed in Verus, because a proof fn self-call cannot be an argument of a spec function, and in Lean,
+    because grind was not given `t_max`. Both are fixed: the calls are bound by `let`s first, and the library
+    functions are grind hints.
+- **Byte identity:** every lowering of the 94 committed tasks and the 22 AlgoVeri programs is unchanged, real and
+  twin, all seven kernels, with the witness. The twin harness's new binder move picks no earlier task's twin.
+- **Suite:** the whole suite passes (694). The grammar and the parser agree on all 99 canonical forms; the printer
+  now spells a spec function's datatype result by name.
+
+**Bars**, for the clean-clone matrix of the 99 that follows:
+(1) The five read verified with the twin refuted in Dafny, Verus and Lean: 15 cells.
+(2) Rocq, F*, SPARK and Frama-C refuse all five by name: 20 cells.
+(3) No other cell moves against T24's matrix.
+(4) Per kernel: Dafny 99, Verus 91, and Lean five more than T24's matrix reads. All seven stays 48, now of 99.

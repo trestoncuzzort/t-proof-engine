@@ -7307,10 +7307,12 @@ theorem t_str_join_split_roundtrip (s : List Int) (c : Int) :
             rec = self._self_calls_named(f["body"], f["name"])
             out.append(f"def {f['name']}_s {pb} : "
                        f"{self.lean_type(f['result'])} :=\n  {body}")
-            if rec:
+            if rec and not self._structural(f["decreases"], ptypes):
                 dec = self.term(f["decreases"], {}, dict(ptypes))
                 out.append(f"termination_by ({dec}).toNat")
                 out.append(self._dec().rstrip("\n"))
+            # (a datatype measure, SPEC.md "Datatypes (v3): recursion": no clause at all, so Lean elaborates the def
+            # by structural recursion, whose equations its kernel can evaluate at a ground witness)
             out.append("")
             d = self.dcond(f["body"], {}, dict(ptypes))
             if d is not None:
@@ -7963,11 +7965,56 @@ theorem t_str_join_split_roundtrip (s : List Int) (c : Int) :
         thms.append((f"{self.name}_t_spec", "the contract"))
         return "\n".join(out), thms
 
+    def _structural(self, dec: dict, types: dict) -> bool:
+        """A datatype-valued measure (SPEC.md "Datatypes (v3): recursion"): Lean's structural recursion, which needs
+        the measure to be a parameter itself; any other datatype expression is refused by name."""
+        srt = self.sort(dec, types)
+        if not (isinstance(srt, dict) and "datatype" in srt):
+            return False
+        if "var" not in dec or dec["var"] not in types:
+            raise NotImplementedError(
+                "lean lowering: a datatype decreases measure that is not a parameter (SPEC.md 'Datatypes (v3): "
+                "recursion': structural recursion is on a parameter)")
+        return True
+
+    def lower_rec_structural(self) -> tuple[str, list]:
+        """SPEC.md "Datatypes (v3): recursion" (2026-10-07): a self-recursive task whose decreases is a datatype
+        parameter. Its def is structurally recursive (no termination clause), and its contract is proved by
+        structural induction on that parameter (TPIL ch. 7: the recursor; measured on a tree probe,
+        `induction tr <;> grind [size_s]` closes), with every other parameter generalized."""
+        expr, obs = self.to_expr(self.body, {}, dict(self.types))
+        params_nt = [(p["name"], p["type"]) for p in self.task["params"]]
+        pb = self.binders(params_nt)
+        pnames = " ".join(n for n, _ in params_nt)
+        has_pre = bool(self.task.get("requires"))
+        if has_pre:
+            raise NotImplementedError(
+                "lean lowering: a structurally recursive task with requires (SPEC.md 'Datatypes (v3): recursion': "
+                "the requires' proof argument across the induction is not built yet)")
+        out = [f"def {self.name}_t {pb} : {self.lean_type(self.rett)} :=\n  {expr}\n"]
+        thms = []
+        ob = self._conj(obs)
+        if ob is not None:
+            out.append(f"theorem {self.name}_t_wfbody {pb} :\n    {ob} := by\n  {self._grind_base()}\n")
+            thms.append((f"{self.name}_t_wfbody", "body definedness"))
+        d = self.task["decreases"]["var"]
+        others = [n for n, _ in params_nt if n != d]
+        gen = f" generalizing {' '.join(others)}" if others else ""
+        names = ", ".join([f"{self.name}_t"] + [f"{f}_s" for f in self.sfuns] + list(self.lib_fns))
+        out.append(
+            f"theorem {self.name}_t_spec {pb} :\n"
+            f"    {self.post_conj(f'({self.name}_t {pnames})')} := by\n"
+            f"  induction {d}{gen} <;> (first | grind [{names}] | simp_all [{names}])\n")
+        thms.append((f"{self.name}_t_spec", "the contract, by structural induction"))
+        return "\n".join(out), thms
+
     # RECURSIVE: body self-calls; requires becomes a hypothesis argument.
     def lower_rec(self) -> tuple[str, list]:
         if "decreases" not in self.task:
             raise NotImplementedError(
                 "self-recursive body without a task decreases measure")
+        if self._structural(self.task["decreases"], dict(self.types)):
+            return self.lower_rec_structural()
         expr, obs = self.to_expr(self.body, {}, dict(self.types))
         params_nt = [(p["name"], p["type"]) for p in self.task["params"]]
         pb = self.binders(params_nt)

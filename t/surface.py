@@ -2418,7 +2418,7 @@ def print_task(task: dict) -> str:
         fps = ", ".join("%s: %s" % (_ident(p["name"]), _print_type(p["type"]))
                         for p in fn["params"])
         lines.append("spec fun %s(%s): %s" % (_ident(fn["name"]), fps,
-                                              fn["result"]))
+                                              _print_type(fn["result"])))
         lines.append("  decreases %s" % pexpr(fn["decreases"]))
         lines.append("= %s" % pexpr(fn["body"]))
     for lm in t.get("lemmas", []):

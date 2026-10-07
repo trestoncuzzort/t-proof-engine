@@ -112,8 +112,10 @@ RULES: dict[str, str] = {
                         "declares (Datatypes)",
     "ctor-name": "a constructor name matches [A-Za-z][A-Za-z0-9_]* (Datatypes)",
     "ctor-dup": "a constructor name is declared at most once per datatype (Datatypes)",
-    "ctor-field-type": "a constructor field is an int, a bool or a seq; a field of a datatype, the datatype's own "
-                       "included (recursion), is not in v2 (Datatypes (v2): fields)",
+    "ctor-field-type": "a constructor field is an int, a bool, a seq, its own datatype (recursion) or a datatype "
+                       "declared before it (Datatypes (v2): fields; Datatypes (v3): recursion)",
+    "datatype-base": "some constructor of a datatype builds a value without that datatype in its fields, a base "
+                     "case (Datatypes (v3): recursion)",
     "field-dup": "a field name is declared at most once per constructor (Datatypes (v2): fields)",
     "field-unknown": "e.f names a field some constructor of e's datatype declares (Datatypes (v2): fields)",
     "field-type-clash": "constructors of one datatype that share a field name give it one type "
@@ -183,7 +185,8 @@ RULES: dict[str, str] = {
     "loop-invariant-bool": "each loop invariant must be bool (Gate 2)",
     "spec-fun-body-type": "a spec_fun's body type must match its declared result (Gate 3)",
     "spec-fun-result": "a spec_fun's result is any t type (Gate 3; Compositional types)",
-    "spec-fun-decreases-int": "a spec_fun's decreases must be int (Gate 3)",
+    "spec-fun-decreases-int": "a spec_fun's decreases must be int, or a datatype value whose recursive calls "
+                              "take its fields (Gate 3; Datatypes (v3): recursion)",
     "strlib-arity": "each string-library member has a fixed arity (The string library)",
     "strlib-types": "each string-library member's argument types must "
                     "match its signature (The string library)",
@@ -1158,9 +1161,20 @@ def check_wf(task: dict, positions: dict | None = None,
                         _e(errs, d, f"datatype {dname}: constructor {cname} declares field {fname} twice",
                            "field-dup")
                     fnames.add(fname)
-                    if f.get("type") not in ("int", "bool", "seq"):
-                        _e(errs, d, f"datatype {dname}: field {cname}.{fname} has type {f.get('type')!r}; v2 "
-                                    f"fields are int, bool or seq", "ctor-field-type")
+                    ft = f.get("type")
+                    if (isinstance(ft, dict) and set(ft) == {"datatype"}
+                            and (ft["datatype"] == dname or ft["datatype"] in dtypes)):
+                        pass   # SPEC.md "Datatypes (v3): recursion": this datatype, or one declared before it
+                    elif ft not in ("int", "bool", "seq"):
+                        _e(errs, d, f"datatype {dname}: field {cname}.{fname} has type {ft!r}; a field is an int, "
+                                    f"a bool, a seq, {dname} itself or a datatype declared before it",
+                           "ctor-field-type")
+        # SPEC.md "Datatypes (v3): recursion" (2026-10-07): a base case, a constructor with no field of this datatype
+        # (an earlier datatype has one already), so the type has finite values and the witness ladder can name one
+        if not any(not any(isinstance(f, dict) and f.get("type") == {"datatype": dname} for f in (c.get("fields") or []))
+                   for c in ctors if isinstance(c, dict)):
+            _e(errs, d, f"datatype {dname}: every constructor has a {dname} field, so no value is finite",
+               "datatype-base")
         dtypes[dname] = d
     funs = dict(expression_funs or {})
     funs.update({f["name"]: f for f in task.get("spec_funs", [])})
@@ -1190,8 +1204,10 @@ def check_wf(task: dict, positions: dict | None = None,
             # SPEC.md "Compositional types (v1)" (2026-10-06): any t type; an invalid one is refused here by name,
             # where before an unlisted result only failed the body-type check below under a misleading message.
             _e(errs, f, f"spec_fun {f['name']} result is not a t type: {f['result']!r}", "spec-fun-result")
-        if _ty(f["decreases"], fenv, earlier, dtypes, ver, errs, set()) != "int":
-            _e(errs, f, f"spec_fun {f['name']} decreases is not int", "spec-fun-decreases-int")
+        dty = _ty(f["decreases"], fenv, earlier, dtypes, ver, errs, set())
+        if dty != "int" and not (isinstance(dty, dict) and set(dty) == {"datatype"}):
+            # an int, or (SPEC.md "Datatypes (v3): recursion") a datatype value, ordered by structure
+            _e(errs, f, f"spec_fun {f['name']} decreases is not int or a datatype value", "spec-fun-decreases-int")
         if _ty(f["body"], fenv, earlier, dtypes, ver, errs, set(), f["result"]) != f["result"]:
             _e(errs, f, f"spec_fun {f['name']} body type != result", "spec-fun-body-type")
     for e in task.get("requires", []):
@@ -1408,8 +1424,11 @@ def _check_lemma(l, i, task, funs, earlier, lnames, mnames, dtypes, ver, errs):
            "lemma-decreases")
     if not selfrec and "decreases" in l:
         _e(errs, l, f"lemma {name}: decreases without a self-call", "lemma-decreases")
-    if "decreases" in l and _ty(l["decreases"], penv, funs, dtypes, ver, errs, set()) != "int":
-        _e(errs, l, f"lemma {name}: decreases is not int", "lemma-decreases")
+    if "decreases" in l:
+        lty = _ty(l["decreases"], penv, funs, dtypes, ver, errs, set())
+        if lty != "int" and not (isinstance(lty, dict) and set(lty) == {"datatype"}):
+            # an int, or (SPEC.md "Datatypes (v3): recursion") a datatype value: induction on its structure
+            _e(errs, l, f"lemma {name}: decreases is not int or a datatype value", "lemma-decreases")
     allowed = set(earlier) | {name}
     if any(c not in allowed for c in called if isinstance(c, str)
            and c in lnames):

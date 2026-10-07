@@ -59,9 +59,11 @@ Task     ::= { "t": 0|1, "name": Id,
 
 Datatype ::= {"name": Id, "ctors": [ Ctor+ ]}         (* v1, since 2026-09-27 *)
 Ctor     ::= {"name": Id,
-              "fields"?: [ {"name": Id, "type": "int" | "bool" | "seq"}+ ]}
+              "fields"?: [ {"name": Id, "type": "int" | "bool" | "seq" | {"datatype": Id}}+ ]}
                                                        (* fields: v2, since 2026-10-07, SPEC.md "Datatypes
-                                                          (v2): fields"; a v1 constructor has no "fields" *)
+                                                          (v2): fields"; a v1 constructor has no "fields";
+                                                          a datatype field: v3, "Datatypes (v3): recursion",
+                                                          its own datatype or one declared before it *)
 
 Type     ::= "int" | "bool" | "seq"             (* seq: v1; a return and local type since 2026-09-09; the seq of ints *)
            | {"map": [Type, Type]}                 (* map<K, V>; since 2026-10-06, SPEC.md "Maps (v1)" *)
@@ -441,6 +443,17 @@ task that declares none, `X.y` still parses as a constructor, as on
 
 **Not in v2:** recursive constructors (a field of a datatype type), generic
 datatypes, and field update.
+
+### Datatypes (v3): recursion
+
+written: `datatype Tree = Leaf | Node(v: int, l: Tree, r: Tree)` ·
+`spec fun total(q: Tree): int decreases q = case q { Leaf => 0, Node(v, l, r) => v + total(l) + total(r) }`
+
+Since 2026-10-07 (SPEC.md "Datatypes (v3): recursion"), a field may have its
+own datatype's type, or the type of a datatype declared before it.
+- Some constructor must have no field of the datatype's own type: a base case.
+- A spec function's, a lemma's or a self-recursive task's `decreases` may be a
+  datatype value. A recursive call then takes a field that the arm's match bound.
 
 ### Compositional types (v1)
 

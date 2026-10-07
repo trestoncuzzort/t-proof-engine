@@ -2311,6 +2311,12 @@ def body_expr(e: dict, ctx: _Ctx, pre: list[str], lazy: bool = False) -> str:
         tmp = ctx.fresh()
         pre.append(f"var {tmp} := {ctx.method}({args});")
         return tmp
+    if "ctor" in e and e["ctor"].get("args"):
+        # SPEC.md "Datatypes (v3): recursion" (2026-10-07): a constructor's arguments are strict, so a self-call among
+        # them is hoisted like any other (a tree's `Node(v, f(r), f(l))`); printed as the spec lowering prints it
+        c = e["ctor"]
+        cargs = ", ".join(body_expr(a, ctx, pre, lazy) for a in c["args"])
+        return f"{c['dtype']}.{c['name']}({cargs})"
     if "comp" in e:
         return _comp_call(e, lambda x: body_expr(x, ctx, pre, lazy))   # SPEC.md "Comprehensions (v1)"
     if e.get("op") in _HOF_OPS:
@@ -2398,9 +2404,54 @@ def body_expr(e: dict, ctx: _Ctx, pre: list[str], lazy: bool = False) -> str:
     return expr(e, ctx.self_name)
 
 
+def _calls_self(e, name: str) -> bool:
+    if isinstance(e, dict):
+        if "call" in e and e["call"].get("fun") == name:
+            return True
+        return any(_calls_self(v, name) for v in e.values())
+    if isinstance(e, list):
+        return any(_calls_self(v, name) for v in e)
+    return False
+
+
+def _match_assign(target: str, e: dict, indent: str, ctx: _Ctx) -> list[str]:
+    """SPEC.md "Datatypes (v3): recursion" (2026-10-07): `x := case e { C(b, ...) => rhs, ... }` whose arms make
+    self-calls, as Dafny's match STATEMENT (reference manual 8.5.2), each arm hoisting its own calls: an arm's binders
+    exist only inside it, so its calls cannot move out of the match."""
+    m = e["match"]
+    pre: list[str] = []
+    scr = body_expr(m["scrutinee"], ctx, pre)
+    lines = [indent + p for p in pre] + [f"{indent}match {scr} {{"]
+    for a in m["arms"]:
+        pat = a["ctor"] + ("(%s)" % ", ".join(a["binders"]) if a.get("binders") else "")
+        lines.append(f"{indent}  case {pat} =>")
+        lines.append(stmts([{"assign": [target, a["body"]]}], indent + "    ", ctx))
+    lines.append(f"{indent}}}")
+    return lines
+
+
+def _ite_assign(target: str, e: dict, indent: str, ctx: _Ctx) -> list[str]:
+    """`x := if c then a else b` whose branches make self-calls, as an if STATEMENT, each branch hoisting its own
+    calls: a call in an untaken branch is never evaluated, so it cannot be hoisted above the `if` (SPEC.md "Datatypes
+    (v3): recursion", a BST insert's two recursive branches)."""
+    c = e["ite"]
+    pre: list[str] = []
+    cond = body_expr(c["cond"], ctx, pre)
+    return ([indent + p for p in pre] + [f"{indent}if {cond} {{",
+            stmts([{"assign": [target, c["then"]]}], indent + "  ", ctx), f"{indent}}} else {{",
+            stmts([{"assign": [target, c["else"]]}], indent + "  ", ctx), f"{indent}}}"])
+
+
 def stmts(body: list, indent: str, ctx: _Ctx) -> str:
     out = []
     for s in body:
+        if "assign" in s and "match" in s["assign"][1] and _calls_self(s["assign"][1], ctx.self_name):
+            out.extend(_match_assign(s["assign"][0], s["assign"][1], indent, ctx))
+            continue
+        if ("assign" in s and "ite" in s["assign"][1]
+                and _calls_self([s["assign"][1]["ite"]["then"], s["assign"][1]["ite"]["else"]], ctx.self_name)):
+            out.extend(_ite_assign(s["assign"][0], s["assign"][1], indent, ctx))
+            continue
         if "assign" in s:
             name, e = s["assign"]
             pre: list[str] = []
@@ -2580,6 +2631,12 @@ def _not(e: dict) -> dict:
 _RAT_TEXT = __import__("re").compile(r"^-?\d+/\d+$")   # interp._j's rendering of a Fraction
 
 
+def _vlit(v) -> dict:
+    """A runtime value as a t literal: a constructor directly, its fields too (SPEC.md "Datatypes (v3): recursion": a
+    field may be a constructor, whose shown text alone carries no type), anything else through its shown form."""
+    return _tlit(v) if isinstance(v, interp.Ctor) else _tlit(interp._j(v))
+
+
 def _tlit(v, ty=None):
     """A measured witness value as a t literal expression. Negative ints
     become neg nodes so they emit parenthesized, `(-1)`, and never fuse
@@ -2607,7 +2664,7 @@ def _tlit(v, ty=None):
         # unmistakable by its Python type, exactly as interp.Pair is for
         # the pair case just below -- needs no `ty` at all.
         return {"ctor": {"dtype": v.dtype, "name": v.ctor,
-                         "args": [_tlit(a) for a in v.args]}}
+                         "args": [_vlit(a) for a in v.args]}}
     if isinstance(v, interp.MapV):
         # SPEC.md "Maps (v1)" (2026-10-06): a raw runtime map, unmistakable by its class; its display
         kt, vt = (ty["map"] if isinstance(ty, dict) and "map" in ty else (None, None))
@@ -2874,7 +2931,7 @@ def _ev(e: dict, env: dict, funs: dict, st, facts: dict, hoist):
                 # into the arm as ground literals, so the emitted fact names no binder the certificate never binds;
                 # the hoisted fact is the scrutinee's equality with the whole ground value (v1's enums: no fields,
                 # the same `D.C` as before)
-                lits = [_tlit(interp._j(fv)) for fv in sv.args]
+                lits = [_vlit(fv) for fv in sv.args]
                 if hoist is not None:
                     hoist.append({"op": "==", "args": [
                         se, {"ctor": {"dtype": sv.dtype, "name": sv.ctor,
@@ -3255,11 +3312,11 @@ def _unroll(e: dict, funs: dict, st, budget: list, bounds: list) -> dict:
             # SPEC.md "Datatypes (v2): fields": a ground scrutinee selects its arm, whose binders become the field
             # literals (exact for a known constructor); a scrutinee that is not already that literal is recorded as
             # an equation the kernel re-proves, as a quantifier's bounds are
-            lit = _tlit(interp._j(v), {"datatype": v.dtype})
+            lit = _vlit(v)
             if scr != lit:
                 bounds.append({"op": "==", "args": [scr, lit]})
             arm = next(a for a in m["arms"] if a["ctor"] == v.ctor)
-            body = subst(arm["body"], {b: _tlit(interp._j(fv)) for b, fv in zip(arm.get("binders") or [], v.args)})
+            body = subst(arm["body"], {b: _vlit(fv) for b, fv in zip(arm.get("binders") or [], v.args)})
             return _unroll(body, funs, st, budget, bounds)
         return {"match": {
             "scrutinee": scr,
@@ -4130,7 +4187,10 @@ def lower(task: dict, body: list, witness: dict | None = None) -> str:
         # re-lift); a flat type prints exactly as before.
         ps = ", ".join(f"{p['name']}: {dafny_type(p['type'])}"
                        for p in f["params"])
-        lines.append(f"function {f['name']}({ps}): {TYPES[f['result']]}")
+        res = f["result"]
+        # a result that is not a flat type (SPEC.md "Datatypes (v3): recursion": a Tree) is spelled as a parameter is
+        lines.append(f"function {f['name']}({ps}): "
+                     f"{TYPES[res] if isinstance(res, str) and res in TYPES else dafny_type(res)}")
         lines.append(f"  decreases {expr(f['decreases'], self_name)}")
         lines.append("{")
         lines.append(f"  {expr(f['body'], self_name)}")

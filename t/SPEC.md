@@ -1603,6 +1603,86 @@ byte-identical.
 - Field update (Dafny's `e.(f := v)`).
 - Field access in the Python hand-back, which refuses datatypes by name, as in v1.
 
+### Datatypes (v3): recursion
+
+Stated 2026-10-07 (G10, PREDICT T25). A constructor field may have the type of its own datatype, or of a datatype
+declared before it, which gives trees. Spec functions, lemmas and self-recursive tasks may then recurse on such a
+value, with the value itself as the measure. The designs:
+- Dafny's inductive datatypes, ordered by structure (Reference Manual 5.14.1);
+- Verus's decreases-to relation, in which a datatype decreases to its potentially recursive fields (Verus
+  reference, `decreases_to!`);
+- Lean's recursor and structural recursion (Theorem Proving in Lean 4, ch. 7).
+
+AlgoVeri's tree, trie and segment-tree contracts need this wave. Their set-valued helpers are a separate one.
+
+**Surface.**
+
+```
+datatype Tree = Leaf | Node(v: int, l: Tree, r: Tree)
+...
+task tree_sum(tr: Tree) returns (s: int)
+  ensures s == total(tr)
+  decreases tr
+spec fun total(q: Tree): int
+  decreases q
+= case q { Leaf => 0, Node(v, l, r) => v + total(l) + total(r) }
+{
+  s := case tr { Leaf => 0, Node(v, l, r) => v + tree_sum(l) + tree_sum(r) };
+}
+```
+
+**Types (check_wf).**
+- `ctor-field-type` now admits a field of the datatype's own type or of a datatype declared before it. Every other
+  type outside int, bool and seq is still refused by name. A datatype declared later is refused by the parser, which
+  knows only the names declared so far. Mutual recursion is not in this wave.
+- `datatype-base`, new: some constructor has no field of the datatype's own type. Otherwise no value is finite,
+  and the witness ladder could not name one.
+- A spec function's or a lemma's `decreases` may be a datatype value as well as an int
+  (`spec-fun-decreases-int`, `lemma-decreases`). A task's own `decreases` already had no type rule.
+
+**Meaning.** A recursive call must take a value structurally below its measure: a field the arm's match bound.
+The kernels check this, each by its own order. The interpreter's opt-in measure check compares sizes
+(`interp.ctor_size`, the number of constructors), which every structural descent lowers.
+
+**The twins.**
+- **Ladder:** the witness ladder builds recursive values in rounds (`DT_DEPTH = 2`). Each round draws a recursive
+  field from the values so far, so a tree ladder holds `Leaf`, three one-node trees and nine two-level trees,
+  smallest first.
+- **New wrong-var move:** a match arm's binder is read as another binder of the same field type (a tree's `l` for
+  its `r`). It comes after every existing move, so no earlier task's twin changes. It is binders only: a
+  parameter in a recursive call's place would not terminate.
+
+**Lowering status (2026-10-07).** Three of the seven kernels state the construct end to end.
+- **Dafny** declares the datatype natively. A self-call inside a `case` or `if` on an assignment's right-hand side
+  is lowered as a `match` or `if` statement, each arm hoisting its own calls, since a binder exists only in its arm
+  and an untaken branch's call is never evaluated. A constructor's arguments are strict, so a self-call among them
+  is hoisted too. The certificate check admits a datatype field that names another datatype declaration in the
+  same program.
+- **Verus:**
+  - A datatype field is a `Box<D>`, built with `Box::new`.
+  - An arm binds a boxed field under a fresh name and reads it as `let b = *t_box_b;`. Verus accepts a recursive
+    call on such a value under `decreases`, and rejects one on the `Box` itself (E0308).
+  - A self-call inside a spec function's argument is bound by a `let` first, because a proof fn call in spec
+    position is a mode error.
+- **Lean:**
+  - A recursive spec function or task with a datatype measure has no termination clause, so Lean elaborates it by
+    structural recursion. Its kernel then evaluates it at a ground witness (`decide`).
+  - The contract is proved by `induction` on the measure parameter, generalizing the others, then closed by grind
+    with the function equations.
+  - A measure that is not a parameter, and a structurally recursive task with a `requires`, are refused by name.
+
+SPARK, Rocq, F* and Frama-C refuse every datatype by name, as in v1.
+
+**Byte identity.** Every lowering of the 94 committed tasks and the 22 AlgoVeri programs was compared before and
+after this landing: real and twin, all seven kernels, with the witness. All are byte-identical.
+
+**Not in v3.**
+- Mutual recursion.
+- A recursive datatype inside a seq, pair or set.
+- Set-valued spec functions over trees in Lean, which has no sets.
+- A structurally recursive Lean task with a `requires`.
+- Recursion whose measure is a datatype expression other than a parameter.
+
 ### Compositional types (v1)
 
 Stated 2026-10-06 (the operator's direction of that morning: t is the ceiling,
