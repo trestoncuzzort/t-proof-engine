@@ -4425,6 +4425,43 @@ def _lib_term(op: str, args: list, ctx: "Ctx") -> str:
     return f"t_sum({sv}, {ctx.seq_len.get(sv, sv + '_n')})"
 
 
+# SPEC.md "Heap (v1)" (PREDICT T50): the label `old(...)` reads at, "Pre" in the function's contract and loops, the
+# certificate's own entry label in a certificate; and a counter for the `\let` names it binds
+_OLD_LABEL = ["Pre"]
+_OLD_N = [0]
+
+
+def _old_array_read(e):
+    """(array, index) for `old(a)[i]`, (array, None) for `len(old(a))`, else None."""
+    if isinstance(e, dict) and e.get("op") in ("at", "len") and e.get("args"):
+        a0 = e["args"][0]
+        if isinstance(a0, dict) and set(a0) == {"old"} and isinstance(a0["old"], dict) and "var" in a0["old"]:
+            return a0["old"]["var"], (e["args"][1] if e["op"] == "at" else None)
+    return None
+
+
+def _old_check(x) -> None:
+    """SPEC.md "Heap (v1)" (PREDICT T50): Frama-C reads the entry state element by element (`old(a)[i]`,
+    `len(old(a))`); a whole array in old(...), e.g. `a == rev(old(a))`, would need the entry contents as a value of
+    their own, and refuses by name."""
+    if isinstance(x, list):
+        for v in x:
+            _old_check(v)
+        return
+    if not isinstance(x, dict):
+        return
+    if _old_array_read(x) is not None:
+        idx = _old_array_read(x)[1]
+        if idx is not None:
+            _old_check(idx)
+        return
+    if "old" in x:
+        raise NotImplementedError("framac: a whole array in old(...) is not lowered yet, only its elements and "
+                                  "length (SPEC.md 'Heap (v1)')")
+    for v in x.values():
+        _old_check(v)
+
+
 def term(e: dict, ctx: Ctx) -> str:
     """ACSL term. int-typed terms are `integer`-valued; bool-typed terms are
     ACSL boolean terms (comparisons / && / || / ! coerce in term position,
@@ -4433,6 +4470,19 @@ def term(e: dict, ctx: Ctx) -> str:
         return str(e["int"])
     if "bool" in e:
         return "\\true" if e["bool"] else "\\false"
+    old_read = _old_array_read(e)
+    if old_read is not None:
+        # SPEC.md "Heap (v1)" (PREDICT T50): `old(a)[i]` is a's element in the entry state, with i read NOW (a loop
+        # index), so the index is bound first: `\let` takes it from the current state, `\at` reads the array at Pre
+        a, idx = old_read
+        if idx is None:
+            return f"{a}_n"                       # len(old(a)): an array's length never changes
+        _OLD_N[0] += 1
+        v = f"t_old{_OLD_N[0]}"
+        return f"(\\let {v} = ({term(idx, ctx)}); \\at({a}[{v}], {_OLD_LABEL[0]}))"
+    if "old" in e:
+        raise NotImplementedError("framac: old(...) of anything but an array's element or length is not lowered yet "
+                                  "(SPEC.md 'Heap (v1)')")
     if "var" in e:
         n = e["var"]
         base = "\\result" if n == ctx.ret else n
@@ -4618,6 +4668,9 @@ def defs(e: dict, ctx: Ctx):
     because SPEC.md says y == 0 is undefined, not because the kernel would
     otherwise crash.
     """
+    if _old_array_read(e) is not None:
+        a, idx = _old_array_read(e)            # SPEC.md "Heap (v1)": old(a) has a's length
+        return None if idx is None else defs({"op": "at", "args": [{"var": a}, idx]}, ctx)
     if "int" in e or "bool" in e or "var" in e:
         return None
     if "ite" in e:
@@ -6897,6 +6950,8 @@ def assigned_names(body: list, seq_caps: dict | None = None
             hit.append(n)
             if n in seq_caps:
                 hit.append(seq_caps[n])
+        elif "aset" in s:
+            hit.append(s["aset"][0])        # SPEC.md "Heap (v1)": the array's elements are written
         elif "return" in s:
             n = s["return"][0]
             hit.append(n)
@@ -7889,6 +7944,16 @@ def stmts(body: list, ctx: Ctx, task_name: str, indent: str,
     prefix = dict(_prefix) if _prefix is not None else {}
     out = []
     for s in body:
+        if "aset" in s:
+            # SPEC.md "Heap (v1)" (PREDICT T50): one element written in place, C's own `a[i] = e;`, the index's range
+            # asserted first (the write's definedness), as an `at` read's is
+            name, ie, ve = s["aset"]
+            out += at_asserts(ie, ctx, indent, ctx.funs, task_name)
+            out += at_asserts(ve, ctx, indent, ctx.funs, task_name)
+            ic = cexpr(ie, ctx.env, ctx.funs, task_name)
+            out.append(f"{indent}/*@ assert 0 <= ({ic}) && ({ic}) < {name}_n; */")
+            out.append(f"{indent}{name}[{ic}] = {cexpr(ve, ctx.env, ctx.funs, task_name)};")
+            continue
         if "assign" in s:
             name, e = s["assign"]
             assert name in ctx.env, f"assign to undeclared {name}"
@@ -8364,6 +8429,8 @@ def subst(e: dict, m: dict) -> dict:
         return m.get(e["var"], e)
     if "int" in e or "bool" in e:
         return e
+    if "old" in e:
+        return {"old": subst(e["old"], m)}             # SPEC.md "Heap (v1)"
     if "ite" in e:
         i = e["ite"]
         return {"ite": {k: subst(i[k], m) for k in ("cond", "then", "else")}}
@@ -9718,6 +9785,23 @@ def _cert_stmts(body: list, ctx: Ctx, st: dict, name: str,
             out.append(f"{ind}/*@ assert {g if val else f'(!{g})'}; */")
             out.append(f"{ind}{n} = {1 if val else 0};")
             st[n] = val
+        elif "aset" in s:
+            # SPEC.md "Heap (v1)" (PREDICT T50): the write replayed on the ground array, its index range asserted
+            n, ie, ve = s["aset"]
+            out += at_asserts(ie, ctx, ind) + at_asserts(ve, ctx, ind)
+            dm_asserts: list = []
+            ic = _cert_cexpr(ie, ctx, st, ctx.funs, name, dm_asserts, ind)
+            vc = _cert_cexpr(ve, ctx, st, ctx.funs, name, dm_asserts, ind)
+            out += dm_asserts
+            iv, vv = _cev(ie, st), _cev(ve, st)
+            cur = list(st[n])
+            if not 0 <= iv < len(cur):
+                raise _CertSkip("a write outside the array in the replay")
+            out.append(f"{ind}/*@ assert 0 <= ({ic}) && ({ic}) < {n}_n; */")
+            out.append(f"{ind}{n}[{ic}] = {vc};")
+            cur[iv] = vv
+            st[n] = cur
+            _flush_trace(out, ind)
         elif "assign" in s:
             n, e = s["assign"]
             out += at_asserts(e, ctx, ind)
@@ -10470,6 +10554,23 @@ def _undef_certificate(task: dict, twin_body: list, w: dict,
                 continue
             elif "lemma" in s:
                 continue          # SPEC.md "Lemmas (v1)": erased at run time
+            elif "aset" in s:
+                # SPEC.md "Heap (v1)" (PREDICT T50): the write's index and value first, then its range
+                nm, ie, ve = s["aset"]
+                ob = _t_and([defs_t(ie), defs_t(ve)])
+                if ob is not None and not interp.ev(ob, env_py, ifuns, st):
+                    return ob, ctx
+                iv = interp.ev(ie, env_py, ifuns, st)
+                rng = {"op": "and", "args": [{"op": "<=", "args": [{"int": 0}, ie]},
+                                             {"op": "<", "args": [ie, {"op": "len", "args": [{"var": nm}]}]}]}
+                cur = list(env_py[nm])
+                if not 0 <= iv < len(cur):
+                    return rng, ctx
+                cur[iv] = interp.ev(ve, env_py, ifuns, st)
+                code.append(f"  {nm}[{cexpr(ie, ctx.env, ctx.funs, task['name'])}] = "
+                            f"{cexpr(ve, ctx.env, ctx.funs, task['name'])};")
+                env_py[nm] = tuple(cur)
+                continue
             else:
                 raise ValueError(f"undef-certificate: statement {s!r} "
                                  "not walked (return)")
@@ -11020,7 +11121,40 @@ def certificate(task: dict, twin_body: list, w: dict,
         _CEV_SEQ_ARGS.clear()
 
 
-def _certificate(task: dict, twin_body: list, w: dict,
+def _certificate(task: dict, twin_body: list, w: dict, *args, **kwargs):
+    """SPEC.md "Heap (v1)" (PREDICT T50): an array parameter is a seq to every certificate builder (its witness is a
+    ground array as a seq's is), and old(...) reads at the certificate's own entry label."""
+    if any(p["type"] == "array" for p in task["params"]):
+        task = {**task, "params": [{**p, "type": "seq"} if p["type"] == "array" else p for p in task["params"]]}
+        prev = _OLD_LABEL[0]
+        _OLD_LABEL[0] = "t_entry"
+        try:
+            out = _certificate_inner(task, twin_body, w, *args, **kwargs)
+        finally:
+            _OLD_LABEL[0] = prev
+        if out is not None and "t_entry" in out:
+            # the label sits after the witness's declarations, before the replay (the first statement after them)
+            out = _label_entry(out)
+        return out
+    return _certificate_inner(task, twin_body, w, *args, **kwargs)
+
+
+def _label_entry(src: str) -> str:
+    """`t_entry: ;` after the certificate's last declaration line (`int ... = ...;` or `int *x = ...;`)."""
+    lines = src.split("\n")
+    start = next(i for i, l in enumerate(lines) if l.startswith("void t_certificate"))
+    last = start
+    for i in range(start + 1, len(lines)):
+        l = lines[i].strip()
+        if l.startswith("int ") and "=" in l and l.endswith(";"):
+            last = i
+        elif l and not l.startswith("int "):
+            break
+    lines.insert(last + 1, "  t_entry: ;")
+    return "\n".join(lines)
+
+
+def _certificate_inner(task: dict, twin_body: list, w: dict,
                  env: dict, funs: dict, used: set) -> str | None:
     kind = w.get("_kind")
     if kind == "undefined" and w.get("_site") == "ensures":
@@ -11171,12 +11305,13 @@ def _lower(task: dict, body: list, witness: dict | None = None,
     import framac_lib
     task, body = tshape.desugar_par(task, body)          # PREDICT T47: a parallel loop as its sequential `for`
     task, body = tshape.desugar_exits(task, body)        # PREDICT T44: break/continue rewritten; `while true` stays
-    tshape.abstain_on_heap(task, "framac")                   # SPEC.md "Heap (v1)" (PREDICT T46): Dafny first
+    # SPEC.md "Heap (v1)": carried natively since PREDICT T50 (C pointers)
     tshape.abstain_on_floats(task, body, "framac")           # SPEC.md "Floats (v1)" (PREDICT T48)
-    tshape.abstain_unless_carried(task, body, "framac", carried={"comp", "exit"},
+    tshape.abstain_unless_carried(task, body, "framac", carried={"comp", "exit", "array"},
                                   lib=framac_lib.FRAMAC_LIB)   # PREDICT T11: the library in Frama-C
     _comp_refusal(task, body)                              # PREDICT T19: maps assigned to a buffer, the rest by name
     _dt_check(task, body)                                  # PREDICT T37: datatype parameters; the rest by name
+    _old_check([task.get("ensures", []), body])            # PREDICT T50: old(a) read element by element
     if _uses_sets(task) or _uses_sets(body):
         # FINITE SETS (2026-09-27, SPEC.md "Finite sets (v1)"): C has no
         # set value. ACSL's logic sets (`\union`, `\inter`, `\subset`)
@@ -11296,7 +11431,7 @@ def _lower(task: dict, body: list, witness: dict | None = None,
             "row-shaped offsets array against a second, data-dependent "
             "one, for a genuinely data-dependent build; a seq<seq> "
             "PARAMETER, read via `len`/`at`, is supported")
-    env = {p["name"]: p["type"] for p in task["params"]}
+    env = {p["name"]: ("seq" if p["type"] == "array" else p["type"]) for p in task["params"]}   # SPEC.md "Heap (v1)"
     env[ret] = rett
 
     # SPEC.md "Seq-valued spec_funs (v1)", the \list route (2026-09-27):
@@ -11411,7 +11546,7 @@ def _lower(task: dict, body: list, witness: dict | None = None,
     funs[name] = {"params": task["params"], "result": rett,
                   "labeled": False, "is_task": True}
 
-    seqs = [p["name"] for p in task["params"] if p["type"] == "seq"]
+    seqs = [p["name"] for p in task["params"] if p["type"] in ("seq", "array")]   # an array: SPEC.md "Heap (v1)"
     nested_seqs = [p["name"] for p in task["params"]
                   if is_nested_seq_type(p["type"])]
 
@@ -11744,9 +11879,10 @@ def _lower(task: dict, body: list, witness: dict | None = None,
             # PREDICT T37: a t value is always built by one of its constructors (a flattened one has one, T43)
             clauses.append(f"  requires dt_{_dt_of(p['type'])}_ok({p['name']});")
     all_seqs = list(seqs)
+    mods = set(task.get("modifies", []))                   # SPEC.md "Heap (v1)": the arrays the function writes
     for s in seqs:
         clauses.append(f"  requires {s}_n >= 0;")
-        clauses.append(f"  requires \\valid_read({s} + (0 .. {s}_n - 1));")
+        clauses.append(f"  requires \\{'valid' if s in mods else 'valid_read'}({s} + (0 .. {s}_n - 1));")
     for m in nested_seqs:
         # THE ENCODING (SPEC.md "Nested sequences", 2026-09-10, measured
         # first on `row_max_len`, a nested seq PARAMETER read only,
@@ -11926,6 +12062,7 @@ def _lower(task: dict, body: list, witness: dict | None = None,
         asg = []
     # SPEC.md "Methods (v1)": a workspace buffer is written too.
     asg += [f"{w}[0 .. {w}_n - 1]" for w, _ in scratch]
+    asg += [f"{a}[0 .. {a}_n - 1]" for a in task.get("modifies", [])]   # SPEC.md "Heap (v1)"
     clauses.append(f"  assigns {', '.join(asg)};" if asg
                    else "  assigns \\nothing;")
     for e in task["ensures"]:
@@ -11936,7 +12073,7 @@ def _lower(task: dict, body: list, witness: dict | None = None,
 
     cparams = []
     for p in task["params"]:
-        if p["type"] == "seq":
+        if p["type"] in ("seq", "array"):
             cparams += [f"int *{p['name']}", f"int {p['name']}_n"]
         elif is_nested_seq_type(p["type"]):
             # THE ENCODING (2026-09-10): the flat data+offsets triple, see

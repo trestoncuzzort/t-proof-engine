@@ -2875,6 +2875,11 @@ so a certificate can ground `a` and `old(a)`.
   stated) and `a[i] := e;`. An element and the length are read on the array itself, `a[i]` and `a.Length`, the terms
   Dafny's array axioms trigger on (measured: reverse_in_place timed out reading `a[..][k]`). A whole read is `a[..]`,
   and the entry state is `old(a[..])`.
+- **Frama-C (PREDICT T50):** natively, as C pointers. The array is `int *a, int a_n`, `\valid` when written and
+  `\valid_read` otherwise, with `assigns a[0 .. a_n - 1]` and the arrays in a loop's frame. A write is `a[i] = e;`
+  after an assert of the index's range. `old(a)[i]` is `\let t = i; \at(a[t], Pre)`, the index bound in the current
+  state, and `len(old(a))` is `a_n`. A certificate replays the writes on its ground arrays and reads old(...) at its
+  own entry label. A whole array in old(...) (`a == rev(old(a))`) refuses by name.
 - **The others** refuse by name (`tshape.has_heap`) until each is built and measured.
 - **The hand-back:** writes a Python list mutated in place.
 

@@ -110,7 +110,9 @@ def test_kernels():
     d = tlib.lower(load("offset_all"), "dafny")
     ok("while (i < a.Length)" in d and "a[i] := (a[i] - b[i]);" in d and "requires a != b" in d,
        "Dafny verifies the sequential loop")
-    for k in ("verus", "lean", "rocq", "fstar", "spark", "framac"):
+    ok("int scale_all_t(int *a, int a_n, int k)" in tlib.lower(load("scale_all"), "framac"),
+       "Frama-C carries it with the heap (PREDICT T50)")
+    for k in ("verus", "lean", "rocq", "fstar", "spark"):
         try:
             tlib.lower(load("scale_all"), k)
             ok(False, f"{k} refuses")

@@ -2217,3 +2217,37 @@ refuses by name: 111.
 (3) Every other new cell is abstain/abstain, and no cell of the 104 moves. All seven stays 62 of 114.
 (4) The AlgoVeri table does not move.
 
+### T46, T47, T48 and T49 read (2026-10-07 10:35Z): every bar held.
+
+Both tables were regenerated from a clean clone at 4ed6dd6, with no proof run beside it, in one unit under 11 GB, with
+no OOM.
+(1) **Held:** the matrix has 114 tasks. Dafny reads verified/refuted on all of them but the three float tasks, which
+it refuses by name: 111.
+(2) **Held:** SPARK reads verified/refuted on sat_scale and deadband (73), and timeout/refuted on rate_limit.
+(3) **Held:** every other new cell is abstain/abstain, and no cell of the 104 moved. All seven stays 62 (of 114).
+(4) **Held:** the AlgoVeri table did not move.
+
+## T50 registered (2026-10-07 10:35Z, after hand probes and before the clean-clone runs): the heap in Frama-C
+
+The first industry kernel for the heap (NORTH-STAR.md target 1). Receipt 76b38f46f235 (T46's).
+- **Arrays are C pointers.** `int *a, int a_n`: `\\valid` when written, `\\valid_read` otherwise,
+  `assigns a[0 .. a_n - 1]`, and the array in a loop's frame. A write is `a[i] = e;`, after an assert of the index's
+  range.
+- **`old(a)[i]`** is `\\let t = i; \\at(a[t], Pre)`: the index bound in the current state, the element read at Pre.
+  `len(old(a))` is `a_n`.
+- **A certificate** replays the writes on its ground arrays (both the value walk and the undefined walk) and reads
+  old(...) at its own entry label `t_entry`.
+- **Refused by name:** a whole array in old(...), as reverse_in_place's `a == rev(old(a))`.
+
+**Measured before this registration, stated plainly.**
+- **Frama-C:** swap_at, clamp_all, ring_push, scale_all, offset_all and relu_all are each verified with the twin
+  refuted. Three of them (scale_all, offset_all, relu_all) are parallel loops (T47).
+- **Byte identity:** only the seven heap tasks' Frama-C lowerings change (from refusals); nothing else in the 114,
+  and nothing in AlgoVeri.
+- **Suite:** the whole suite passes (765), and every module compiles under Python 3.10.
+
+**Bars**, for the clean-clone matrix and AlgoVeri table at this registration's commit:
+(1) Frama-C reads verified/refuted on those six (68), and refuses reverse_in_place by name.
+(2) No other cell moves. All seven stays 62.
+(3) The AlgoVeri table does not move.
+

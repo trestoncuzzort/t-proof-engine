@@ -124,8 +124,26 @@ def test_dafny():
     ok("lemma t_refutation_certificate()" in cert, "the twin's certificate")
 
 
+def test_framac():
+    # PREDICT T50: C pointers natively; old(a)[i] read at Pre through a \let-bound index; a whole old array refused
+    src = tlib.lower(load("swap_at"), "framac")
+    ok("int swap_at_t(int *a, int a_n, int i, int j)" in src and "requires \\valid(a + (0 .. a_n - 1));" in src
+       and "assigns a[0 .. a_n - 1];" in src, "a written pointer: valid, assigns its elements")
+    ok("a[i] = a[j];" in src and "\\at(a[t_old" in src and ", Pre))" in src, "a write; old(a)[j] at Pre")
+    src = tlib.lower(load("offset_all"), "framac")
+    ok("requires \\valid_read(b + (0 .. b_n - 1));" in src and "loop assigns a[0 .. a_n - 1], i;" in src,
+       "a read-only array stays valid_read; the loop frames the written one")
+    cert = tlib.lower(load("scale_all"), "framac", twin_body=True)
+    ok("t_entry: ;" in cert and "\\at(a[t_old" in cert and "t_entry))" in cert, "the certificate's old reads its entry")
+    try:
+        tlib.lower(load("reverse_in_place"), "framac")
+        ok(False, "a whole old array refuses")
+    except NotImplementedError as e:
+        ok("a whole array in old(...)" in str(e), f"refused by name: {e}")
+
+
 def test_others_refuse_by_name():
-    for k in ("verus", "lean", "rocq", "fstar", "spark", "framac"):
+    for k in ("verus", "lean", "rocq", "fstar", "spark"):
         try:
             tlib.lower(load("swap_at"), k)
             ok(False, f"{k} refuses")

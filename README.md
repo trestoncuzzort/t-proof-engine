@@ -26,21 +26,21 @@ never weakens it.
 
 ## Where it stands
 
-Measured from a clean clone of this repository on 2026-10-07 over the 104 committed tasks
+Measured from a clean clone of this repository on 2026-10-07 over the 114 committed tasks
 ([t/AGREEMENT.md](t/AGREEMENT.md)):
 
 | kernel | proved, twin refuted | carried, not proved | refused by name |
 |---|---|---|---|
-| Dafny | 104 | 0 | 0 |
-| Verus | 99 | 1 | 4 |
-| Rocq | 79 | 0 | 25 |
-| Lean 4 | 84 | 2 | 18 |
-| F\* | 79 | 2 | 23 |
-| SPARK | 71 | 3 | 30 |
-| Frama-C | 62 | 1 | 41 |
+| Dafny | 111 | 0 | 3 |
+| Verus | 99 | 1 | 14 |
+| Rocq | 79 | 0 | 35 |
+| Lean 4 | 84 | 2 | 28 |
+| F\* | 79 | 2 | 33 |
+| SPARK | 73 | 4 | 37 |
+| Frama-C | 62 | 1 | 51 |
 
 - In every kernel, the twin of every proved program is refuted (100%).
-- 62 of the 104 tasks are proved, with the twin refuted, in all seven kernels.
+- 62 of the 114 tasks are proved, with the twin refuted, in all seven kernels.
 - Datatypes with fields (records and non-recursive sums, PREDICT T23) and recursive datatypes (trees, T25) are proved
   in Dafny, Verus, Lean, Rocq and F* (T34, T35); SPARK and Frama-C carry the non-recursive ones (T36, T37), so
   color_code, shape_area, manhattan and rect_area are verified with the twin refuted in all seven. A quantifier over a seq's elements is stated in
@@ -49,6 +49,9 @@ Measured from a clean clone of this repository on 2026-10-07 over the 104 commit
   a seq in Rocq, F* and SPARK too (T42), and Rocq proves loops over a datatype state (T41). Early exits (`break`,
   `continue`, `while true`) are proved in all seven through one rewrite (T44), F* and SPARK carry filtered
   comprehensions (T45), and Frama-C flattens a datatype with a seq field into parameters (T43).
+- Since 2026-10-07 the language has a heap (arrays written in place, `modifies`, `old`; T46), parallel loops whose
+  race freedom is checked by rule (T47) and IEEE floats (T48). Dafny proves the seven heap and parallel tasks, SPARK
+  the float tasks on `Long_Float` (T49). The direction they serve is in [NORTH-STAR.md](NORTH-STAR.md).
 - Most refusals are of constructs added to the language on 2026-10-06, which the other kernels are being taught
   now.
 - [t/ALGOVERI.md](t/ALGOVERI.md): 30 of AlgoVeri's contracts in seven kernels, regenerated from a clean clone for
