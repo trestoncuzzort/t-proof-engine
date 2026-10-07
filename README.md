@@ -1,9 +1,11 @@
 # t-proof-engine
 
 **t** is a small specification language. A task is written once in t: a typed signature, preconditions,
-postconditions and a short body. It is then lowered mechanically into **seven independent proof systems**:
-Dafny, Verus, SPARK, Frama-C, Lean 4, Rocq and F\*. t proves nothing itself and is trusted for nothing. Every
-verdict comes from a kernel.
+postconditions and a short body. It is then lowered mechanically into **seven proof systems**: Dafny, Verus,
+SPARK, Frama-C, Lean 4, Rocq and F\*. t proves nothing itself and is trusted for nothing. Every verdict comes from
+a kernel. The seven are independent front ends over five distinct proof engines, not seven independent solvers.
+Dafny and Verus both default to Z3, SPARK and Frama-C discharge through Why3-family provers, and Lean and Rocq are
+small trusted kernels. `internal/RESEARCH-2026-10-07-zoom-out.md` says how that is being measured.
 
 Each task is also paired with a deliberately broken **twin**, one edit away from the real program, and a concrete
 input at which the twin breaks the specification. A kernel's cell counts only when the kernel proves the real
