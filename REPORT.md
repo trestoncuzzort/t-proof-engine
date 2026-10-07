@@ -137,6 +137,25 @@ sample by hand: 157 of 284 alive mutants were equivalent to the original. The au
 
 The cost is the bounded domain: a difference outside it is not seen.
 
+The same audit, in the kernel each source was verified in (PREDICT T56; clean clone at 5e3abec):
+
+| corpus | kernel | audited | mutants killed | specs with a survivor | real verified | survivor proved too | gaps by hand |
+|---|---|---|---|---|---|---|---|
+| DafnyBench (what t states) | Dafny | 320 | 94.2% | 53 | 316 | 44 | 23, and 3 `ensures true` |
+| vericoding, Verus track | Verus | 63 | 96.8% | 20 | 55 | 14 | 13 |
+| vericoding, Lean track | Lean | 16 | 100% | 0 | 12 | 0 | 0 |
+| ACSL by Example | Frama-C | 16 | 100% | 0 | 13 | 0 | 0 |
+
+Specification quality tracks the source:
+- ACSL by Example, an expert-written library, kills every mutant, including on ties: `max_element` names the
+  first maximum.
+- In vericoding's Verus track, a task counts as solved when the kernel verifies a program against its specification.
+  13 of the 55 verified tasks are also solved by a one-edit wrong program (`t/vericoding/CLASSIFIED.md`).
+  - The APPS-derived specifications state only that the output is well formed, and two are met by a constant.
+  - The NumPy-derived ones state mostly the output's length.
+- The vericoding paper estimates by hand that about 9% of its specifications are too weak. The audit gives a
+  mechanical lower bound with a proof for each case.
+
 Run on t's own suites, the audit found seven of its own specs too weak, each of which passes the twin rule:
 - count_pos_for, evens, filter_pos and index_map;
 - rate_limit, where the direction of a limited step is unstated;

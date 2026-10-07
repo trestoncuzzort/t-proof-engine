@@ -2523,3 +2523,16 @@ kernel-based measure is reported.
 (1) The interpreter's columns (mutants, killed, same, diverge, survivors) reproduce exactly in all three.
 (2) The kernel columns reproduce within one task in each corpus: Frama-C 13 real bodies verified, Verus 55 and 14,
 Lean 12.
+
+### T56 read (2026-10-07 14:31Z): both bars held, exactly.
+
+All three tables were regenerated from a clean clone at 5e3abec and are installed (`t/AUDIT-ACSLBYEXAMPLE.md`,
+`t/AUDIT-VERICODING-VERUS.md`, `t/AUDIT-VERICODING-LEAN.md`). Every row matches the hand runs, kernel columns included.
+The D8 picture across four corpora and three kernels:
+
+| corpus | kernel | audited | mutants killed | specs with a survivor | real verified | a survivor proved too | gaps by hand |
+|---|---|---|---|---|---|---|---|
+| DafnyBench (t can state) | Dafny | 320 | 94.2% | 53 | 316 | 44 | 23 (+3 `ensures true`) |
+| vericoding, Verus track | Verus | 63 | 96.8% | 20 | 55 | 14 | 13 |
+| vericoding, Lean track | Lean | 16 | 100% | 0 | 12 | 0 | 0 |
+| ACSL by Example | Frama-C | 16 | 100% | 0 | 13 | 0 | 0 |

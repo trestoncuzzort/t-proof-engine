@@ -59,7 +59,9 @@ Measured from a clean clone of this repository on 2026-10-07 over the 114 commit
   Over 316 Dafny-verified DafnyBench programs ([t/AUDIT-DAFNYBENCH.md](t/AUDIT-DAFNYBENCH.md)), Dafny also proves a
   different program against the same contract in 44. Read by hand, 23 are gaps
   ([t/dafnybench/CLASSIFIED.md](t/dafnybench/CLASSIFIED.md)), among them four weak specs MutDafny's authors found
-  by hand. On t's own suites it found seven specs to strengthen, and six were strengthened (T55). tree_insert's
+  by hand. In vericoding's Verus track, Verus proves a one-edit wrong program in 14 of 55 verified tasks (13 gaps;
+  two specs are met by a constant); ACSL by Example and vericoding's Lean track kill every mutant
+  ([t/vericoding/CLASSIFIED.md](t/vericoding/CLASSIFIED.md), PREDICT T56). On t's own suites it found seven specs to strengthen, and six were strengthened (T55). tree_insert's
   search-tree order is the one still open.
 - [t/AUTONOMY.md](t/AUTONOMY.md): 25 navigation, guidance and control routines (`t/autonomy/`). Verified with the
   twin refuted: Frama-C 21, SPARK 20, Dafny 18, F* 17, Lean 15, Verus 14, Rocq 14; 13 in all seven.
