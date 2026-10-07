@@ -1360,7 +1360,7 @@ recursor), with the tree probe measured.
 (3) No other cell moves against T24's matrix.
 (4) Per kernel: Dafny 99, Verus 91, and Lean five more than T24's matrix reads. All seven stays 48, now of 99.
 
-### T24 read (2026-10-07 03:28Z): AlgoVeri's discrete_logarithm and five engine defects. All four bars held.
+### T24 read (2026-10-07 03:27Z): AlgoVeri's discrete_logarithm and five engine defects. All four bars held.
 
 Both tables were regenerated from a clean clone at fbce7d9: the matrix of 94 (`t/AGREEMENT.md`) and the 22 AlgoVeri
 programs (`t/ALGOVERI.md`, the first AlgoVeri table of record since T13's).
