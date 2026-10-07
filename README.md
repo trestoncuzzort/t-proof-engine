@@ -46,9 +46,10 @@ Measured from a clean clone of this repository on 2026-10-07 over the 101 commit
   seven, over a set's in Dafny and Verus (T26).
 - Most refusals are of constructs added to the language on 2026-10-06, which the other kernels are being taught
   now.
-- [t/ALGOVERI.md](t/ALGOVERI.md): 22 of AlgoVeri's contracts in seven kernels, regenerated from a clean clone for
-  T24. Dafny verifies all 22 with the twin refuted; Verus 7, F* 5, SPARK 3, Frama-C 2, Rocq 1, Lean 0. T15 and T17
-  repaired 11 of T13's 13 malformed cells; the other two are named in T13's read.
+- [t/ALGOVERI.md](t/ALGOVERI.md): 27 of AlgoVeri's contracts in seven kernels, regenerated from a clean clone for
+  T27, five of them the BST family over recursive datatypes and set-ranged quantifiers. Dafny verifies all 27 with
+  the twin refuted; Verus 9, F* 5, SPARK 3, Frama-C 2, Rocq 1, Lean 0. T15 and T17 repaired 11 of T13's 13 malformed
+  cells; the other two are named in T13's read.
 
 The registrations and reads behind these numbers are in
 [t/PREDICT-2026-10-06-t-expansion.md](t/PREDICT-2026-10-06-t-expansion.md). Each change states, before it runs,

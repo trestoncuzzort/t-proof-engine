@@ -1519,3 +1519,15 @@ disjoint from these:
 which already verify both, each is then verified/refuted in five kernels.
 (2) members_upto's Lean cell moves from abstain to unproved. all_pos_set and words_seen keep their Lean refusals.
 (3) No other cell of the 101 moves against T27's matrix. Lean gains 2.
+
+### T27 read (2026-10-07 04:37Z): AlgoVeri's BST family, first five. All four bars held.
+
+Both tables were regenerated from a clean clone at f047482: the matrix of 101 (`t/AGREEMENT.md`) and the AlgoVeri table
+of 27 (`t/ALGOVERI.md`).
+(1) **Held:** no cell of the 101 moved against T26's matrix.
+(2) **Held:** the five read verified with the twin refuted in Dafny. In Verus, search and insert are verified/refuted and
+the three rotations unproved, for the named `res.val` definedness. Lean, Rocq, F*, SPARK and Frama-C abstain by name.
+(3) **Held:** the 22 earlier programs read as in T24's table. One cell, F*'s insertion_sort, kept its verdict
+(timeout/timeout) but is marked FLAKED: its reruns disagreed on the way to the same verdict, so the cell is
+provisional, as before.
+(4) **Held:** AlgoVeri Dafny 27 of 27, Verus 9, the rest unchanged (F* 5, SPARK 3, Frama-C 2, Rocq 1, Lean 0).
