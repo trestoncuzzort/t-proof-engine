@@ -2974,3 +2974,27 @@ Regenerated from a clean clone at 8d3a3a5, and installed.
 (1) **Held:** Frama-C 71 (filter_pos verified/refuted); every other kernel unchanged; all seven 66 of 114. The stronger
 filter_pos T55 wrote now costs nothing.
 (2) **Held:** `t/AUTONOMY.md` unchanged.
+
+## T66 registered (2026-10-07 20:18Z, after hand probes and before the clean-clone run): R5, structural recursion with requires in Rocq and Lean
+
+**The change.** tree_insert's bounded contract (T60) passes each recursive call different bounds, and its `requires`
+must reach each call.
+- **Rocq:** for a structurally recursive task with `requires`, the induction introduces every parameter, reverts
+  all but the recursion's own, and inducts with each recursive field's hypothesis named. After the case splits,
+  each hypothesis is instantiated at the arguments of a recursive call in the goal, its premises discharged from the
+  context; a hypothesis that does not fit is skipped. Tasks without `requires` keep their proof byte for byte.
+- **Lean:** a structurally recursive task whose body owes no definedness obligation is lowered even with
+  `requires`. The total definition takes no precondition argument, and its self-calls (and its certificate's) pass
+  none. The contract theorem assumes the requires and is proved by induction with every other parameter
+  generalized. A body that owes an obligation is still refused by name.
+
+**Measured before this registration, stated plainly:**
+- **tree_insert:** verified/refuted in Rocq (the hand-written proof first: "Closed under the global context") and in
+  Lean (the spec depends only on Lean's three standard axioms).
+- **Byte identity:** tree_insert moves in Rocq (real) and Lean (real and twin). AlgoVeri's bst insert and search move
+  in Lean: from refused to carried, real unproved, twin refuted. No other lowering moves.
+- **Suite:** passes; Python 3.10 compiles.
+
+**Bars**, for the clean-clone tables at this registration's commit:
+(1) The matrix: Lean 89 and Rocq 84 (tree_insert); every other kernel unchanged; all seven 66.
+(2) AlgoVeri: Lean's insert and search read unproved / refuted; no verified/refuted count moves.

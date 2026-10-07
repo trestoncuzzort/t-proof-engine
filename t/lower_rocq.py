@@ -10749,6 +10749,52 @@ def _loops_def(cx: Ctx, task: dict, body: list) -> str:
     return "\n".join(gen.chunks + [def_lines])
 
 
+def _dt_rec_requires_proof(task: dict, name: str, q: str, pargs: str, unf: str) -> str:
+    """PREDICT T66: a structurally recursive task with `requires` whose recursive calls change the other arguments
+    (tree_insert's bounds, `bst(l, lo, v)`). The induction keeps every other parameter general: introduce them,
+    revert all but the recursion's own, induct with each recursive field's hypothesis named, introduce again. After
+    the case splits, each named hypothesis is instantiated at the arguments of a recursive call in the goal, and
+    its premises (the call's `requires`) are discharged from the context; a hypothesis that does not fit is skipped."""
+    args = pargs.split()
+    others = [a for a in args if a != q]
+    dt = next((p["type"]["datatype"] for p in task["params"]
+               if isinstance(p["type"], dict) and p["type"].get("datatype") and _ck(p["name"]) == q), None)
+    ctors = next((d["ctors"] for d in task.get("datatypes", []) if d["name"] == dt), [])
+    pats, ihs = [], []
+    for c in ctors:
+        bits = []
+        for f in c.get("fields", []):
+            bits.append(f"t_f_{f['name']}")
+            if isinstance(f["type"], dict) and f["type"].get("datatype") == dt:
+                bits.append(f"t_IH_{f['name']}")
+                ihs.append(f"t_IH_{f['name']}")
+        pats.append(" ".join(bits))
+    metas = " ".join(f"?t_a{i}" for i in range(len(args)))
+    pick = " ".join(f"t_a{i}" for i, a in enumerate(args) if a != q)
+    revert = f" revert {' '.join(others)}." if others else ""
+    inst = "".join(
+        f"  all: try (match goal with |- context [{name}_t {metas}] =>\n"
+        f"              let T := fresh \"t_ih\" in pose proof ({ih} {pick}) as T;\n"
+        f"              repeat (specialize (T ltac:(first [assumption | lia])));\n"
+        f"              lazymatch type of T with _ -> _ => fail | _ => idtac end end).\n" for ih in ihs)
+    return f"""Proof.
+  intros {' '.join(args)}.{revert} induction {q} as [{' | '.join(pats)}]; intros; cbn [{unf}] in *.
+  all: t_dt_cases.
+  all: repeat (match goal with |- context [if ?c then _ else _] => destruct c eqn:? end;
+               cbn [{unf}] in * ).
+  all: repeat match goal with H : _ /\\ _ |- _ => destruct H end.
+  all: repeat match goal with H : (_ && _)%bool = true |- _ => apply andb_prop in H; destruct H end.
+  all: repeat match goal with H : (_ <=? _) = true |- _ => apply Z.leb_le in H
+                         | H : (_ <? _) = true |- _ => apply Z.ltb_lt in H
+                         | H : (_ <? _) = false |- _ => apply Z.ltb_ge in H
+                         | H : (_ <=? _) = false |- _ => apply Z.leb_gt in H end.
+{inst}  all: repeat match goal with H : _ /\\ _ |- _ => destruct H end.
+  all: repeat match goal with H : ?a = true |- context [?a] => rewrite H end.
+  all: t_dis.
+Qed.
+"""
+
+
 def gen_dt_rec(cx: Ctx, body: list, q: str, counter: list) -> str:
     """PREDICT T34: a task recursing on a datatype parameter `q`: the body is Rocq's own structural Fixpoint and the
     contract is proved by induction on `q`, every other parameter fixed (the tasks so far recurse with them
@@ -10771,6 +10817,13 @@ def gen_dt_rec(cx: Ctx, body: list, q: str, counter: list) -> str:
     ens = ensures_text(cx, f"({name}_t {pargs})")
     unf = " ".join([f"{name}_t"] + [f"sf_{sf['name']}" for sf in task.get("spec_funs", [])])
     fa = f"forall {pb},\n" if pb else ""
+    if task.get("requires"):
+        return f"""{def_txt}
+Fixpoint {name}_t {pb} {{struct {q}}} : {rty(ret_t)} := {expr}.
+
+Theorem {name}_t_spec :
+  {fa}{lens_arrows(cx)}{requires_arrows(cx)}  {ens}.
+{_dt_rec_requires_proof(task, name, q, pargs, unf)}"""
     return f"""{def_txt}
 Fixpoint {name}_t {pb} {{struct {q}}} : {rty(ret_t)} := {expr}.
 

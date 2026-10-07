@@ -3686,8 +3686,8 @@ class Lower:
             c = e["call"]
             args = " ".join(self.term(a, env, types, dep) for a in c["args"])
             if c["fun"] == self.name:
-                pre = " (by first | omega | grind)" if self.task.get(
-                    "requires") else ""
+                pre = " (by first | omega | grind)" if (self.task.get(
+                    "requires") and not getattr(self, "_struct_nopre", False)) else ""   # PREDICT T66
                 return f"({self.name}_t {args}{pre})"
             if c["fun"] in self.methods:
                 # SPEC.md "Methods (v1)": the callee's own `{m}_t`,
@@ -8131,6 +8131,14 @@ theorem t_str_join_split_roundtrip (s : List Int) (c : Int) :
         thms.append((f"{self.name}_t_spec", "the contract"))
         return "\n".join(out), thms
 
+    def _is_structural_quiet(self) -> bool:
+        """PREDICT T66: the task recurses structurally on a datatype parameter, so its definition takes no
+        precondition argument (lower_rec_structural); False for anything else, never raising."""
+        try:
+            return self._structural(self.task["decreases"], dict(self.types))
+        except NotImplementedError:
+            return False
+
     def _structural(self, dec: dict, types: dict) -> bool:
         """A datatype-valued measure (SPEC.md "Datatypes (v3): recursion"): Lean's structural recursion, which needs
         the measure to be a parameter itself; any other datatype expression is refused by name."""
@@ -8148,18 +8156,24 @@ theorem t_str_join_split_roundtrip (s : List Int) (c : Int) :
         parameter. Its def is structurally recursive (no termination clause), and its contract is proved by
         structural induction on that parameter (TPIL ch. 7: the recursor; measured on a tree probe,
         `induction tr <;> grind [size_s]` closes), with every other parameter generalized."""
-        expr, obs = self.to_expr(self.body, {}, dict(self.types))
+        # PREDICT T66: a structural definition carries no precondition argument, so its self-calls pass none
+        self._struct_nopre = True
+        try:
+            expr, obs = self.to_expr(self.body, {}, dict(self.types))
+        finally:
+            self._struct_nopre = False
         params_nt = [(p["name"], p["type"]) for p in self.task["params"]]
         pb = self.binders(params_nt)
         pnames = " ".join(n for n, _ in params_nt)
         has_pre = bool(self.task.get("requires"))
-        if has_pre:
+        ob = self._conj(obs)
+        if has_pre and ob is not None:
             raise NotImplementedError(
-                "lean lowering: a structurally recursive task with requires (SPEC.md 'Datatypes (v3): recursion': "
-                "the requires' proof argument across the induction is not built yet)")
+                "lean lowering: a structurally recursive task with requires whose body owes a definedness obligation "
+                "(SPEC.md 'Datatypes (v3): recursion': the requires' proof argument across the induction is not "
+                "built yet)")
         out = [f"def {self.name}_t {pb} : {self.lean_type(self.rett)} :=\n  {expr}\n"]
         thms = []
-        ob = self._conj(obs)
         if ob is not None:
             out.append(f"theorem {self.name}_t_wfbody {pb} :\n    {ob} := by\n  {self._grind_base()}\n")
             thms.append((f"{self.name}_t_wfbody", "body definedness"))
@@ -8167,9 +8181,12 @@ theorem t_str_join_split_roundtrip (s : List Int) (c : Int) :
         others = [n for n, _ in params_nt if n != d]
         gen = f" generalizing {' '.join(others)}" if others else ""
         names = ", ".join([f"{self.name}_t"] + [f"{f}_s" for f in self.sfuns] + list(self.lib_fns))
+        # PREDICT T66: a total body needs no precondition in its definition; the contract assumes the requires, and
+        # the induction (every other parameter generalized) carries it to each recursive call's own arguments
+        pre = f"{self.pre_conj()} → " if has_pre else ""
         out.append(
             f"theorem {self.name}_t_spec {pb} :\n"
-            f"    {self.post_conj(f'({self.name}_t {pnames})')} := by\n"
+            f"    {pre}{self.post_conj(f'({self.name}_t {pnames})')} := by\n"
             f"  induction {d}{gen} <;> (first | grind [{names}] | simp_all [{names}])\n")
         thms.append((f"{self.name}_t_spec", "the contract, by structural induction"))
         return "\n".join(out), thms
@@ -10740,7 +10757,9 @@ theorem t_str_join_split_roundtrip (s : List Int) (c : Int) :
                          for r in self.task.get("requires", [])]
                 parts.append(replay)
                 return parts
-        if self.task.get("requires") and (
+        structural = ("decreases" in self.task and self._self_calls(self.body)
+                      and self._is_structural_quiet())
+        if self.task.get("requires") and not structural and (
                 self._self_calls(self.body)
                 or (any("while" in s for s in self.body) and loop_needs)):
             applied = f"({self.name}_t {args} (by {self._closer()}))"
