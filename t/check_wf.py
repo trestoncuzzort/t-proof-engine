@@ -112,8 +112,12 @@ RULES: dict[str, str] = {
                         "declares (Datatypes)",
     "ctor-name": "a constructor name matches [A-Za-z][A-Za-z0-9_]* (Datatypes)",
     "ctor-dup": "a constructor name is declared at most once per datatype (Datatypes)",
-    "ctor-fields-not-v1": "this v1 landing states enumerations only: a "
-                          "constructor carries no fields (Datatypes)",
+    "ctor-field-type": "a constructor field is an int, a bool or a seq; a field of a datatype, the datatype's own "
+                       "included (recursion), is not in v2 (Datatypes (v2): fields)",
+    "field-dup": "a field name is declared at most once per constructor (Datatypes (v2): fields)",
+    "field-unknown": "e.f names a field some constructor of e's datatype declares (Datatypes (v2): fields)",
+    "field-type-clash": "constructors of one datatype that share a field name give it one type "
+                        "(Datatypes (v2): fields)",
     "ctor-unknown": "a ctor names one of its datatype's own declared "
                     "constructors (Datatypes)",
     "ctor-arity": "a ctor's argument count matches its constructor's declared "
@@ -522,6 +526,23 @@ def _ty(e, env, funs, dtypes, ver, errs, bound, expect=None):
                 _e(errs, e, f"{c['dtype']}.{c['name']}: field type mismatch",
                    "ctor-argtype")
         return {"datatype": c["dtype"]}
+    if "field" in e:
+        # SPEC.md "Datatypes (v2): fields" (2026-10-07): {"field": {"of": Expr, "name": f}}, Dafny's destructor, typed
+        # by the field f some constructor of the value's datatype declares (all that declare it agree on its type)
+        fld = e["field"]
+        ot = _ty(fld["of"], env, funs, dtypes, ver, errs, bound)
+        if not (isinstance(ot, dict) and set(ot) == {"datatype"} and ot["datatype"] in dtypes):
+            _e(errs, e, f"field {fld.get('name')!r} of a value that is not a datatype: {ot!r}", "field-unknown")
+            return None
+        ftys = {f.get("type") for ct in dtypes[ot["datatype"]].get("ctors", []) if isinstance(ct, dict)
+                for f in (ct.get("fields") or []) if isinstance(f, dict) and f.get("name") == fld.get("name")}
+        if not ftys:
+            _e(errs, e, f"{ot['datatype']} has no field {fld.get('name')!r}", "field-unknown")
+            return None
+        if len(ftys) > 1:
+            _e(errs, e, f"{ot['datatype']}.{fld.get('name')}: constructors disagree on its type", "field-type-clash")
+            return None
+        return next(iter(ftys))
     if "match" in e:
         # SPEC.md "Datatypes (v1)": {"match": {"scrutinee": Expr, "arms":
         # [{"ctor": C, "binders": [...], "body": Expr}, ...]}}, total --
@@ -1123,16 +1144,23 @@ def check_wf(task: dict, positions: dict | None = None,
                    "ctor-dup")
             cnames.add(cname)
             if c.get("fields"):
-                # SPEC.md "Datatypes (v1)": "enumerations: a datatype whose
-                # constructors carry no fields ... records ... [and] non-
-                # recursive sums ... stay out of v1" for this landing --
-                # only the enum shape is implemented end to end (interp,
-                # the seven lowerings, the ladder move), so a constructor
-                # that DOES carry fields is refused here by name instead of
-                # being accepted and then mishandled downstream.
-                _e(errs, d, f"datatype {dname}: constructor {cname} carries "
-                            f"fields, not in this v1 landing (enumerations "
-                            f"only)", "ctor-fields-not-v1")
+                # SPEC.md "Datatypes (v2): fields" (2026-10-07): records and non-recursive sums, each field an int,
+                # a bool or a seq (Dafny reference manual 5.14.1's named constructor parameters). A field of a
+                # datatype, the datatype's own (recursion) included, is not in this wave and is refused by name; the
+                # v1 gate `ctor-fields-not-v1` is lifted for the field types the wave carries.
+                fnames = set()
+                for f in c["fields"]:
+                    fname = f.get("name") if isinstance(f, dict) else None
+                    if not isinstance(fname, str) or not NAME_RE.match(fname):
+                        _e(errs, d, f"datatype {dname}: bad field name {fname!r}", "ctor-name")
+                        continue
+                    if fname in fnames:
+                        _e(errs, d, f"datatype {dname}: constructor {cname} declares field {fname} twice",
+                           "field-dup")
+                    fnames.add(fname)
+                    if f.get("type") not in ("int", "bool", "seq"):
+                        _e(errs, d, f"datatype {dname}: field {cname}.{fname} has type {f.get('type')!r}; v2 "
+                                    f"fields are int, bool or seq", "ctor-field-type")
         dtypes[dname] = d
     funs = dict(expression_funs or {})
     funs.update({f["name"]: f for f in task.get("spec_funs", [])})

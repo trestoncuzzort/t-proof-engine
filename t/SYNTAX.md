@@ -57,8 +57,11 @@ Task     ::= { "t": 0|1, "name": Id,
                "datatypes"?: [ Datatype* ],     (* v1, since 2026-09-27; SPEC.md "Datatypes (v1)" *)
                "body": [ Stmt+ ] }              (* every path ends in assign *)
 
-Datatype ::= {"name": Id, "ctors": [ {"name": Id}+ ]}  (* v1, since 2026-09-27; enumerations only,
-                                                          a constructor carries no fields this landing *)
+Datatype ::= {"name": Id, "ctors": [ Ctor+ ]}         (* v1, since 2026-09-27 *)
+Ctor     ::= {"name": Id,
+              "fields"?: [ {"name": Id, "type": "int" | "bool" | "seq"}+ ]}
+                                                       (* fields: v2, since 2026-10-07, SPEC.md "Datatypes
+                                                          (v2): fields"; a v1 constructor has no "fields" *)
 
 Type     ::= "int" | "bool" | "seq"             (* seq: v1; a return and local type since 2026-09-09; the seq of ints *)
            | {"map": [Type, Type]}                 (* map<K, V>; since 2026-10-06, SPEC.md "Maps (v1)" *)
@@ -85,8 +88,9 @@ Expr     ::= {"int": integer}                   (* mathematical integer *)
            | {"forall": {"var": Id, "lo": Expr, "hi": Expr, "body": Expr}}  (* v1 *)
            | {"exists": {"var": Id, "lo": Expr, "hi": Expr, "body": Expr}}  (* v1 *)
            | {"call":   {"fun": Id, "args": [Expr*]}}                    (* v1 *)
-           | {"ctor":   {"dtype": Id, "name": Id, "args": [Expr*]}}      (* v1, since 2026-09-27; written D.C;
-                                                                           "args" always [] this landing *)
+           | {"ctor":   {"dtype": Id, "name": Id, "args": [Expr*]}}      (* v1, since 2026-09-27; written D.C or
+                                                                           D.C(a, ...): one arg per field (v2) *)
+           | {"field":  {"of": Expr, "name": Id}}                        (* v2, since 2026-10-07; written e.f *)
            | {"match":  {"scrutinee": Expr,                              (* v1, since 2026-09-27; written
                          "arms": [ {"ctor": Id, "binders": [Id*], "body": Expr}+ ]}}  (*   case e {C1=>e1, ...} *)
            | {"comp":   {"var": Id, "seq": Expr, "cond": Expr, "body": Expr}}        (* since 2026-10-06, SPEC.md
@@ -408,6 +412,35 @@ match's arms. Not in v1: a datatype as a pair/seq/set component or a
 spec_fun's own type, field-carrying constructors (records), more than one
 constructor with fields (non-recursive sums), and a recursive constructor
 (permanently out of scope for now).
+
+### Datatypes (v2): fields
+
+```json
+{"datatypes": [{"name": "Shape", "ctors": [
+    {"name": "Circle", "fields": [{"name": "r", "type": "int"}]},
+    {"name": "Rect", "fields": [{"name": "w", "type": "int"}, {"name": "h", "type": "int"}]},
+    {"name": "Dot"}]}]}
+{"ctor": {"dtype": "Shape", "name": "Rect", "args": [{"int": 2}, {"int": 3}]}}
+{"field": {"of": {"var": "s"}, "name": "w"}}
+```
+written: `datatype Shape = Circle(r: int) | Rect(w: int, h: int) | Dot` ·
+`Shape.Rect(2, 3)` · `s.w` · `case s { Circle(r) => r, Rect(w, h) => w * h, Dot => 0 }`
+
+Since 2026-10-07 (SPEC.md "Datatypes (v2): fields"), a constructor may
+declare fields, each an int, a bool or a seq: one constructor gives a
+record, and several give a non-recursive sum.
+- `D.C(a, ...)` takes one argument per field, in order.
+- A `case` arm binds the fields positionally, under names of its own.
+- `e.f` reads a field, a postfix on any primary. It is defined iff `e`'s
+  constructor declares `f`.
+
+**Parsing.** In a task that declares datatypes, `X.y` is a constructor only
+when `X` is one of them. Otherwise it is field `y` of the value `X`. In a
+task that declares none, `X.y` still parses as a constructor, as on
+2026-10-06, and check_wf refuses it by name.
+
+**Not in v2:** recursive constructors (a field of a datatype type), generic
+datatypes, and field update.
 
 ### Compositional types (v1)
 

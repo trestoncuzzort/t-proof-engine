@@ -2299,6 +2299,7 @@ _SCOPE: dict = {}        # name -> t type of every param, return and local of th
                          # (v1)", 2026-10-06): `expr` and `defined` read an operand's type here where the kernel's
                          # text differs by it (a map's insert, dom().contains, and the membership `at` owes)
 _SCOPE_FUNS: dict = {}
+_SCOPE_DTYPES: dict = {}   # datatype name -> its declaration, for `e.f`'s definedness (SPEC.md "Datatypes (v2): fields")
 
 
 def _ty_of(e):
@@ -2746,6 +2747,31 @@ def expr(e: dict, vty: str | None = None) -> str:
             cargs = ", ".join(expr(a) for a in c["args"])
             return f"{c['dtype']}::{c['name']}({cargs})"
         return f"{c['dtype']}::{c['name']}"
+    if "field" in e:
+        # SPEC.md "Datatypes (v2): fields" (2026-10-07): a tuple variant's field read by a match on the value, the
+        # field's position bound in the constructors that carry it and `arbitrary()` in the rest (Verus guide,
+        # "Enum": match works as in Rust); the definedness obligation (`defined()`'s field case) is what rules
+        # the rest out, so `arbitrary()` is never the value of a defined read
+        fld = e["field"]
+        import check_wf
+        t, _errs = check_wf.expression_type(fld["of"], dict(_SCOPE), functions=dict(_SCOPE_FUNS),
+                                            datatypes=dict(_SCOPE_DTYPES))
+        decl = _SCOPE_DTYPES.get(t.get("datatype")) if isinstance(t, dict) else None
+        if decl is None:
+            raise NotImplementedError("verus: a field access whose datatype is not in scope here "
+                                      "(SPEC.md 'Datatypes (v2): fields')")
+        arms = []
+        carried_all = True
+        for c in decl["ctors"]:
+            names = [f["name"] for f in c.get("fields", [])]
+            if fld["name"] in names:
+                pats = ", ".join("t_fv" if n == fld["name"] else "_" for n in names)
+                arms.append(f"{_vctor(c['name'])}({pats}) => t_fv")
+            else:
+                carried_all = False
+        if not carried_all:
+            arms.append("_ => vstd::pervasive::arbitrary()")
+        return f"(match {expr(fld['of'])} {{ {', '.join(arms)} }})"
     if "match" in e:
         # `match e { C1 => e1, C2 => e2, }` -- Rust's own match expression,
         # exhaustive over the enum's variants (check_wf already proved
@@ -2761,7 +2787,7 @@ def expr(e: dict, vty: str | None = None) -> str:
         scrut = expr(m["scrutinee"])
         arms = ", ".join(
             "%s%s => %s" % (
-                a["ctor"],
+                _vctor(a["ctor"]),
                 "(%s)" % ", ".join(a["binders"]) if a.get("binders") else "",
                 expr(a["body"], vty))
             for a in m["arms"])
@@ -3212,6 +3238,26 @@ def defined(e: dict, is_real=None) -> dict:
         # argument is (v1's constructors are nullary, so this is TRUE for
         # every ctor this landing; kept general for the record case ahead).
         return _conj([defined(a, is_real) for a in e["ctor"].get("args", [])])
+    if "field" in e:
+        # SPEC.md "Datatypes (v2): fields" (2026-10-07): `e.f` is defined iff e is and e's constructor carries f
+        # (Dafny's destructor requires its discriminator, reference manual 5.14.1). The discriminator is stated as
+        # a match, exactly as a match's own definedness is stated, true on the constructors that carry f; on a
+        # record, or any datatype whose every constructor carries f, it is just e's own definedness
+        import check_wf
+        fld = e["field"]
+        d_of = defined(fld["of"], is_real)
+        t, _errs = check_wf.expression_type(fld["of"], dict(_SCOPE), functions=dict(_SCOPE_FUNS),
+                                            datatypes=dict(_SCOPE_DTYPES))
+        decl = _SCOPE_DTYPES.get(t.get("datatype")) if isinstance(t, dict) else None
+        if decl is None:
+            raise NotImplementedError("a field access whose datatype is not in scope here (SPEC.md 'Datatypes (v2)')")
+        ctors = decl.get("ctors", [])
+        carries = [any(f["name"] == fld["name"] for f in c.get("fields", [])) for c in ctors]
+        if all(carries):
+            return d_of
+        arms = [{"ctor": c["name"], "binders": [f"t_fb{i}" for i in range(len(c.get("fields", [])))],
+                 "body": {"bool": bool(has)}} for c, has in zip(ctors, carries)]
+        return _conj([d_of, {"match": {"scrutinee": fld["of"], "arms": arms}}])
     if "match" in e:
         # A match's result is defined iff the scrutinee is AND the body of
         # the arm ACTUALLY TAKEN is -- reusing "match" itself as the
@@ -3572,6 +3618,8 @@ def subst(e: dict, m: dict) -> dict:
         c = e["ctor"]
         return {"ctor": {"dtype": c["dtype"], "name": c["name"],
                          "args": [subst(a, m) for a in c.get("args", [])]}}
+    if "field" in e:
+        return {"field": {"of": subst(e["field"]["of"], m), "name": e["field"]["name"]}}
     if "match" in e:
         mm = e["match"]
         return {"match": {
@@ -3582,6 +3630,15 @@ def subst(e: dict, m: dict) -> dict:
                                     if k not in a.get("binders", [])})}
                      for a in mm["arms"]]}}
     return {"op": e["op"], "args": [subst(a, m) for a in e.get("args", [])]}
+
+
+def _vctor(c: str) -> str:
+    """A variant's name in a pattern: bare (the glob import puts it in scope), or `D::D` for a constructor named like
+    its own datatype, which the import leaves out (SPEC.md "Datatypes (v2): fields")."""
+    d = _SCOPE_DTYPES.get(c)
+    if d is not None and any(ct["name"] == c for ct in d.get("ctors", [])):
+        return f"{c}::{c}"
+    return c
 
 
 def _calls(e: dict, name: str) -> bool:
@@ -3598,6 +3655,8 @@ def _calls(e: dict, name: str) -> bool:
         return any(_calls(q[k], name) for k in ("lo", "hi", "body"))
     if "ctor" in e:
         return any(_calls(a, name) for a in e["ctor"].get("args", []))
+    if "field" in e:
+        return _calls(e["field"]["of"], name)
     if "match" in e:
         m = e["match"]
         return (_calls(m["scrutinee"], name)
@@ -5212,10 +5271,25 @@ class _V1:
         # qualify them.
         datatype_blocks = []
         for d in task.get("datatypes", []):
-            ctors = ", ".join(c["name"] for c in d["ctors"])
+            # SPEC.md "Datatypes (v2): fields" (2026-10-07): a constructor with fields is a tuple variant, the
+            # shape this file's ctor and match printing already writes (`C(a, b)`, `C(x, y) => ...`); Verus guide,
+            # "Enum": declared with round parentheses
+            ctors = ", ".join(c["name"] + ("(" + ", ".join(_vty(f["type"]) for f in c["fields"]) + ")"
+                                           if c.get("fields") else "") for c in d["ctors"])
+            # a constructor named like its datatype (a record, `datatype Point = Point(x: int, y: int)`) makes a
+            # glob import ambiguous (rustc E0659, measured 2026-10-07): import the other variants only, and
+            # `_vctor` spells that one qualified
+            others = [c["name"] for c in d["ctors"] if c["name"] != d["name"]]
+            if len(others) == len(d["ctors"]):
+                use = f"use {d['name']}::*;\n"
+            else:
+                use = f"use {d['name']}::{{{', '.join(others)}}};\n" if others else ""
+            # spec-mode `==` is structural for every type and needs no derive (measured 2026-10-07, checked_tail
+            # verifies without it); vstd's Seq implements no PartialEq, so an enum with a seq field cannot derive
+            # one, and v1's derive stays only where it compiles
+            seqf = any(f["type"] == "seq" for c in d["ctors"] for f in c.get("fields") or [])
             datatype_blocks.append(
-                f"#[derive(PartialEq, Eq)]\nenum {d['name']} {{ {ctors} }}\n"
-                f"use {d['name']}::*;\n")
+                ("" if seqf else "#[derive(PartialEq, Eq)]\n") + f"enum {d['name']} {{ {ctors} }}\n" + use)
         blocks = (datatype_blocks + strlib_blocks + lib_blocks + rotate_blocks
                   + spec_blocks + lemma_blocks
                   + method_blocks + self.wf + self.helpers + [main])
@@ -5732,6 +5806,11 @@ def _tlit(v, ty=None):
         # as a witness dict's pair (a plain 2-list) does above.
         dtype = ty["datatype"]
         if v.startswith(dtype + "."):
+            if "(" in v:
+                # SPEC.md "Datatypes (v2): fields" (2026-10-07): interp._j wrote "Dtype.Ctor(a1, ...)", t's own
+                # notation for the value, so it is read back by the parser (a seq field is its list literal)
+                import surface
+                return surface.parse_expr(v)
             return {"ctor": {"dtype": dtype, "name": v[len(dtype) + 1:],
                             "args": []}}
         raise ValueError(f"witness value {v!r} is not a {dtype} constructor")
@@ -5943,6 +6022,11 @@ def _to_py(v, ty=None):
     is a tuple of TUPLES (interp.py, `_j`'s docstring), and a tuple of
     lists is a different Python value that would silently fail every
     tuple-identity/equality check interp.ev does on it."""
+    if isinstance(ty, dict) and "datatype" in ty and isinstance(v, str):
+        # SPEC.md "Datatypes (v1)/(v2)": interp._j wrote "D.C" or "D.C(a, ...)", t's own notation for the value, so
+        # it is read back by the parser and built by the interpreter (a ctor node's value is its interp.Ctor)
+        import surface
+        return interp.ev(surface.parse_expr(v), {}, {}, interp.St())
     if isinstance(ty, dict) and "pair" in ty:
         t1, t2 = ty["pair"]
         a, b = v
@@ -6230,6 +6314,8 @@ def _cert_formula(task: dict, twin_body: list, w: dict) -> dict | None:
             tw = w.get("_twin")
             if isinstance(tw, str) and ret_type == "real" and _RAT_TEXT.match(tw):
                 pass   # SPEC.md "Exact rationals (v1)": a real return's value, interp._j's "n/d" text
+            elif isinstance(tw, str) and isinstance(ret_type, dict) and "datatype" in ret_type:
+                pass   # SPEC.md "Datatypes (v2): fields": a datatype return's "D.C(a, ...)" text, which _tlit reads back
             elif not isinstance(tw, (bool, int, list)):
                 return None
             m2 = dict(m)
@@ -6992,6 +7078,8 @@ def lower(task: dict, body: list, witness: dict | None = None) -> str:
     _EMPTIES.update(tshape.empty_display_types(task, body))
     _SCOPE.clear()
     _SCOPE.update(tshape._scope_of(task, body))   # SPEC.md "Maps (v1)" (2026-10-06): the operand types expr reads
+    _SCOPE_DTYPES.clear()
+    _SCOPE_DTYPES.update({d["name"]: d for d in task.get("datatypes", [])})
     _SCOPE_FUNS.clear()
     _SCOPE_FUNS.update({f["name"]: f for f in task.get("spec_funs", [])})
     # SPEC.md "Exact rationals (v1)" (2026-10-06): Verus has no reals; a task that names one abstains by name
@@ -7013,6 +7101,8 @@ def lower(task: dict, body: list, witness: dict | None = None) -> str:
     # object from task["body"] (2026-09-11, names.rename_body's note)
     body = names.rename_body(twin_body, renames) if twin_body is not None else task["body"]
     witness = names.remap_witness(witness, renames)
+    _SCOPE_DTYPES.clear()   # again, with the renamed fields e.f now reads (SPEC.md "Datatypes (v2): fields")
+    _SCOPE_DTYPES.update({d["name"]: d for d in task.get("datatypes", [])})
     _hof_register(task, body)   # SPEC.md "Higher-order calls (v1)" (2026-10-06), on the renamed nodes expr will see
     if task.get("t", 0) == 0:
         if task.get("lemmas"):

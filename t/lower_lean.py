@@ -2557,6 +2557,7 @@ if str(HERE) not in sys.path:
 import harness                                 # noqa: E402
 import interp                                  # noqa: E402
 import names                                   # noqa: E402
+import surface                                 # noqa: E402
 from verifiers import lean as lean_backend     # noqa: E402
 
 CMP_OPS = {"<": "<", "<=": "≤", ">": ">", ">=": "≥"}
@@ -3256,6 +3257,63 @@ class Lower:
         self.hyp_n += 1
         return f"_h{self.hyp_n}"
 
+    # ---------- SPEC.md "Datatypes (v2): fields" ----------
+
+    def _dt_ctors(self, dname: str) -> list:
+        for d in self.task.get("datatypes", []):
+            if d["name"] == dname:
+                return d["ctors"]
+        raise KeyError(dname)
+
+    def _arm_scope(self, scrut: dict, arm: dict, env: dict,
+                   types: dict) -> tuple[dict, dict]:
+        """A match arm's own scope: its binders typed by the constructor's
+        fields, positionally, and shadowing any outer substitution of the
+        same name, as Lean's pattern variables shadow."""
+        binders = arm.get("binders") or []
+        if not binders:
+            return env, types
+        dname = self.sort(scrut, types)["datatype"]
+        ctor = next(c for c in self._dt_ctors(dname)
+                    if c["name"] == arm["ctor"])
+        ftypes = [f["type"] for f in ctor.get("fields", [])]
+        env2 = {k: v for k, v in env.items() if k not in binders}
+        return env2, {**types, **dict(zip(binders, ftypes))}
+
+    def _field_ctors(self, fe: dict, types: dict) -> tuple[list, bool]:
+        """The constructors carrying field fe["name"], and whether that is
+        every constructor (a record, or a field all of them declare)."""
+        ctors = self._dt_ctors(self.sort(fe["of"], types)["datatype"])
+        have = [c for c in ctors
+                if any(f["name"] == fe["name"] for f in c.get("fields", []))]
+        return have, len(have) == len(ctors)
+
+    def _has_prop_match(self, x) -> bool:
+        """A match some arm of which carries a quantifier: prop() lowers it
+        as a Prop-valued match (SPEC.md "Datatypes (v2): fields")."""
+        if isinstance(x, dict):
+            if "match" in x and (self._has(x["match"]["arms"], "forall")
+                                 or self._has(x["match"]["arms"], "exists")):
+                return True
+            return any(self._has_prop_match(v) for v in x.values())
+        if isinstance(x, list):
+            return any(self._has_prop_match(v) for v in x)
+        return False
+
+    @staticmethod
+    def _var_names(x) -> set:
+        if isinstance(x, dict):
+            out = {x["var"]} if "var" in x else set()
+            for v in x.values():
+                out |= Lower._var_names(v)
+            return out
+        if isinstance(x, list):
+            out = set()
+            for v in x:
+                out |= Lower._var_names(v)
+            return out
+        return set()
+
     # ---------- sorts ----------
 
     def sort(self, e: dict, types: dict) -> str:
@@ -3279,7 +3337,17 @@ class Lower:
         if "ctor" in e:
             return {"datatype": e["ctor"]["dtype"]}
         if "match" in e:
-            return self.sort(e["match"]["arms"][0]["body"], types)
+            m = e["match"]
+            a0 = m["arms"][0]
+            return self.sort(a0["body"],
+                             self._arm_scope(m["scrutinee"], a0, {}, types)[1])
+        if "field" in e:
+            # SPEC.md "Datatypes (v2): fields": the declared type; check_wf's
+            # field-type-clash rule makes every carrying constructor agree
+            fe = e["field"]
+            have, _ = self._field_ctors(fe, types)
+            return next(f["type"] for f in have[0]["fields"]
+                        if f["name"] == fe["name"])
         if "call" in e:
             f = e["call"]["fun"]
             if f == self.name:
@@ -3524,6 +3592,21 @@ class Lower:
                 cargs = " ".join(self.term(a, env, types, dep) for a in c["args"])
                 return f"({c['dtype']}.{c['name']} {cargs})"
             return f"{c['dtype']}.{c['name']}"
+        if "field" in e:
+            # SPEC.md "Datatypes (v2): fields": `e.f` is Lean's own match
+            # binding the field positionally (TPIL 7.2's `fst`), with a
+            # `default` arm only when some constructor lacks the field.
+            # Its discriminator is a definedness obligation (dcond), so
+            # that arm is never reached where the obligation holds.
+            fe = e["field"]
+            have, every = self._field_ctors(fe, types)
+            of = self.term(fe["of"], env, types, dep)
+            arms = [f"| .{c['name']} " + " ".join(
+                "t_fv" if f["name"] == fe["name"] else "_"
+                for f in c["fields"]) + " => t_fv" for c in have]
+            if not every:
+                arms.append("| _ => default")
+            return f"(match {of} with {' '.join(arms)})"
         if "match" in e:
             # `match e with | .C1 => e1 | .C2 => e2` -- Lean's own match,
             # exhaustive over the datatype's constructors (check_wf's
@@ -3537,7 +3620,9 @@ class Lower:
                 "| .%s%s => %s" % (
                     a["ctor"],
                     " " + " ".join(a["binders"]) if a.get("binders") else "",
-                    self.term(a["body"], env, types, dep, expect))
+                    self.term(a["body"],
+                              *self._arm_scope(m["scrutinee"], a, env, types),
+                              dep, expect))
                 for a in m["arms"])
             return f"(match {scrut} with {arms})"
         if "call" in e:
@@ -3808,6 +3893,23 @@ class Lower:
             # implies/and/or above) has no logical connective of its own
             # to recurse into -- the same generic `(term = true)` bridge
             # `call` just above already uses for a computed bool value.
+            # SPEC.md "Datatypes (v2): fields": an arm carrying a
+            # quantifier makes a Prop-valued match instead (TPIL 7.1: a
+            # match is the recursor, at any motive), so the quantifier
+            # stays logical, never computational.
+            m = e["match"]
+            if self._has(m["arms"], "forall") or self._has(m["arms"], "exists"):
+                scrut = self.term(m["scrutinee"], env, types)
+                arms = " ".join(
+                    "| .%s%s => %s" % (
+                        a["ctor"],
+                        " " + " ".join(a["binders"]) if a.get("binders") else "",
+                        self.prop(a["body"],
+                                  *self._arm_scope(m["scrutinee"], a, env, types)))
+                    for a in m["arms"])
+                return f"(match {scrut} with {arms})"
+            return f"({self.term(e, env, types)} = true)"
+        if "field" in e:
             return f"({self.term(e, env, types)} = true)"
         op = e["op"]
         if op in ("==", "!="):
@@ -3935,6 +4037,20 @@ class Lower:
             # is None/True for every ctor this landing).
             return self._conj([self.dcond(a, env, types)
                                for a in e["ctor"].get("args", [])])
+        if "field" in e:
+            # SPEC.md "Datatypes (v2): fields": defined iff the value is and
+            # was built by a constructor carrying the field: the
+            # discriminator as a Prop-valued match, owed only when some
+            # constructor lacks the field.
+            fe = e["field"]
+            have, every = self._field_ctors(fe, types)
+            disc = None
+            if not every:
+                of = self.term(fe["of"], env, types)
+                arms = " ".join(f"| .{c['name']}" + " _" * len(c["fields"])
+                                + " => True" for c in have)
+                disc = f"(match {of} with {arms} | _ => False)"
+            return self._conj([self.dcond(fe["of"], env, types), disc])
         if "match" in e:
             # A match's result is defined iff the scrutinee is AND the
             # body of the arm ACTUALLY TAKEN is -- reusing Lean's own
@@ -3943,7 +4059,9 @@ class Lower:
             # move `ite`'s own case above makes with `guard`.
             m = e["match"]
             ds = self.dcond(m["scrutinee"], env, types)
-            arm_ds = [self.dcond(a["body"], env, types) for a in m["arms"]]
+            arm_ds = [self.dcond(a["body"],
+                                 *self._arm_scope(m["scrutinee"], a, env, types))
+                      for a in m["arms"]]
             if all(d is None for d in arm_ds):
                 branch = None
             else:
@@ -4524,12 +4642,26 @@ class Lower:
         return node
 
     def _collect_mul_pairs(self, x, types: dict, out: list,
-                           seen: set) -> None:
+                           seen: set, bound: frozenset = frozenset()) -> None:
         if isinstance(x, dict):
+            if "match" in x:
+                # SPEC.md "Datatypes (v2): fields": a product over an arm's
+                # binders is out of scope at the lemma's top level, which
+                # binds the task's parameters only, so it gets no sign
+                # lemma. The walk order is the generic one below.
+                m = x["match"]
+                self._collect_mul_pairs(m["scrutinee"], types, out, seen,
+                                        bound)
+                for a in m["arms"]:
+                    self._collect_mul_pairs(
+                        a["body"], types, out, seen,
+                        bound | frozenset(a.get("binders") or []))
+                return
             if (x.get("op") == "*" and isinstance(x.get("args"), list)
                     and len(x["args"]) == 2):
                 a, b = x["args"]
                 if (self._has_var(a) and self._has_var(b)
+                        and not (self._var_names(x) & bound)
                         and self._is_affine(a) and self._is_affine(b)):
                     try:
                         ta = self.term(a, {}, types)
@@ -4540,10 +4672,10 @@ class Lower:
                         seen.add((ta, tb))
                         out.append((ta, tb))
             for v in x.values():
-                self._collect_mul_pairs(v, types, out, seen)
+                self._collect_mul_pairs(v, types, out, seen, bound)
         elif isinstance(x, list):
             for v in x:
-                self._collect_mul_pairs(v, types, out, seen)
+                self._collect_mul_pairs(v, types, out, seen, bound)
 
     def _mul_sign_pairs(self) -> list:
         """Every distinct (A, B) affine factor-text pair this task's
@@ -7260,7 +7392,14 @@ theorem t_str_join_split_roundtrip (s : List Int) (c : Int) :
             # `=`/`≠` SPEC.md gives it (`==`/`!=` on two datatype values
             # lower through term()'s `Dtype.Ctor`, decided the same way
             # any other Lean equality is, `omega`/`grind`/`decide`).
-            ctor_lines = "\n".join(f"  | {c['name']}" for c in d["ctors"])
+            # SPEC.md "Datatypes (v2): fields": a constructor's fields
+            # are its named binders, `| Rect (w : Int) (h : Int)` (TPIL
+            # 7.2's `| inr (b : β)`); a field-less one prints as in v1.
+            ctor_lines = "\n".join(
+                f"  | {c['name']}" + "".join(
+                    f" ({f['name']} : {self.lean_type(f['type'])})"
+                    for f in c.get("fields", []))
+                for c in d["ctors"])
             dt_src += f"inductive {d['name']} where\n{ctor_lines}\n  deriving DecidableEq\n\n"
         seq_src = self.emit_seq_helpers()
         seq_thms = []
@@ -7776,6 +7915,25 @@ theorem t_str_join_split_roundtrip (s : List Int) (c : Int) :
                + (", " + ", ".join(f"{f}_s" for f in self.sfuns)
                   if self.sfuns else "") + "])\n"
                if dt_params else "")
+            # SPEC.md "Datatypes (v2): fields": a product over a match
+            # binder has no top-level sign lemma (the binder is out of
+            # scope there), so after the split it is closed in place by
+            # the sign rule those lemmas use: both factors nonnegative,
+            # or both nonpositive, each by omega. `simp at hpre` first
+            # reduces the requires' match on the constructor, which
+            # simp_all alone was measured to leave unreduced. Offered
+            # only for a datatype with fields, so no v1 task changes.
+            + (f"  | (cases {' <;> cases '.join(dt_params)}"
+               + (" <;> simp at hpre" if self.task.get("requires") else "")
+               + f" <;> simp_all [{self.name}_t"
+               + (", " + ", ".join(f"{f}_s" for f in self.sfuns)
+                  if self.sfuns else "")
+               + "] <;> (first | omega | exact Int.mul_nonneg (by omega) "
+               "(by omega) | exact Int.mul_nonneg_of_nonpos_of_nonpos "
+               "(by omega) (by omega)))\n"
+               if dt_params and any(c.get("fields")
+                                    for d in self.task.get("datatypes", [])
+                                    for c in d["ctors"]) else "")
             # 2026-09-26 (vericoding DS0029 lcmInt, `result := 0` against
             # `result % a == 0`): grind's linear-integer solver only
             # reasons about `%` by a numeral, so `0 % a = 0` with a
@@ -9001,10 +9159,25 @@ theorem t_str_join_split_roundtrip (s : List Int) (c : Int) :
                         if (exit_alt is not None
                             or self._divisor_bound_plan is not None)
                         else f"first | {inst} | {self._gr_bounded()}")
+        concl = self.post_conj(applied_loop)
+        if self._has_prop_match(self.task["ensures"]):
+            # SPEC.md "Datatypes (v2): fields": a Prop-valued match in the
+            # contract would be split by the preservation step's `split`
+            # along with the body's ifs, leaving no shape for the lemma's
+            # own `apply`. The lemma states the contract through a named
+            # predicate instead, which `split` does not look inside;
+            # `exact` at the contract and `unfold` at the exit see through
+            # it, since a def is defeq to its body.
+            out.append(
+                f"def {self.name}_t_post {pb} ({self.ret} : "
+                f"{self.lean_type(self.rett)}) : Prop :=\n"
+                f"  {self.post_conj(self.ret)}\n")
+            concl = f"{self.name}_t_post {pnames} ({applied_loop})"
+            exit_tac = f"(unfold {self.name}_t_post; {exit_tac})"
         out.append(
             f"theorem {self.name}_t_loop_spec {pb} {sb}{hpre}{hinvs}"
             f"{hfrs} :\n"
-            f"    {self.post_conj(applied_loop)} := by\n"
+            f"    {concl} := by\n"
             f"  rw [{self.name}_t_loop.eq_def]\n"
             f"  split\n"
             f"  · {split_tac}\n"
@@ -9839,6 +10012,15 @@ theorem t_str_join_split_roundtrip (s : List Int) (c : Int) :
             # syntax verbatim (fully qualified, so no `open`/context is
             # needed the way `.Ctor` dot notation would).
             dtype = ty["datatype"]
+            if isinstance(v, str) and v.startswith(dtype + ".") and "(" in v:
+                # SPEC.md "Datatypes (v2): fields": `(Dtype.Ctor a b)`, each
+                # field a ground term at its declared type
+                c = interp.ev(surface.parse_expr(v), {}, {}, interp.St())
+                fields = next(k["fields"] for k in self._dt_ctors(dtype)
+                              if k["name"] == c.ctor)
+                return "(%s.%s %s)" % (dtype, c.ctor, " ".join(
+                    self._gterm(interp._j(a), f["type"])
+                    for a, f in zip(c.args, fields)))
             if isinstance(v, str) and v.startswith(dtype + "."):
                 return v
             raise ValueError(f"witness value {v!r} is not a {dtype} constructor")
@@ -9902,6 +10084,10 @@ theorem t_str_join_split_roundtrip (s : List Int) (c : Int) :
             # style field access (the record case ahead) would read a
             # dataclass, not a string, exactly as a pair's `_unshow` does.
             dtype = ty["datatype"]
+            if isinstance(v, str) and v.startswith(dtype + ".") and "(" in v:
+                # SPEC.md "Datatypes (v2): fields": "Dtype.Ctor(a, ...)",
+                # read back by the parser and interp, as Dafny's _tlit does
+                return interp.ev(surface.parse_expr(v), {}, {}, interp.St())
             if isinstance(v, str) and v.startswith(dtype + "."):
                 return interp.Ctor(dtype, v[len(dtype) + 1:], ())
             raise ValueError(f"witness value {v!r} is not a {dtype} constructor")
@@ -10226,8 +10412,14 @@ theorem t_str_join_split_roundtrip (s : List Int) (c : Int) :
         return None      # too many concrete iterations: honest abstain
 
     def _cert_value(self, w: dict, _kind: str) -> list | None:
-        if isinstance(w.get("_twin"), str):
-            return None      # "no value": nothing ground to instantiate
+        tw = w.get("_twin")
+        if isinstance(tw, str) and not (
+                isinstance(self.rett, dict) and "datatype" in self.rett
+                and tw.startswith(self.rett["datatype"] + ".")):
+            # "no value": nothing ground to instantiate. A datatype return
+            # is shown as its "Dtype.Ctor(a, ...)" text, which _unshow and
+            # _gterm read back (SPEC.md "Datatypes (v2): fields").
+            return None
         self.cert_funs = interp.funs_of(self.task, self.body)
         fns = [f"{self.name}_t"] + [f"{f}_s" for f in self.sfuns]
         if self._nl_used:
@@ -10328,6 +10520,9 @@ theorem t_str_join_split_roundtrip (s : List Int) (c : Int) :
             # SPEC.md "Datatypes (v1)": the same "Dtype.Ctor" shown form
             # interp._j already renders it as, so it re-enters `_gterm`/
             # `_unshow` exactly as a witness dict's own value would.
+            # SPEC.md "Datatypes (v2): fields": with its fields, as _j shows it.
+            if v.args:
+                return interp._j(v)
             return f"{v.dtype}.{v.ctor}"
         if isinstance(v, (tuple, list)):
             return [Lower._reground(x) for x in v]

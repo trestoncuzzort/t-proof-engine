@@ -1513,6 +1513,96 @@ extension): sha256 of every committed task's, lemma's and nested file's
 lowered source, real and twin, in all seven kernels, is unchanged from
 before this landing (588 = 42 files x 7 kernels x 2 sides, byte for byte).
 
+### Datatypes (v2): fields
+
+Stated 2026-10-07 (`internal/RESEARCH-2026-10-07-zoom-out.md` decision 4, G9; PREDICT T23). v1's
+constructors carried no fields. v2 lets them carry fields, which gives **records** (one constructor) and
+**non-recursive sums** (several constructors, any of them with fields). The designs are:
+- Dafny's named constructor parameters and destructors (Dafny Reference Manual 5.14.1);
+- Rust's tuple-like enum variants (the Verus guide, "Datatypes: enums");
+- Lean's constructors with arguments (Theorem Proving in Lean 4, 7.2).
+
+Recursive datatypes are the next wave and are still refused by name.
+
+**Surface.**
+
+```
+datatype Shape = Circle(r: int) | Rect(w: int, h: int) | Dot
+datatype Point = Point(x: int, y: int)          // a record: one constructor, named like its datatype or not
+```
+
+- `Shape.Rect(2, 3)` builds a value. Its arguments are positional, one per declared field.
+- `case s { Circle(r) => ..., Rect(w, h) => ..., Dot => ... }` binds each arm's fields positionally, under
+  names the arm chooses.
+- `s.w` reads a field.
+
+**AST.** A constructor declaration gains `"fields": [{"name": f, "type": T}, ...]`. A field-less constructor keeps
+v1's shape and has no `fields` key, so every v1 task is unchanged. One new Expr:
+
+```
+{"field": {"of": Expr, "name": f}}                     // e.f
+```
+
+**Types (check_wf).**
+- `ctor-field-type`: a field is an int, a bool or a seq. A field whose type is a datatype, the datatype's own
+  included (recursion), is refused by name.
+- `field-dup`: a field name appears at most once per constructor.
+- `field-unknown`: `e.f` needs `e` to be a datatype value and `f` to be a field some constructor of that datatype
+  declares.
+- `field-type-clash`: constructors that share a field name give it one type, which is the type of `e.f`.
+- v1's `ctor-arity`, `ctor-argtype` and `match-arity` now count and type the declared fields.
+
+The v1 gate `ctor-fields-not-v1` is lifted.
+
+**Meaning.**
+- `e.f` is Dafny's destructor. It is defined iff `e` is defined and was built by a constructor that declares `f`,
+  and its value is that field.
+- A match arm's binders are the chosen constructor's fields, in declaration order.
+- Equality stays structural: the datatype, the constructor and every field.
+- `interp.funs_of` records each datatype's field names under `funs["$fields"]`, so `ev` reads a field by position.
+
+**The twins.** The witness ladder enumerates constructors with fields. Each field takes values from the near
+corner of its own type's ladder (`DT_FIELD_NEAR = 3`: the first three ints, the bools, the first three seqs). The
+combinations go in shell order, at most `DT_CTOR_CAP = 12` per constructor. A witness shows a value as
+`D.C(a, ...)` in t's own notation, with a bool field as `true` or `false`. `surface.parse_expr` reads it back, as
+every lowering's certificate does. Field access is a
+mutation site, so every existing rung reaches it. `swap-ctor` is unchanged.
+
+**Lowering status (2026-10-07).** Three of the seven kernels state the construct end to end.
+- **Dafny:** a native `datatype` with named parameters and the `.f` destructor.
+- **Verus:**
+  - Rust tuple variants, `C(int, ...)`.
+  - `e.f` is a `match` that returns `vstd::pervasive::arbitrary()` for a constructor without `f`.
+  - The discriminator is a definedness obligation, so that value is never observed where the obligation holds.
+  - A variant named like its datatype is qualified (`Point::Point`), because a glob import of it is ambiguous
+    (E0659).
+  - An enum with a seq field derives nothing. Spec-mode `==` is structural for every type, and vstd's `Seq`
+    implements no `PartialEq`. v1's `#[derive(PartialEq, Eq)]` stays wherever it compiles.
+- **Lean:**
+  - An `inductive` whose constructors take named binders.
+  - `e.f` is a `match` with a `default` arm only when some constructor lacks `f`.
+  - A match whose arms carry a quantifier is a Prop-valued match, so the quantifier stays logical.
+  - A loop whose contract has such a match states its lemma through a named predicate `{name}_t_post`, which the
+    preservation step's `split` does not look inside.
+  - A product over a match binder gets no top-level sign lemma. After a case split, the sign rule those lemmas
+    use closes it.
+
+In all three, the certificate reads a datatype witness back through the parser, and a value witness may be a
+datatype. A field or a match binder named like a kernel's keyword is renamed with its uses (`names.py`), as every
+other identifier is. SPARK, Rocq, F* and Frama-C refuse every datatype by name, as in v1.
+
+**Byte identity.** Every lowering of the 88 committed tasks and the 21 AlgoVeri tasks was compared before and
+after this landing: real and twin, in all seven kernels, with the twin's witness (1,320 and 315 entries). All are
+byte-identical.
+
+**Not in v2.**
+- A recursive constructor, or any field of datatype type.
+- A generic datatype.
+- A datatype as a pair, seq or set component.
+- A datatype in a spec_fun's signature.
+- Field update (Dafny's `e.(f := v)`).
+- Field access in the Python hand-back, which refuses datatypes by name, as in v1.
+
 ### Compositional types (v1)
 
 Stated 2026-10-06 (the operator's direction of that morning: t is the ceiling,

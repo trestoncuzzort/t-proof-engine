@@ -257,6 +257,9 @@ def _sub(e: dict, path: tuple):
         # an empty loop today, kept general for the record case ahead.
         for i, a in enumerate(e["ctor"].get("args", [])):
             yield from _sub(a, path + ("ctor", "args", i))
+    elif "field" in e:
+        # SPEC.md "Datatypes (v2): fields" (2026-10-07): the value whose field is read is a mutation site
+        yield from _sub(e["field"]["of"], path + ("field", "of"))
     elif "match" in e:
         yield from _sub(e["match"]["scrutinee"], path + ("match", "scrutinee"))
         for i, arm in enumerate(e["match"]["arms"]):

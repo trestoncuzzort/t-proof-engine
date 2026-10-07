@@ -701,6 +701,17 @@ def ev(e: dict, env: dict, funs: dict, st: St):
         c = e["ctor"]
         args = tuple(ev(a, env, funs, st) for a in c.get("args", []))
         return Ctor(c["dtype"], c["name"], args)
+    if "field" in e:
+        # SPEC.md "Datatypes (v2): fields" (2026-10-07): Dafny's destructor, defined iff the value was built by a
+        # constructor carrying the field (reference manual 5.14.1: its use requires the discriminator)
+        fld = e["field"]
+        v = ev(fld["of"], env, funs, st)
+        names = (funs.get("$fields") or {}).get(v.dtype, {}).get(v.ctor)
+        if names is None:
+            raise ValueError(f"field {fld['name']!r}: no declaration of {v.dtype}.{v.ctor} in scope")
+        if fld["name"] not in names:
+            raise Undef(f"{v.dtype}.{v.ctor} has no field {fld['name']}", expr=e)
+        return v.args[names.index(fld["name"])]
     if "match" in e:
         # {"match": {"scrutinee", "arms": [{"ctor", "binders", "body"}]}}:
         # non-strict like `ite` -- only the chosen arm's body is evaluated
@@ -1242,6 +1253,12 @@ def funs_of(task: dict, body: list) -> dict:
     if self_calls(body, task["name"]):
         funs[task["name"]] = {"params": task["params"],
                               "_exec": (body, task["returns"][0]["name"])}
+    if task.get("datatypes"):
+        # SPEC.md "Datatypes (v2): fields" (2026-10-07): each constructor's field names in order, for `e.f` (ev's
+        # "field" case); `$` is not a t name, so the key cannot collide with a spec_fun or method
+        funs["$fields"] = {d["name"]: {c["name"]: [f["name"] for f in c.get("fields", [])]
+                                       for c in d.get("ctors", [])}
+                           for d in task["datatypes"]}
     return funs
 
 
@@ -1448,11 +1465,34 @@ def ladders(task: dict) -> dict:
     for d in task.get("datatypes", []):
         ctors = d.get("ctors", [])
         if isinstance(d.get("name"), str) and isinstance(ctors, list):
-            lad[f"datatype:{d['name']}"] = tuple(
-                Ctor(d["name"], c["name"], ())
-                for c in ctors if isinstance(c, dict)
-                and isinstance(c.get("name"), str) and not c.get("fields"))
+            vals = []
+            for c in ctors:
+                if not (isinstance(c, dict) and isinstance(c.get("name"), str)):
+                    continue
+                fields = c.get("fields") or []
+                if not fields:
+                    vals.append(Ctor(d["name"], c["name"], ()))
+                    continue
+                # SPEC.md "Datatypes (v2): fields" (2026-10-07): a constructor with fields enters the ladder with
+                # its fields drawn from the near corner of their own ladders (the first few ints, both bools, the
+                # first few seqs), combined in shell order and capped, as a pair's ladder combines its components
+                firsts = [tuple(lad[f["type"]][:DT_FIELD_NEAR]) for f in fields]
+                combos = [()]
+                for col in firsts:
+                    combos = [cmb + (x,) for cmb in combos for x in col]
+                combos.sort(key=lambda cmb: sum(_shell_rank(x, firsts[i]) for i, x in enumerate(cmb)))
+                vals.extend(Ctor(d["name"], c["name"], cmb) for cmb in combos[:DT_CTOR_CAP])
+            lad[f"datatype:{d['name']}"] = tuple(vals)
     return lad
+
+
+DT_FIELD_NEAR = 3        # values per field drawn from its own ladder (SPEC.md "Datatypes (v2): fields")
+DT_CTOR_CAP = 12         # values per constructor with fields, the near corner first
+
+
+def _shell_rank(x, col: tuple) -> int:
+    """A field value's position in its own ladder column, the shell order a combination is ranked by."""
+    return col.index(x)
 
 
 PAIR_SHELL = 24          # 2-argument shell cap, the same magnitude
@@ -1548,6 +1588,15 @@ def _names(task: dict) -> list[tuple[str, str]]:
     return [(p["name"], p["type"]) for p in task["params"]]
 
 
+def _t_text(x) -> str:
+    """A shown value (_j's output) in t's surface notation: bools as `true`/`false`, lists as `[a, b]`."""
+    if isinstance(x, bool):
+        return "true" if x else "false"
+    if isinstance(x, list):
+        return "[%s]" % ", ".join(_t_text(y) for y in x)
+    return str(x)
+
+
 def _j(v):
     if isinstance(v, Fraction):
         # SPEC.md "Exact rationals (v1)": shown as n/d in lowest terms.
@@ -1558,7 +1607,9 @@ def _j(v):
         # shape); recursing on fields the same way Pair recurses on its
         # two components, for the record case ahead.
         if v.args:
-            return f"{v.dtype}.{v.ctor}(%s)" % ", ".join(str(_j(a)) for a in v.args)
+            # SPEC.md "Datatypes (v2): fields": each field in t's own notation (`true`, not Python's `True`), so
+            # that surface.parse_expr reads the shown value back, as every certificate does
+            return f"{v.dtype}.{v.ctor}(%s)" % ", ".join(_t_text(_j(a)) for a in v.args)
         return f"{v.dtype}.{v.ctor}"
     if isinstance(v, Pair):
         # SPEC.md "Pairs": shown as a 2-list, recursing so a seq component

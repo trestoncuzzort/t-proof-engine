@@ -1431,6 +1431,10 @@ def expr(e: dict, self_name: str | None = None) -> str:
             cargs = ", ".join(expr(a, self_name) for a in c["args"])
             return f"{c['dtype']}.{c['name']}({cargs})"
         return f"{c['dtype']}.{c['name']}"
+    if "field" in e:
+        # SPEC.md "Datatypes (v2): fields" (2026-10-07): Dafny's own destructor `e.f`; Dafny itself checks the
+        # discriminator it requires, the definedness obligation SPEC.md states for the field
+        return f"({expr(e['field']['of'], self_name)}).{e['field']['name']}"
     if "match" in e:
         # `match e case C1 => e1 case C2 => e2` -- Dafny's own match
         # expression (reference manual 8.5.2's statement form has a
@@ -2635,6 +2639,11 @@ def _tlit(v, ty=None):
             # witnesses never arrive as a "Name.Name" string).
             dtype = ty["datatype"]
             if isinstance(v, str) and v.startswith(dtype + "."):
+                if "(" in v:
+                    # SPEC.md "Datatypes (v2): fields" (2026-10-07): interp._j wrote "Dtype.Ctor(a1, ...)", t's own
+                    # notation for the value, so it is read back by the parser (a seq field is its list literal)
+                    import surface
+                    return surface.parse_expr(v)
                 return {"ctor": {"dtype": dtype, "name": v[len(dtype) + 1:],
                                 "args": []}}
             raise ValueError(f"witness value {v!r} is not a {dtype} constructor")
@@ -2713,6 +2722,8 @@ def subst(e: dict, m: dict) -> dict:
         c = e["ctor"]
         return {"ctor": {"dtype": c["dtype"], "name": c["name"],
                          "args": [subst(a, m) for a in c.get("args", [])]}}
+    if "field" in e:
+        return {"field": {"of": subst(e["field"]["of"], m), "name": e["field"]["name"]}}
     if "match" in e:
         mm = e["match"]
         return {"match": {
@@ -2841,6 +2852,14 @@ def _ev(e: dict, env: dict, funs: dict, st, facts: dict, hoist):
                            "args": [x for x, _ in pairs]}}
         return pruned, interp.Ctor(c["dtype"], c["name"],
                                    tuple(v for _, v in pairs))
+    if "field" in e:
+        # SPEC.md "Datatypes (v2): fields" (2026-10-07): the destructor, replayed as interp.ev replays it
+        fld = e["field"]
+        oe, ov = _ev(fld["of"], env, funs, st, facts, hoist)
+        names = (funs.get("$fields") or {}).get(ov.dtype, {}).get(ov.ctor)
+        if names is None or fld["name"] not in names:
+            raise interp.Undef(f"{ov.dtype}.{ov.ctor} has no field {fld['name']}")
+        return {"field": {"of": oe, "name": fld["name"]}}, ov.args[names.index(fld["name"])]
     if "match" in e:
         # Non-strict, like `ite`: only the chosen arm's body is evaluated,
         # and (with `hoist` a list) the fact "the scrutinee took THIS
@@ -2851,14 +2870,17 @@ def _ev(e: dict, env: dict, funs: dict, st, facts: dict, hoist):
         se, sv = _ev(m["scrutinee"], env, funs, st, facts, hoist)
         for a in m["arms"]:
             if a["ctor"] == sv.ctor:
+                # SPEC.md "Datatypes (v2): fields" (2026-10-07): the arm's binders are the field values, written
+                # into the arm as ground literals, so the emitted fact names no binder the certificate never binds;
+                # the hoisted fact is the scrutinee's equality with the whole ground value (v1's enums: no fields,
+                # the same `D.C` as before)
+                lits = [_tlit(interp._j(fv)) for fv in sv.args]
                 if hoist is not None:
                     hoist.append({"op": "==", "args": [
                         se, {"ctor": {"dtype": sv.dtype, "name": sv.ctor,
-                                     "args": []}}]})
-                sub = dict(env)
-                for bname, fv in zip(a.get("binders", []), sv.args):
-                    sub[bname] = fv
-                return _ev(a["body"], sub, funs, st, facts, hoist)
+                                     "args": lits}}]})
+                body = subst(a["body"], dict(zip(a.get("binders", []), lits))) if lits else a["body"]
+                return _ev(body, env, funs, st, facts, hoist)
         raise interp.Undef(f"match: no arm for constructor {sv.ctor!r}")
     if "comp" in e:
         # SPEC.md "Comprehensions (v1)": evaluated as interp does; a certificate unrolls it first (`_unroll`)
@@ -3220,6 +3242,8 @@ def _unroll(e: dict, funs: dict, st, budget: list, bounds: list) -> dict:
         return {"ctor": {"dtype": c["dtype"], "name": c["name"],
                          "args": [_unroll(a, funs, st, budget, bounds)
                                   for a in c.get("args", [])]}}
+    if "field" in e:
+        return {"field": {"of": _unroll(e["field"]["of"], funs, st, budget, bounds), "name": e["field"]["name"]}}
     if "match" in e:
         m = e["match"]
         return {"match": {
@@ -3277,6 +3301,9 @@ def _name_seqs(e: dict, names: dict, used: dict,
         return {"ctor": {"dtype": c["dtype"], "name": c["name"],
                          "args": [_name_seqs(a, names, used, nnames, nused, snames, sused)
                                   for a in c.get("args", [])]}}
+    if "field" in e:
+        return {"field": {"of": _name_seqs(e["field"]["of"], names, used, nnames, nused, snames, sused),
+                          "name": e["field"]["name"]}}
     if "match" in e:
         m = e["match"]
         return {"match": {
@@ -3683,6 +3710,9 @@ def _certificate(task: dict, twin_body: list, w: dict) -> str | None:
     kind = w.get("_kind")
     names = {k: v for k, v in w.items() if not k.startswith("_")}
     funs = {f["name"]: f for f in task.get("spec_funs", [])}
+    if task.get("datatypes"):
+        # SPEC.md "Datatypes (v2): fields": the field names `_ev`'s destructor replay reads, as interp.funs_of carries them
+        funs["$fields"] = interp.funs_of(task, [])["$fields"]
     scope_types = _scope_types(task)
     ret_type = task["returns"][0]["type"]
     st = interp.St()
@@ -3714,7 +3744,10 @@ def _certificate(task: dict, twin_body: list, w: dict) -> str | None:
             tw = w.get("_twin")
             # SPEC.md "Exact rationals (v1)" (2026-10-06): a real return's value arrives as interp._j's "n/d"
             # text, the one string that is a ground literal here; any other string (a datatype rendering) is not.
-            if isinstance(tw, str) and not (ret_type == "real" and _RAT_TEXT.match(tw)):
+            # SPEC.md "Datatypes (v2): fields" (2026-10-07): a datatype return arrives as its "D.C(a, ...)" rendering,
+            # which _tlit now reads back for a datatype type
+            if isinstance(tw, str) and not ((ret_type == "real" and _RAT_TEXT.match(tw))
+                                            or (isinstance(ret_type, dict) and "datatype" in ret_type)):
                 return None
             if not isinstance(tw, (bool, int, list, str)):
                 return None
@@ -4046,7 +4079,10 @@ def lower(task: dict, body: list, witness: dict | None = None) -> str:
         # SPEC.md "Datatypes (v1)" (2026-09-27): t's datatype IS Dafny's
         # own `datatype` declaration (reference manual 5.14), one
         # constructor per ctor, v1 states nullary constructors only.
-        ctors = " | ".join(c["name"] for c in d["ctors"])
+        # SPEC.md "Datatypes (v2): fields" (2026-10-07): a constructor's named fields are Dafny's own named
+        # constructor parameters, each one a destructor (reference manual 5.14.1)
+        ctors = " | ".join(c["name"] + ("(" + ", ".join(f"{f['name']}: {dafny_type(f['type'])}" for f in c["fields"])
+                                        + ")" if c.get("fields") else "") for c in d["ctors"])
         lines.append(f"datatype {d['name']} = {ctors}")
     if task.get("datatypes"):
         lines.append("")
