@@ -1768,3 +1768,42 @@ and v3 carry the Rocq notes.
 (2) Each of the nine is then verified/refuted in Dafny, Verus, Lean and Rocq, four kernels, where it was three.
 (3) bag_size and checked_tail abstain in Rocq. some_negative reads unproved in Rocq, and AlgoVeri's
 discrete_log_naive reads unproved there. No other cell moves for this change.
+
+## T35 registered (2026-10-07 06:04Z, after hand probes and before the clean-clone run that follows clean26): datatypes in F*
+
+The zoom-out's decision 5, second half. F* refused every datatype. Receipt fc51eb6283ec: the F* book's chapter
+"Inductive types and pattern matching". SPEC.md "Datatypes" v1, v2 and v3 carry the F* notes.
+
+**Design.**
+- **Types.** A t datatype is F*'s own inductive type: `dt_<D>` the type, `Dt_<D>_<C>` a constructor, `f_<f>` a field.
+- **Equality.** The type is an eqtype, so `==` is `=` in a bool and `==` in a Prop.
+- **Expressions.** `case` is F*'s `match`, which F* checks exhaustive. `e.f` is a function whose argument is refined
+  to the constructors that declare `f`, so F* proves the read's definedness wherever it occurs.
+- **Recursion.** Recursion on a datatype parameter is `(decreases q)`, F*'s subterm ordering.
+- **Certificates.** A certificate's formula is built from the original task, as before, and for a datatype task its
+  calls are renamed to the file's own names. tree_sum's `total` is an F* keyword, so the file says `t_total`; a
+  certificate naming `total` read MALFORMED, measured before this fix.
+- **Refused by name:** a seq, set or pair field.
+
+**Measured before this registration, stated plainly.**
+- **F*, `cli verify`, the 12 datatype tasks:**
+  - Ten COUNT: color_code, shape_area, manhattan, rect_area, some_negative, tree_sum, tree_count, tree_height,
+    tree_mirror and tree_insert. some_negative is a loop over an Opt state, which Rocq leaves unproved.
+  - bag_size and checked_tail abstain by name (a seq field).
+- **AlgoVeri:**
+  - The five BST programs abstain by name, on the set-ranged quantifier.
+  - discrete_log_naive's real times out and its twin is refuted.
+- **Byte identity:** of the 104 tasks and 27 AlgoVeri programs, exactly 26 lowerings change: the F* real and twin of
+  the 12 datatype tasks, and of discrete_log_naive.
+- **Suite:** the whole suite passes (724). Three tests changed, as this registration intends:
+  - the two refusal tests now pin SPARK and Frama-C;
+  - the F* shape tests skip datatype tasks, which test_fstar_datatypes.py covers;
+  - test_names allows a rename only of the kernel's own keywords.
+
+**Bars**, for the clean-clone matrix and AlgoVeri table that follow clean26 (which runs at 1da07b8, without this
+change):
+(1) The ten read verified/refuted in F*; F* gains 10.
+(2) With T34's Rocq cells, the nine Rocq carries are verified/refuted in five kernels (Dafny, Verus, Lean, Rocq, F*).
+some_negative is in four: Dafny, Verus, Lean and F*.
+(3) bag_size and checked_tail abstain in F*, and AlgoVeri's discrete_log_naive reads timeout/refuted in F*. No other
+cell moves for this change.

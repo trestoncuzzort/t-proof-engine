@@ -1702,6 +1702,96 @@ def _has_rat(x) -> bool:
     return isinstance(x, list) and any(_has_rat(v) for v in x)
 
 
+# DATATYPES in F* (PREDICT T35, 2026-10-07; SPEC.md "Datatypes (v1)", "(v2): fields", "(v3): recursion"). A t datatype
+# is F*'s own inductive type (the F* book, "Inductive types and pattern matching"): `dt_<D>` the type (an F* type name
+# begins in lower case), `Dt_<D>_<C>` a constructor (upper case), a field `f_<f>` its argument. A type whose fields are
+# int, bool or such datatypes is an eqtype, so `==` is `=` in a bool and `==` in a Prop. `case` is F*'s `match`, which
+# F* checks exhaustive. `e.f` is the function `dt_<D>_f_<f>`, whose argument is refined to the constructors that
+# declare `f`: F* proves that refinement wherever the field is read, which is the read's definedness. Recursion on a
+# datatype parameter terminates by F*'s subterm ordering, `(decreases q)`. A seq, set or pair field refuses by name.
+# `_DTS` holds the task's declarations for exactly one `lower()` call.
+_DTS: dict = {}
+
+
+def _dt_of(t) -> str | None:
+    return t["datatype"] if isinstance(t, dict) and "datatype" in t else None
+
+
+def _fdt(d: str) -> str:
+    return f"dt_{d}"
+
+
+def _fctor(d: str, c: str) -> str:
+    return f"Dt_{d}_{c}"
+
+
+def _dt_fields(d: str, c: str) -> list:
+    return next(k for k in _DTS[d]["ctors"] if k["name"] == c).get("fields", [])
+
+
+def _dt_field_type(d: str, f: str):
+    for k in _DTS[d]["ctors"]:
+        for fd in k.get("fields", []):
+            if fd["name"] == f:
+                return fd["type"]
+    raise NotImplementedError(f"fstar lowering: {d} has no field {f!r}")
+
+
+def _dt_check(task: dict) -> None:
+    for d in task.get("datatypes", []):
+        for k in d["ctors"]:
+            for fd in k.get("fields", []):
+                if fd["type"] not in ("int", "bool") and _dt_of(fd["type"]) is None:
+                    raise NotImplementedError(
+                        f"fstar lowering: a datatype field of type {fd['type']!r} (SPEC.md 'Datatypes (v2): fields'): "
+                        "only int, bool and datatype fields are lowered yet")
+
+
+def _dt_default(d: str, seen: frozenset = frozenset()) -> str:
+    for k in _DTS[d]["ctors"]:
+        args = []
+        for fd in k.get("fields", []):
+            fd_d = _dt_of(fd["type"])
+            if fd_d is not None:
+                if fd_d in seen or fd_d == d:
+                    break
+                args.append(_dt_default(fd_d, seen | {d}))
+            else:
+                args.append(_dummy(fd["type"]))
+        else:
+            return f"({_fctor(d, k['name'])}{''.join(' ' + a for a in args)})" if args else _fctor(d, k["name"])
+    raise NotImplementedError(f"fstar lowering: datatype {d} has no constructor buildable without itself")
+
+
+def _dt_decls(task: dict) -> str:
+    out = []
+    for d in task.get("datatypes", []):
+        name = d["name"]
+        arms = []
+        for k in d["ctors"]:
+            fs = "".join(f"f_{fd['name']}:{_tystr(fd['type'])} -> " for fd in k.get("fields", []))
+            arms.append(f"  | {_fctor(name, k['name'])} : {fs}{_fdt(name)}")
+        out.append(f"type {_fdt(name)} =\n" + "\n".join(arms) + "\n")
+        fields: dict = {}
+        for k in d["ctors"]:
+            for i, fd in enumerate(k.get("fields", [])):
+                fields.setdefault(fd["name"], []).append((k, i))
+        for f, sites in fields.items():
+            ft = _dt_field_type(name, f)
+            arms = []
+            for k, i in sites:
+                pat = " ".join(f"t_p{j}" for j in range(len(k["fields"])))
+                arms.append(f"  | {_fctor(name, k['name'])} {pat} -> t_p{i}")
+            if len(sites) < len(d["ctors"]):
+                ref = " || ".join(f"{_fctor(name, k['name'])}? t_x" for k, _ in sites)
+                arg = f"(t_x:{_fdt(name)}{{{ref}}})"
+            else:
+                arg = f"(t_x:{_fdt(name)})"
+            ty = _tystr(ft)
+            out.append(f"let {_fdt(name)}_f_{f} {arg} : {ty} =\n  match t_x with\n" + "\n".join(arms) + "\n")
+    return "\n".join(out) + "\n"
+
+
 def _tystr(t) -> str:
     """The F* type string for a t type: a bare string ("int"/"bool"/"seq")
     or a pair type `{"pair": [T1, T2]}` (SPEC.md "Pairs", 2026-09-10; T1,
@@ -1734,6 +1824,8 @@ def _tystr(t) -> str:
     `int`, not `Seq.seq` applied to `(Seq.seq int)`) -- the exact opposite
     of the pair branch's own reasoning right above, where application
     binding tighter than infix `&` was what let it skip the parens."""
+    if _dt_of(t) is not None:
+        return _fdt(_dt_of(t))                            # PREDICT T35
     if isinstance(t, dict):
         if "seq" in t:
             return f"Seq.seq ({_tystr(t['seq'])})"
@@ -2101,6 +2193,14 @@ class Ctx:
 
     # ---------------------------------------------------------- typing ----
     def ty(self, e: dict, local: dict) -> str:
+        if "ctor" in e:
+            return {"datatype": e["ctor"]["dtype"]}          # PREDICT T35
+        if "field" in e:
+            return _dt_field_type(_dt_of(self.ty(e["field"]["of"], local)), e["field"]["name"])
+        if "match" in e:
+            m = e["match"]
+            arm = m["arms"][0]
+            return self.ty(arm["body"], dict(local, **self._arm_types(_dt_of(self.ty(m["scrutinee"], local)), arm)))
         if "int" in e:
             return "int"
         if "rat" in e:
@@ -2502,6 +2602,50 @@ class Ctx:
                 "lowered yet (2026-09-11, THE STRING LIBRARY abstain)")
         raise NotImplementedError(f"seq position holds non-variable {e!r}")
 
+    def _arm_types(self, d: str, arm: dict) -> dict:
+        """PREDICT T35: a match arm's binders, each at its field's type."""
+        return {b: fd["type"] for b, fd in zip(arm["binders"], _dt_fields(d, arm["ctor"]), strict=True)}
+
+    def _match_txt(self, e: dict, env: dict, local: dict, render) -> str:
+        """PREDICT T35: `case` as F*'s match, a binder shadowing any outer name of its spelling."""
+        m = e["match"]
+        d = _dt_of(self.ty(m["scrutinee"], local))
+        scr = self.dx(m["scrutinee"], env, local)
+        arms = []
+        for arm in m["arms"]:
+            bs = [_ck(b) for b in arm["binders"]]
+            env2 = {k: v for k, v in env.items() if k not in bs}
+            local2 = dict(local, **self._arm_types(d, arm))
+            pat = " ".join([_fctor(d, arm["ctor"])] + bs)
+            arms.append(f"| {pat} -> {render(arm['body'], env2, local2)}")
+        return f"(match {scr} with {' '.join(arms)})"
+
+    def _field_txt(self, e: dict, env: dict, local: dict) -> str:
+        f = e["field"]
+        return f"({_fdt(_dt_of(self.ty(f['of'], local)))}_f_{f['name']} {self.dx(f['of'], env, local)})"
+
+    def dx(self, e: dict, env: dict, local: dict) -> str:
+        """PREDICT T35: a datatype-valued term."""
+        if "var" in e:
+            return env.get(e["var"], e["var"])
+        if "ite" in e:
+            c = e["ite"]
+            return (f"(if {self.bx(c['cond'], env, local)} then {self.dx(c['then'], env, local)} "
+                    f"else {self.dx(c['else'], env, local)})")
+        if "ctor" in e:
+            c = e["ctor"]
+            args = [_render(self, a, fd["type"], env, local)
+                    for a, fd in zip(c["args"], _dt_fields(c["dtype"], c["name"]), strict=True)]
+            head = _fctor(c["dtype"], c["name"])
+            return f"({head}{''.join(' ' + a for a in args)})" if args else head
+        if "match" in e:
+            return self._match_txt(e, env, local, self.dx)
+        if "call" in e:
+            return self.call(e, env, local)
+        if "field" in e:
+            return self._field_txt(e, env, local)
+        raise NotImplementedError(f"fstar lowering: not a datatype expression: {sorted(e)}")
+
     def px(self, e: dict, env: dict, local: dict) -> str:
         """Pair-valued term (SPEC.md "Pairs", 2026-09-10). A pair position
         is a variable, looked up through `env` exactly as sx/zx/bx already
@@ -2714,6 +2858,8 @@ class Ctx:
                 # `nx` in place of `sx`. No committed task calls a
                 # spec_fun or itself with a nested-seq argument yet.
                 parts.append(self.nx(a, env, local))
+            elif _dt_of(ft) is not None:
+                parts.append(self.dx(a, env, local))       # PREDICT T35
             else:
                 parts.append(self.zx(a, env, local))
         return "(" + " ".join(parts) + ")"
@@ -2733,6 +2879,10 @@ class Ctx:
                     f"else {self.zx(c['else'], env, local)})")
         if "call" in e:
             return self.call(e, env, local)
+        if "field" in e:
+            return self._field_txt(e, env, local)          # PREDICT T35
+        if "match" in e:
+            return self._match_txt(e, env, local, self.zx)
         op = e.get("op")
         if op == "len":
             # SPEC.md "Nested sequences" (2026-09-10): `len` on the OUTER
@@ -2838,6 +2988,10 @@ class Ctx:
                     f"else {self.bx(c['else'], env, local)})")
         if "call" in e:
             return self.call(e, env, local)
+        if "field" in e:
+            return self._field_txt(e, env, local)          # PREDICT T35
+        if "match" in e:
+            return self._match_txt(e, env, local, self.bx)
         if "forall" in e or "exists" in e:
             # LITERAL-BOUND UNROLL (2026-09-10, closes part of the v1def
             # fuzz family's residual -- see the module docstring's own
@@ -2944,6 +3098,9 @@ class Ctx:
                 return f"(Seq.mem {self.zx(x, env, local)} {self.sx(sq, env, local)})"
             x, st = e["args"]
             return f"(FSet.mem {self.zx(x, env, local)} {self.stx(st, env, local)})"
+        if op in ("==", "!=") and _dt_of(self.ty(e["args"][0], local)) is not None:
+            a, b = (self.dx(x, env, local) for x in e["args"])   # PREDICT T35: an eqtype's decidable equality
+            return f"({a} = {b})" if op == "==" else f"({a} <> {b})"
         if op in ("==", "!=") and self.ty(e["args"][0], local) == "set":
             # SPEC.md "Finite sets": extensional equality in a computational
             # position. `FSet.equal` is a prop and `FSet.set` is not an
@@ -3234,6 +3391,10 @@ class Ctx:
                     f"\\/ ((~ {cp}) /\\ {self.prop(c['else'], env, local)}))")
         if "call" in e:
             return self.call(e, env, local)
+        if "field" in e:
+            return self._field_txt(e, env, local)          # PREDICT T35
+        if "match" in e:
+            return self._match_txt(e, env, local, self.prop)
         op = e["op"]
         if op in ("fst", "snd"):
             # SPEC.md "Pairs": a bool-typed component used directly as a
@@ -3276,6 +3437,9 @@ class Ctx:
                 return f"(Seq.mem {self.zx(x, env, local)} {self.sx(sq, env, local)})"
             x, st = e["args"]
             return f"(FSet.mem {self.zx(x, env, local)} {self.stx(st, env, local)})"
+        if op in ("==", "!=") and _dt_of(self.ty(e["args"][0], local)) is not None:
+            a, b = (self.dx(x, env, local) for x in e["args"])   # PREDICT T35
+            return f"({a} == {b})" if op == "==" else f"(~ ({a} == {b}))"
         if op in ("==", "!=") and self.ty(e["args"][0], local) == "set":
             a, b = (self.stx(x, env, local) for x in e["args"])
             core = f"(FSet.equal {a} {b})"
@@ -3502,6 +3666,8 @@ def _render(cx: "Ctx", e: dict, t, env: dict, local: dict) -> str:
         return cx.stx(e, env, local)   # SPEC.md "Finite sets" (2026-09-27)
     if t == "real":
         return cx.rx(e, env, local)    # SPEC.md "Exact rationals (v1)" (2026-10-06)
+    if _dt_of(t) is not None:
+        return cx.dx(e, env, local)    # PREDICT T35
     if isinstance(t, dict):
         if "seq" in t:
             return cx.nx(e, env, local)
@@ -3531,6 +3697,8 @@ def _dummy(t) -> str:
         return "(FSet.emptyset #int)"   # SPEC.md "Finite sets" (2026-09-27)
     if t == "real":
         return "0.0R"                   # SPEC.md "Exact rationals (v1)" (2026-10-06)
+    if _dt_of(t) is not None:
+        return _dt_default(_dt_of(t))   # PREDICT T35
     if isinstance(t, dict):
         if "seq" in t:
             return "(Seq.createL #(Seq.seq int) [])"
@@ -4038,7 +4206,7 @@ def emit_spec_fun(cx: Ctx, sf: dict) -> str:
     # A nested-seq or pair parameter is spelled by `_tystr`, as a task's own parameters are (`Seq.seq (Seq.seq int)`,
     # FStar.Seq.Base's `seq` being polymorphic in its element type); the flat TY table has no entry for those dicts.
     binders = " ".join(f"({p['name']}:{_tystr(p['type'])})" for p in sf["params"])
-    if isinstance(sf["result"], dict):
+    if isinstance(sf["result"], dict) and _dt_of(sf["result"]) is None:
         raise NotImplementedError("fstar lowering: a spec_fun whose result is a pair or a nested seq is not lowered yet")
     # SPEC.md "Seq-valued spec_funs (v1)" (2026-09-27): a spec_fun whose
     # result is a seq is the same `let rec ... : Tot (Seq.seq int)
@@ -4047,13 +4215,14 @@ def emit_spec_fun(cx: Ctx, sf: dict) -> str:
     # any type; `FStar.Seq` is the same sequence the params already use).
     body = (cx.bx(sf["body"], {}, local) if sf["result"] == "bool"
             else cx.sx(sf["body"], {}, local) if sf["result"] == "seq"
+            else cx.dx(sf["body"], {}, local) if _dt_of(sf["result"]) is not None   # PREDICT T35
             else cx.zx(sf["body"], {}, local))
     # `Tot Seq.seq int (decreases n)` parses as `Tot` applied to three
     # arguments ("Effect Prims.Tot does not take a requires or ensures
     # clause", measured 2026-09-27 on double_all, F* 2026.08.30); the
     # two-token seq type is parenthesized, the one-token int/bool types
     # are spelled exactly as before.
-    rty = TY[sf["result"]]
+    rty = _tystr(sf["result"])                       # PREDICT T35: a datatype result too (TY's own values otherwise)
     if " " in rty:
         rty = f"({rty})"
     if has_self_call(sf["body"], sf["name"]):
@@ -5679,7 +5848,8 @@ def _seq_rungs(cx: Ctx, task: dict, formula: dict) -> list[str]:
     return out
 
 
-def _certificate(cx: Ctx, task: dict, twin_body: list, w: dict) -> str | None:
+def _certificate(cx: Ctx, task: dict, twin_body: list, w: dict, mapping: dict | None = None,
+                 r_task: dict | None = None) -> str | None:
     """The appended t_refutation_certificate lemma for a measured twin
     witness, or None when the witness is not ground-certificatable.
 
@@ -5701,6 +5871,12 @@ def _certificate(cx: Ctx, task: dict, twin_body: list, w: dict) -> str | None:
         return None
     if formula is None:
         return None
+    if mapping:
+        # PREDICT T35: the formula is built from the original task, whose witness keys it reads; its spec fun calls
+        # are then renamed with the file's own names (tree_sum's `total` is F*'s keyword, `t_total` in the file),
+        # and `cx` is the renamed context
+        formula = names._rename_walk(formula, mapping)
+        task = r_task
     try:
         body = cx.prop(formula, {}, {})
         uneq = _seq_uneq_ground_pairs(cx, formula)
@@ -6187,6 +6363,18 @@ def _method_src(task: dict, m: dict, used: set) -> tuple[Ctx, str]:
 
 
 def lower(task: dict, body: list, witness: dict | None = None) -> str:
+    # PREDICT T35: the task's datatype declarations, for the module-level helpers, for exactly this call
+    prev = dict(_DTS)
+    _DTS.clear()
+    _DTS.update({d["name"]: d for d in task.get("datatypes", [])})
+    try:
+        return _lower(task, body, witness)
+    finally:
+        _DTS.clear()
+        _DTS.update(prev)
+
+
+def _lower(task: dict, body: list, witness: dict | None = None) -> str:
     import tshape
     task, body = tshape.desugar_seq_quants(task, body)   # SPEC.md "Quantifiers over a collection": seq ranges as indices
     tshape.abstain_unless_carried(task, body, "fstar", carried=frozenset({"real", "comp"}), lib=FSTAR_LIB)
@@ -6197,21 +6385,7 @@ def lower(task: dict, body: list, witness: dict | None = None) -> str:
         # SPEC.md "Exact rationals (v1)" (2026-10-06): FStar.Real has neither
         raise NotImplementedError(
             "fstar lowering: floor/ceil: FStar.Real has no floor or ceiling (SPEC.md 'Exact rationals (v1)')")
-    if task.get("datatypes"):
-        # DATATYPES (2026-09-27, SPEC.md "Datatypes (v1)"): F*'s own
-        # `type D = | C1 | C2 | ...` is the exact source for a field-less
-        # v1 enum, and its `match` is F*'s own pattern match -- but
-        # neither this file's `Ctx`/`gen_*`/`exec_*` machinery nor a
-        # ground refutation certificate for it (the `_tlit`-equivalent
-        # this file's own pair/set cases build) has been written or
-        # measured against fstar.exe here. Until that is built and
-        # measured, the honest verdict is an abstention by name (SPEC.md's
-        # own rule), not a partial lowering guessed from the pair/set
-        # wave's shape.
-        raise NotImplementedError(
-            "fstar lowering: datatypes (SPEC.md 'Datatypes (v1)'): the "
-            "`type ... = | ...` encoding and its match/equality/certificate "
-            "support are not built or measured yet")
+    _dt_check(task)                                        # PREDICT T35: datatypes lowered; the rest by name
     # KEYWORD RENAME (2026-09-10, through the shared names.py pass since
     # 2026-09-11 -- see the note above `_needs_rename`): fix up every
     # `_ck`-refused identifier ONCE, before Ctx or any gen_*/exec_*
@@ -6220,6 +6394,9 @@ def lower(task: dict, body: list, witness: dict | None = None) -> str:
     # nothing needed it, which is every previously-committed task.
     r_task, renames = _rename_reserved_map(task, body)
     r_body = r_task["body"]
+    if r_task.get("datatypes"):
+        _DTS.clear()
+        _DTS.update({d["name"]: d for d in r_task["datatypes"]})   # PREDICT T35: the renamed declarations
     cx = Ctx(r_task)
     name = r_task["name"]
     mod = name[0].upper() + name[1:]
@@ -6264,6 +6441,8 @@ def lower(task: dict, body: list, witness: dict | None = None) -> str:
     strlib_prelude = _strlib_prelude_for(r_task, r_body)
     if strlib_prelude:
         parts.append(strlib_prelude)
+    if r_task.get("datatypes"):
+        parts.append(_dt_decls(r_task))                    # PREDICT T35
     lib_slot = len(parts)   # SPEC.md "The library (v1)": the definitions the task turns out to use go here
     # QUANTIFIER-HELPER EMISSION ORDER (2026-09-15, ROADMAP r27 fstar-
     # closure item, "the malformed seq-of-array rows": dafny-synthesis 2
@@ -6363,6 +6542,10 @@ def lower(task: dict, body: list, witness: dict | None = None) -> str:
         # ever got to render its ground, fully-substituted formula.
         cert_cx = cx if r_task is task else Ctx(task, check=False)
         cert = _certificate(cert_cx, task, body, witness)
+        if cert is not None and r_task is not task and r_task.get("datatypes"):
+            # PREDICT T35: for a datatype task the formula's calls are renamed to the file's own names and rendered
+            # in the renamed context (the un-renamed one names functions the file does not define)
+            cert = _certificate(cx, task, body, witness, mapping=renames, r_task=r_task)
         if cert is not None:
             parts.append(cert)
     rc = names.rename_comment(renames)

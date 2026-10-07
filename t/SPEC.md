@@ -1522,7 +1522,11 @@ since 2026-10-07 (PREDICT T34): the `Inductive` itself, `dt_<D>` the type and
 `dt_<D>_<C>` a constructor; `==` is Leibniz equality in a Prop and a
 decider built by `decide equality` in a bool; `case` is Rocq's own `match`;
 a proof first destructs each matched variable and each decided equality
-(`t_dt_cases`), then closes every case by the usual search. The
+(`t_dt_cases`), then closes every case by the usual search. F* since
+2026-10-07 (PREDICT T35): F*'s own inductive type, `dt_<D>` the type (an F*
+type name begins in lower case) and `Dt_<D>_<C>` a constructor; an eqtype,
+so `==` is `=` in a bool and `==` in a Prop; `case` is F*'s `match`, whose
+exhaustiveness F* checks. The
 lifter's own mapping (source-side admission of Dafny `datatype`/`match`
 into this shape) is LIFTER-DECISIONS.md row 53, which this landing leaves
 open: `lift_classify`/`lift_parse` still refuse every method and file the
@@ -1613,8 +1617,10 @@ mutation site, so every existing rung reaches it. `swap-ctor` is unchanged.
 
 In all three, the certificate reads a datatype witness back through the parser, and a value witness may be a
 datatype. A field or a match binder named like a kernel's keyword is renamed with its uses (`names.py`), as every
-other identifier is. SPARK, F* and Frama-C refuse every datatype by name, as in v1. Rocq since 2026-10-07 (PREDICT
-T34): a field is the constructor's argument, of type int, bool or a datatype (a seq, set or pair field refuses by
+other identifier is. SPARK and Frama-C refuse every datatype by name, as in v1. F* since 2026-10-07 (PREDICT T35):
+a field is the constructor's argument `f_<f>`, of type int, bool or a datatype, and `e.f` is a function whose argument
+is refined to the constructors that declare `f`, so F* proves the read's definedness itself wherever the field is
+read. Rocq since 2026-10-07 (PREDICT T34): a field is the constructor's argument, of type int, bool or a datatype (a seq, set or pair field refuses by
 name), and `e.f` is the projection `dt_<D>_f_<f>`, whose value at a constructor without `f` is a placeholder; the
 definedness obligation that `e` was built by a constructor declaring `f` is a lemma, proved by cases.
 
@@ -1704,7 +1710,9 @@ The kernels check this, each by its own order. The interpreter's opt-in measure 
     with the function equations.
   - A measure that is not a parameter, and a structurally recursive task with a `requires`, are refused by name.
 
-SPARK, F* and Frama-C refuse every datatype by name, as in v1. Rocq since 2026-10-07 (PREDICT T34): a spec fun or a
+SPARK and Frama-C refuse every datatype by name, as in v1. F* since 2026-10-07 (PREDICT T35): recursion on a
+datatype parameter is `(decreases q)`, F*'s subterm ordering, and the contract is the SMT proof F* already runs; a loop
+over a datatype state is proved too (some_negative). Rocq since 2026-10-07 (PREDICT T34): a spec fun or a
 task whose measure is a datatype parameter is Rocq's own structural `Fixpoint`, whose guard checker is the
 termination proof, and the contract is proved by induction on that parameter, each case unfolded one step. An `if`
 the unfolding cannot pass is destructed and the step repeated; the inductive hypotheses' conjuncts are split and their
