@@ -2300,6 +2300,15 @@ _SCOPE: dict = {}        # name -> t type of every param, return and local of th
                          # text differs by it (a map's insert, dom().contains, and the membership `at` owes)
 _SCOPE_FUNS: dict = {}
 _SCOPE_DTYPES: dict = {}   # datatype name -> its declaration, for `e.f`'s definedness (SPEC.md "Datatypes (v2): fields")
+# Rust's and vstd's preludes declare these, so `use D::*;` on a local enum of the same name is ambiguous (rustc E0659,
+# measured 2026-10-07 on `datatype Option`); for them the import is qualified `self::`, which resolves to the local enum
+_VERUS_PRELUDE_TYPES = frozenset({
+    "Option", "Result", "Vec", "String", "Box", "Iterator", "IntoIterator", "Default", "Clone", "Copy", "Eq",
+    "PartialEq", "Ord", "PartialOrd", "Fn", "FnMut", "FnOnce", "Drop", "Send", "Sync", "Sized", "From", "Into",
+    "ToString", "ToOwned", "AsRef", "AsMut", "Ghost", "Tracked"})
+# the vstd types this file's own lowering names (Seq<int>, Set<int>, Map<..>): a t datatype of the same name would
+# shadow them, so it is refused by name
+_VERUS_OWN_TYPES = frozenset({"Seq", "Set", "Map", "Multiset"})
 
 
 def _ty_of(e):
@@ -5280,10 +5289,15 @@ class _V1:
             # glob import ambiguous (rustc E0659, measured 2026-10-07): import the other variants only, and
             # `_vctor` spells that one qualified
             others = [c["name"] for c in d["ctors"] if c["name"] != d["name"]]
+            if d["name"] in _VERUS_OWN_TYPES:
+                raise NotImplementedError(
+                    f"verus lowering: a datatype named {d['name']} would shadow vstd's own {d['name']}, which this "
+                    f"lowering names (SPEC.md 'Datatypes (v2): fields')")
+            path = f"self::{d['name']}" if d["name"] in _VERUS_PRELUDE_TYPES else d["name"]
             if len(others) == len(d["ctors"]):
-                use = f"use {d['name']}::*;\n"
+                use = f"use {path}::*;\n"
             else:
-                use = f"use {d['name']}::{{{', '.join(others)}}};\n" if others else ""
+                use = f"use {path}::{{{', '.join(others)}}};\n" if others else ""
             # spec-mode `==` is structural for every type and needs no derive (measured 2026-10-07, checked_tail
             # verifies without it); vstd's Seq implements no PartialEq, so an enum with a seq field cannot derive
             # one, and v1's derive stays only where it compiles

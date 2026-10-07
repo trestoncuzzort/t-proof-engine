@@ -2957,6 +2957,16 @@ def _sfun_under_quantifier(x, names: set) -> bool:
     return False
 
 
+# Lean's prelude declares these types at the top level, so a t datatype of the same name is "already declared"
+# (measured 2026-10-07 on `datatype Option`). Such a datatype is emitted as t_<name> wherever Lean text names it;
+# witnesses and the interpreter keep the t name. The uppercase entries of names.KEYWORDS["lean"] are the set.
+_LEAN_TAKEN_TYPES = frozenset(k for k in names.KEYWORDS["lean"] if k[:1].isupper())
+
+
+def _ldt(name: str) -> str:
+    return f"t_{name}" if name in _LEAN_TAKEN_TYPES else name
+
+
 class Lower:
     """One instance per (task, body) pair. Everything derives from the JSON."""
 
@@ -3121,10 +3131,16 @@ class Lower:
         # rewrite first instead (rewrites every call, including ones
         # under a binder, with no E-matching search at all), so grind
         # itself never has to consider unfolding it.
-        other_ga_names = [n for n in ga_names if n not in sfun_ga_names]
+        # A recursive spec_fun's own equation is not a terminating rewrite: well-founded recursion unfolds into the
+        # call it produces, so `simp only` hits maxRecDepth, which `first` does not catch (measured 2026-10-07 on
+        # AlgoVeri's discrete_logarithm, spec_pow_mod). simp cites the non-recursive ones only, and grind keeps the
+        # recursive ones as its own hints.
+        rec_names = {f"{f}_s" for f, d in self.sfuns.items() if self._has(d.get("body"), "call", f)}
+        simp_names = [n for n in sfun_ga_names if n not in rec_names]
+        other_ga_names = [n for n in ga_names if n not in simp_names]
         self.ga_wo_sfuns = ("" if not other_ga_names else
                             " [" + ", ".join(other_ga_names) + "]")
-        self.sfun_names_ga = sfun_ga_names
+        self.sfun_names_ga = simp_names
         self.sfun_quantified = bool(self.sfuns) and (
             _sfun_under_quantifier(task, set(self.sfuns))
             or _sfun_under_quantifier(body, set(self.sfuns)))
@@ -3590,8 +3606,8 @@ class Lower:
             c = e["ctor"]
             if c.get("args"):
                 cargs = " ".join(self.term(a, env, types, dep) for a in c["args"])
-                return f"({c['dtype']}.{c['name']} {cargs})"
-            return f"{c['dtype']}.{c['name']}"
+                return f"({_ldt(c['dtype'])}.{c['name']} {cargs})"
+            return f"{_ldt(c['dtype'])}.{c['name']}"
         if "field" in e:
             # SPEC.md "Datatypes (v2): fields": `e.f` is Lean's own match
             # binding the field positionally (TPIL 7.2's `fst`), with a
@@ -4458,7 +4474,7 @@ class Lower:
                 # Proving in Lean 4, ch.7 "Inductive Types", 7.1
                 # "Enumerated Types": `inductive Weekday where | sunday |
                 # ...` is exactly v1's field-less shape).
-                return t["datatype"]
+                return _ldt(t["datatype"])
             if "pair" in t:
                 # SPEC.md "Pairs" (2026-09-10): `{"pair": [T1, T2]}` over
                 # Int/Bool/List Int, as the Lean product `T1 × T2`
@@ -7400,7 +7416,7 @@ theorem t_str_join_split_roundtrip (s : List Int) (c : Int) :
                     f" ({f['name']} : {self.lean_type(f['type'])})"
                     for f in c.get("fields", []))
                 for c in d["ctors"])
-            dt_src += f"inductive {d['name']} where\n{ctor_lines}\n  deriving DecidableEq\n\n"
+            dt_src += f"inductive {_ldt(d['name'])} where\n{ctor_lines}\n  deriving DecidableEq\n\n"
         seq_src = self.emit_seq_helpers()
         seq_thms = []
         if self.seq_mut:
@@ -10018,11 +10034,11 @@ theorem t_str_join_split_roundtrip (s : List Int) (c : Int) :
                 c = interp.ev(surface.parse_expr(v), {}, {}, interp.St())
                 fields = next(k["fields"] for k in self._dt_ctors(dtype)
                               if k["name"] == c.ctor)
-                return "(%s.%s %s)" % (dtype, c.ctor, " ".join(
+                return "(%s.%s %s)" % (_ldt(dtype), c.ctor, " ".join(
                     self._gterm(interp._j(a), f["type"])
                     for a, f in zip(c.args, fields)))
             if isinstance(v, str) and v.startswith(dtype + "."):
-                return v
+                return _ldt(dtype) + v[len(dtype):]
             raise ValueError(f"witness value {v!r} is not a {dtype} constructor")
         if isinstance(ty, dict) and "pair" in ty:
             # SPEC.md "Pairs" (2026-09-10): a ground pair value, from a

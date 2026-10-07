@@ -3246,8 +3246,23 @@ def _unroll(e: dict, funs: dict, st, budget: list, bounds: list) -> dict:
         return {"field": {"of": _unroll(e["field"]["of"], funs, st, budget, bounds), "name": e["field"]["name"]}}
     if "match" in e:
         m = e["match"]
+        scr = _unroll(m["scrutinee"], funs, st, budget, bounds)
+        try:
+            v = _ev(scr, {}, funs, st, {}, None)[1]
+        except (ValueError, KeyError, TypeError, IndexError, interp.Undef):
+            v = None
+        if isinstance(v, interp.Ctor):
+            # SPEC.md "Datatypes (v2): fields": a ground scrutinee selects its arm, whose binders become the field
+            # literals (exact for a known constructor); a scrutinee that is not already that literal is recorded as
+            # an equation the kernel re-proves, as a quantifier's bounds are
+            lit = _tlit(interp._j(v), {"datatype": v.dtype})
+            if scr != lit:
+                bounds.append({"op": "==", "args": [scr, lit]})
+            arm = next(a for a in m["arms"] if a["ctor"] == v.ctor)
+            body = subst(arm["body"], {b: _tlit(interp._j(fv)) for b, fv in zip(arm.get("binders") or [], v.args)})
+            return _unroll(body, funs, st, budget, bounds)
         return {"match": {
-            "scrutinee": _unroll(m["scrutinee"], funs, st, budget, bounds),
+            "scrutinee": scr,
             "arms": [{"ctor": a["ctor"], "binders": a.get("binders", []),
                       "body": _unroll(a["body"], funs, st, budget, bounds)}
                      for a in m["arms"]]}}
@@ -3476,6 +3491,25 @@ def _ev_undef(e: dict, env: dict, funs: dict, st):
         return _ev_undef(c["then"] if cv else c["else"], env, funs, st)
     if "forall" in e or "exists" in e:
         raise ValueError("undefined-kind certificate: quantifier in body")
+    if "ctor" in e:
+        # SPEC.md "Datatypes (v2): fields": a constructor value, each field argument owing its own definedness first
+        c = e["ctor"]
+        return interp.Ctor(c["dtype"], c["name"], tuple(_ev_undef(a, env, funs, st) for a in c.get("args", [])))
+    if "field" in e:
+        fld = e["field"]
+        v = _ev_undef(fld["of"], env, funs, st)
+        fnames = (funs.get("$fields") or {}).get(v.dtype, {}).get(v.ctor) or []
+        if fld["name"] not in fnames:
+            # the obligation is a discriminator, which this ground-guard mirror does not state: refuse, never guess
+            raise ValueError(f"undefined-kind certificate: field {fld['name']} of {v.dtype}.{v.ctor}")
+        return v.args[fnames.index(fld["name"])]
+    if "match" in e:
+        m = e["match"]
+        v = _ev_undef(m["scrutinee"], env, funs, st)
+        for arm in m["arms"]:
+            if arm["ctor"] == v.ctor:
+                return _ev_undef(arm["body"], {**env, **dict(zip(arm.get("binders") or [], v.args))}, funs, st)
+        raise ValueError(f"undefined-kind certificate: match has no arm for {v.ctor}")
     if "call" in e:
         # 2026-09-28: a spec_fun call no longer aborts the replay. Its
         # arguments go through this mirror first, left to right, so an

@@ -1272,3 +1272,47 @@ Receipts: f28afa1d8db8 (Dafny), 2d503d12f07a (Verus), 134d11c182fc (Lean).
 (2) Rocq, F*, SPARK and Frama-C refuse all six by name: 24 cells.
 (3) No cell of the 88 moves against the installed table.
 (4) Per kernel: Dafny 94, Verus 86, Lean 67; the other four unchanged. All seven stays 48, now of 94.
+
+## T24 registered (2026-10-07 02:49Z, after hand probes and before the clean-clone runs): AlgoVeri's discrete_logarithm, and five engine defects it found
+
+`discrete_logarithm` is the first AlgoVeri contract that datatypes with fields make stateable. Its result is
+`Option<int>`, and its helpers are `spec_pow_mod`, recursive on an int, and `is_discrete_log`. It is the 22nd
+AlgoVeri program (`t/algoveri/MAPPING.md` names its two departures: a monomorphic `Option`, and total helpers).
+Of the other 36 datatype contracts, `linearsys_gf2` needs a quantifier over all sequences. The remaining 35 need
+recursive datatypes, set-valued helpers or graphs.
+
+**Five defects, found while writing it and fixed:**
+1. Lean's prelude declares `Option`: a datatype of that name was "already declared". A datatype named like an
+   uppercase entry of `names.KEYWORDS["lean"]` is now emitted as `t_<name>` in Lean text.
+2. Verus's `use Option::*` was ambiguous with Rust's prelude (E0659). For a prelude type name the import is now
+   qualified `self::`. A datatype named `Seq`, `Set`, `Map` or `Multiset` is refused by name, since it would
+   shadow the vstd type the lowering names.
+3. Dafny's undefined-kind replay (`_ev_undef`) had no constructor, field or match case, so a twin undefined inside
+   a constructor argument had no certificate.
+4. Dafny's certificate unroller walked a ground match's arms with their binders unbound. It now reduces a match on a
+   ground constructor to the chosen arm, recording `scrutinee == literal` as an equation the kernel re-proves when
+   they differ.
+5. Lean's `simp only` closer cited a recursive spec_fun's equation, which never stops rewriting (maxRecDepth, which
+   `first` does not catch). Recursive spec_funs are now grind hints only.
+
+**Measured before this registration, stated plainly.**
+- `discrete_logarithm`: Dafny COUNTS, Verus COUNTS. In Lean the real verifies, and the twin is unproved: the
+  certificate's `simp` loops on `spec_pow_mod` at ground arguments. This is named, not fixed: it needs guarded
+  unfolding lemmas or a Nat-fuel definition the kernel can evaluate.
+- A probe with `datatype Option` COUNTS in Dafny, Verus and Lean.
+- Of the 94 tasks' lowerings, changed:
+  - the Dafny twins of `rect_area`, `shape_area` and `some_negative` (their certificates reduce the match); all three
+    re-verified, still refuted;
+  - `grid_row_sums` in Lean (fix 5): it now COUNTS in Lean, where it was a near miss.
+- Of the AlgoVeri lowerings, changed: Lean real and twin of bubble_sort, insertion_sort, matrix_multiply,
+  quick_sort and solve_longest_common_subsequence. Probed, all keep their T13 verdicts (unproved, or timeout).
+- The whole suite passes (686).
+
+**Bars**, for the clean-clone matrix of the 94 and a clean-clone regeneration of `t/ALGOVERI.md` (22 programs):
+(1) `grid_row_sums` reads verified with the twin refuted in Lean. No other cell moves against T23's matrix.
+(2) Lean goes from 67 to 68. All seven stays 48: `grid_row_sums` still needs Frama-C.
+(3) `discrete_log_naive` reads verified with the twin refuted in Dafny and Verus, verified with the twin unproved in
+Lean, and abstains elsewhere. Dafny is 22 of 22.
+(4) No AlgoVeri cell reads differently from T13's table with T15's and T17's measured repairs applied, except as
+follows. The five Lean rows above keep their verdicts. T16, T18, T19 and T21 landed after those AlgoVeri runs and
+were never measured on AlgoVeri, so the F*, SPARK and Frama-C counts are read as measured.
