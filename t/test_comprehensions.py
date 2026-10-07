@@ -120,10 +120,10 @@ def test_kernel_text():
     v = lowered("evens", "verus")
     ok("pub open spec fn t_comp1(t_s: Seq<int>) -> Seq<int>" in v and "pub broadcast proof fn t_comp1_spec" in v
        and "reveal_with_fuel(t_comp1, 6);" in v and "broadcast use t_comp1_spec;" in v, "evens in Verus: the spec fn, its lemma, fuel and use")
-    # F* and SPARK carry maps since PREDICT T16 and T18 and refuse a filter by name (test_fstar_comp.py,
+    # F* and SPARK carry maps since PREDICT T16 and T18, and filters since T45 (test_fstar_comp.py,
     # test_spark_comp.py)
     for kernel in ("fstar", "spark"):
-        ok("filtered comprehension is not lowered yet" in lowered("evens", kernel), "%s refuses a filter by name" % kernel)
+        ok("not lowered yet" not in lowered("evens", kernel), "%s lowers a filter" % kernel)
     # PREDICT T32: a map's element at a Nat index too, so grind matches a literal index it has normalized
     lean = lowered("doubled_head", "lean")
     ok("theorem t_comp1_getn (t_s : List Int) (t_n : Nat) :" in lean

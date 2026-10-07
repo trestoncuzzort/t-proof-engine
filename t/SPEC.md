@@ -1631,7 +1631,13 @@ binder is bound by ACSL's `\let` and, in C, replaced by its field; a field read 
 states in a specification and an assert states before the statement in code. That landing takes datatype
 PARAMETERS: a datatype return or local, `==` on datatypes in executable position and a recursive datatype refuse by
 name. The certificate declares a datatype witness as its compound literal and decides each match at the ground tag,
-asserted, as it decides a branch. SPARK since 2026-10-07 (PREDICT T36): a
+asserted, as it decides a branch. Since PREDICT T43, a datatype with one constructor whose fields are int, bool and seq is a
+FLATTENED parameter, as a pair with a seq component is: each field is its own C parameter (`int *b_items, int
+b_items_n, int b_active` for `b: Bag`), so `b.items` is the bare name `b_items`, and the seq field owes what a seq
+parameter owes (`_n >= 0`, `\valid_read`, pairwise `\separated`). A C struct field cannot hold a seq buffer, so any
+other use of such a datatype (a return, local, constructor, match, equality, call argument, spec-function parameter,
+or a datatype with several constructors and a seq field) refuses by name. The certificate declares the witness
+field by field. SPARK since 2026-10-07 (PREDICT T36): a
 field is the component `F_<C>_<f>` of its constructor's variant (Ada forbids a component name twice in one record),
 and `e.f` is the component selection, whose discriminant check gnatprove proves: that check is the read's
 definedness; a field several constructors declare is a function over the tag whose `Pre` names them. A certificate
@@ -2402,7 +2408,31 @@ loop over the buffer, the slice copy loop with the body's value, each step
 asserting the body's definedness, the count asserted as an ACSL term, and
 `s[a..b][i]` in the body read as `s[a + i]` with the slice's definedness; a
 map anywhere else refuses by name. So every kernel now carries a map; a filter
-is carried by Dafny, Verus and Lean, and refused by name elsewhere. Dafny, since
+is carried by Dafny, Verus and Lean, and refused by name elsewhere. Since
+2026-10-07 (PREDICT T45) F* and SPARK carry a filter too, in Dafny's own
+shape:
+- **The function:** a prefix-form recursion that keeps the last element when
+  the condition holds of it. In F* it is a `let rec ... Pure` function,
+  `Seq.append t_p (Seq.create 1 ...)` or `t_p`, `decreases t_n`. In SPARK it is
+  the map's expression function with an `elsif` on the condition.
+- **Its contract:** the length bound and, for a pure filter (the body is the
+  bound variable), the condition at every element. The definedness is the
+  condition at every element and the body where the condition holds.
+- **A count over a growing prefix** (count_evens_skip's invariant) needs one
+  step of the definition. F* gives it to Z3 through its fuel-instrumented
+  equation of a `let rec`. GNATprove proved it from the expression function
+  (measured), once the comprehension functions come before the loop
+  functions whose contracts call them. Lean gets a lemma `t_compK_step` (the
+  length one step on, at an Int index), since grind did not unfold the
+  definition through `(i + 1).toNat`. Verus, whose comprehension recursion
+  is `drop_last` over the whole source, gets two broadcast lemmas for a shape
+  read over a prefix `s[0..e]`:
+  - `t_compK_prefix`: the prefix of length n is the prefix of length n - 1,
+    plus the element at n - 1, under the subrange extensionality that each
+    step needs;
+  - `t_compK_whole`: the prefix of full length is the whole.
+
+  A loop's proof function gets those uses too. Dafny, since
 the stepped-slice landing later the same day (T3c) and the
 early-exits landing after it (T4), writes every comprehension function in
 PREFIX form: over a sequence, `t_compK(t_s, t_n)` is the comprehension of
@@ -2539,6 +2569,36 @@ Verus, which writes a loop as a recursive proof function, and F*, SPARK,
 Lean, Rocq and Frama-C abstain by name on a body with an early exit until
 built and measured (`tshape.has_exit`). The hand-back writes Python's
 `break` and `continue`.
+
+Since 2026-10-07 (PREDICT T44), Verus, Lean, Rocq, F*, SPARK and Frama-C carry
+all three through one rewrite (`tshape.desugar_exits`). Five of them write a
+loop as a recursive function, and all six already carry a `return` inside a
+loop (SPEC "Early exit (v1)"), which owes the task's `ensures`, not the
+invariant.
+- **`continue`** ends the iteration, so the statements after it on its path
+  move into the other branch of each `if` on that path. The iteration ends in
+  the same state, where the invariants and `decreases` are owed exactly as at
+  the `continue`.
+- **`break`** leaves the loop, and what runs next is the rest of the task body
+  after it. So a `break` becomes that rest followed by `return`; when the
+  rest ends in an assignment to the return name, that assignment becomes the
+  `return`. The final state is the same, and so is what it owes: the
+  `ensures` and not the invariant, which is the `break` rule.
+- **A loop inside another loop's body** has as its continuation the rest of
+  the outer iteration and then the next one, which no list of statements
+  says. A `break` there is refused by name, unless the rest of that body ends
+  in `return` and holds no `continue`.
+- **Also refused by name:** a `break` or `continue` in a method body, and a
+  `break` in a task with several returns.
+- **`while true`** stays as written; each lowering's guard is the literal.
+  After the rewrite it holds no `break`, so the statements after it never
+  run and are dropped, and Frama-C emits no trailing `return`. Both would be
+  dead code, which WP's smoke test flags (measured on find_zero).
+
+The rewrite is checked against the interpreter (`test_exits_desugar.py`). On
+every input of a small domain it computes what the original computes, value
+or undefinedness, for the committed tasks, their twins and programs written
+to reach each case.
 
 **The committed tasks:** `index_of` (`while i < len(s)` with a `break` at
 the first match: `r <= len(s)`, the element at `r` when `r < len(s)`, none

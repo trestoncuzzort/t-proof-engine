@@ -5,7 +5,9 @@
 - a match is a conditional on the tag (`\\let` in ACSL, the field substituted in C), a field read owes its tag;
 - `==` with a constructor expands field by field;
 - the certificate declares the witness as a compound literal and decides each match at the ground tag;
-- a recursive datatype, a datatype return, a seq field refuse by name."""
+- a single-constructor datatype with a seq field is a flattened parameter, one C parameter per field (PREDICT T43);
+- a recursive datatype, a seq field in a datatype of several constructors, any other use of a flattened one refuse by
+  name."""
 from __future__ import annotations
 
 import sys
@@ -15,6 +17,7 @@ HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 
 import lower_framac  # noqa: E402
+import surface  # noqa: E402
 import tasks_io  # noqa: E402
 import tlib  # noqa: E402
 
@@ -70,13 +73,45 @@ def test_certificate():
 
 
 def test_refused_by_name():
-    for name, word in (("tree_sum", "recursive datatype"), ("checked_tail", "datatype field of type 'seq'")):
+    for name, word in (("tree_sum", "recursive datatype"), ("checked_tail", "a seq field in a datatype with several")):
         task = load(name)
         try:
             lower_framac.lower(task, task["body"])
             ok(False, f"{name} refuses")
         except NotImplementedError as e:
             ok(word in str(e), f"{name} refuses by name: {e}")
+
+
+def test_flattened_parameter():
+    # PREDICT T43: Bag(items: seq, active: bool) as a parameter is its fields, the seq one a buffer and a length
+    src = framac("bag_size")
+    ok("int bag_size_t(int *b_items, int b_items_n, int b_active)" in src, "one C parameter per field")
+    ok("requires b_items_n >= 0;" in src and "requires \\valid_read(b_items + (0 .. b_items_n - 1));" in src,
+       "the seq field owes what a seq parameter owes")
+    ok("ensures ((b_active != 0) ==> (\\result == b_items_n));" in src and "n = b_items_n;" in src,
+       "a field read is the bare name, a bool one compared with 0")
+    ok("struct dt_Bag" not in src and "dt_Bag_ok" not in src, "no struct and no ok predicate")
+    cert = framac("bag_size", twin=True)
+    cert = cert[cert.index("void t_certificate(void)"):]
+    ok("int t_cert_b_items[1] = {0};" in cert and "int *b_items = t_cert_b_items;" in cert
+       and "int b_items_n = 1;" in cert and "int b_active = 0;" in cert, "the witness declared field by field")
+
+
+def test_flattened_parameter_other_uses_refused():
+    head = "datatype Bag = Bag(items: seq, active: bool)\nt 1\n"
+    for src, what in (
+            ("task f(b: Bag) returns (r: Bag)\n  ensures true\n{\n  r := b;\n}\n", "a return"),
+            ("task f(b: Bag, c: Bag) returns (r: bool)\n  ensures true\n{\n  r := b == c;\n}\n", "an equality"),
+            ("task f(s: seq) returns (r: int)\n  ensures true\n{\n  var b: Bag := Bag.Bag(s, true);\n"
+             "  r := len(b.items);\n}\n", "a local and a constructor"),
+            ("task f(b: Bag) returns (r: int)\n  ensures true\n{\n  r := case b { Bag(xs, a) => len(xs) };\n}\n",
+             "a match")):
+        task = surface.parse(head + src)
+        try:
+            lower_framac.lower(task, task["body"])
+            ok(False, f"{what} refuses")
+        except NotImplementedError as e:
+            ok("flattened task parameter" in str(e), f"{what} refuses by name: {e}")
 
 
 def test_datatype_return_and_local():

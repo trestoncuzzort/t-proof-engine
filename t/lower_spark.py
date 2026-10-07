@@ -4226,6 +4226,71 @@ class Lower:
         return f"T_Comp{k} ({', '.join(args)})"
 
     def _comp_text(self, k: int, c: dict, fvs: list, ftys: dict, types2: dict) -> str:
+        if c["cond"] != {"bool": True}:
+            return self._filter_text(k, c, fvs, ftys, types2)
+        return self._map_text(k, c, fvs, ftys, types2)
+
+    def _filter_text(self, k: int, c: dict, fvs: list, ftys: dict, types2: dict) -> str:
+        """PREDICT T45: a filter as a recursive expression function, the map's own shape (`_map_text`) with the last
+        element added only when the condition holds of it (Dafny's filter `t_comp`). The Post is the length bound
+        and, for a pure filter (the body is the bound variable), the condition at every element; the step a count
+        over a growing prefix needs is the definition itself, which GNATprove unfolds for an expression function."""
+        import lower_dafny
+        import lower_verus
+        v = c["var"]
+        is_seq = "seq" in c
+        z = "Big_Integer'(0)"
+        one = "Big_Integer'(1)"
+        fv_sub = {n: cap(n) for n in fvs}
+        el = (lambda i: f"Elem (T_S, {i})") if is_seq else (lambda i: f"(T_A + T_Ix ({i}))")
+        body = lambda i: self.expr(c["body"], dict(fv_sub, **{v: el(i)}), types2)
+        cond = lambda i: self.expr(c["cond"], dict(fv_sub, **{v: el(i)}), types2)
+        lower_verus._SCOPE.clear()
+        lower_verus._SCOPE.update(types2)
+        lower_verus._SCOPE_FUNS.clear()
+        lower_verus._SCOPE_FUNS.update({f["name"]: f for f in self.task.get("spec_funs", [])})
+        d_cond = lower_verus.defined(c["cond"])
+        d_body = lower_verus.defined(c["body"])
+        guard = d_body if d_body == lower_verus.TRUE else {"op": "implies", "args": [c["cond"], d_body]}
+        d = lower_verus._conj([d_cond, guard])
+
+        def flat(x):
+            if isinstance(x, dict) and x.get("op") == "and":
+                return [y for a in x["args"] for y in flat(a)]
+            return [x]
+        parts = [x for x in flat(d) if x != lower_verus.TRUE and not lower_dafny._ground_true(x)]
+        fixed = [x for x in parts if not lower_dafny._mentions_var(x, v)]
+        per_el = [x for x in parts if lower_dafny._mentions_var(x, v)]
+        fv_params = "".join(f"; {cap(n)} : {ada_type(ftys[n])}" for n in fvs)
+        fv_args = "".join(f", {cap(n)}" for n in fvs)
+        head_params = (f"T_S : Seq; T_N : Big_Integer{fv_params}" if is_seq
+                       else f"T_A : Big_Integer; T_N : Big_Integer{fv_params}")
+        pre = [f"T_N >= {z} and then T_N <= Len (T_S)"] if is_seq else [f"T_N >= {z}"]
+        if fixed:
+            pre.append(f"(if T_N > {z} then {self.expr(lower_verus._conj(fixed), fv_sub, types2)})")
+        if per_el:
+            pre.append(f"(for all T_K in T_Range'({z}, T_N) => "
+                       f"{self.expr(lower_verus._conj(per_el), dict(fv_sub, **{v: el('T_K')}), types2)})")
+        pre_txt = "\n       and then ".join(pre) if pre else "True"
+        src_args = "T_S" if is_seq else "T_A"
+        post = [f"Len (T_Comp{k}'Result) <= T_N"]
+        if c["body"] == {"var": v}:
+            held = self.expr(c["cond"], dict(fv_sub, **{v: f"Elem (T_Comp{k}'Result, T_K)"}), types2)
+            post.append(f"(for all T_K in T_Range'({z}, Len (T_Comp{k}'Result)) => {held})")
+        post_txt = "\n       and then ".join(post)
+        stop = f"not R_Has (T_Range'({z}, T_N), T_N - {one})"
+        rec = f"T_Comp{k} ({src_args}, T_N - {one}{fv_args})"
+        return (f"   function T_Comp{k} ({head_params}) return Seq\n"
+                f"   with\n"
+                f"     Pre  => {pre_txt},\n"
+                f"     Post => {post_txt},\n"
+                f"     Subprogram_Variant => (Decreases => T_N);\n\n"
+                f"   function T_Comp{k} ({head_params}) return Seq is\n"
+                f"     (if {stop} then Seqs.Empty_Sequence\n"
+                f"      elsif {cond(f'(T_N - {one})')} then Seqs.Add ({rec}, {body(f'(T_N - {one})')})\n"
+                f"      else {rec});\n")
+
+    def _map_text(self, k: int, c: dict, fvs: list, ftys: dict, types2: dict) -> str:
         """One map shape as a recursive expression function, T_Slice's own shape (SLICE_PREAMBLE): a Pre (the
         source's bound and the body's definedness), a Post stating the length and every element over T_Range, a
         Subprogram_Variant, and `Seqs.Add` of the last element onto the function at `N - 1`. The definedness is the
@@ -5789,6 +5854,25 @@ def defined(e: dict, is_real=None) -> dict:
                    {"forall": {"var": q["var"], "lo": q["lo"], "hi": q["hi"],
                                "body": db}})
         return _t_conj([defined(q["lo"], is_real), defined(q["hi"], is_real), body_ob])
+    if "comp" in e:
+        # PREDICT T45 (a filter's count can reach an ensures): lower_verus.defined's own comprehension case, the
+        # source defined, then at every element the condition defined and the body defined where it holds
+        import lower_verus
+        c = e["comp"]
+        idx = {"var": "t_di"}
+        if "seq" in c:
+            at = {"op": "at", "args": [c["seq"], idx]}
+            lo, hi = {"int": 0}, {"op": "len", "args": [c["seq"]]}
+            src_ob = defined(c["seq"], is_real)
+        else:
+            at = idx
+            lo, hi = c["lo"], c["hi"]
+            src_ob = _t_conj([defined(c["lo"], is_real), defined(c["hi"], is_real)])
+        cond_at = lower_verus.subst(c["cond"], {c["var"]: at})
+        inner = _t_conj([defined(cond_at, is_real),
+                         _t_guard(cond_at, defined(lower_verus.subst(c["body"], {c["var"]: at}), is_real))])
+        body_ob = TRUE if inner == TRUE else {"forall": {"var": "t_di", "lo": lo, "hi": hi, "body": inner}}
+        return _t_conj([src_ob, body_ob])
     op, args = e["op"], e.get("args", [])
     if op == "at":
         s, i = args
@@ -6652,9 +6736,6 @@ def _comp_refusal(task: dict, body: list) -> None:
                 if not inside_task:
                     raise NotImplementedError("spark: a comprehension inside a spec_fun, method or lemma is not "
                                               "lowered yet (SPEC.md 'Comprehensions (v1)')")
-                if x["comp"].get("cond") != {"bool": True}:
-                    raise NotImplementedError("spark: a filtered comprehension is not lowered yet "
-                                              "(SPEC.md 'Comprehensions (v1)')")
             for v in x.values():
                 walk(v, inside_task)
         elif isinstance(x, list):
@@ -6697,7 +6778,8 @@ def lower(task: dict, body: list, witness: dict | None = None) -> str:
 def _lower(task: dict, body: list, witness: dict | None = None) -> str:
     import tshape
     task, body = tshape.desugar_seq_quants(task, body)   # SPEC.md "Quantifiers over a collection": seq ranges as indices
-    tshape.abstain_unless_carried(task, body, "spark", carried=frozenset({"real", "comp"}), lib=SPARK_LIB)
+    task, body = tshape.desugar_exits(task, body)        # PREDICT T44: break/continue rewritten; `while true` stays
+    tshape.abstain_unless_carried(task, body, "spark", carried=frozenset({"real", "comp", "exit"}), lib=SPARK_LIB)
     _comp_refusal(task, body)                              # PREDICT T18: maps carried, the rest refused by name
     if tshape.uses_ops(body, task, {"floor", "ceil"}):
         # SPEC.md "Exact rationals (v1)" (2026-10-06): Big_Reals (Ada 2022 A.5.7) has no floor or ceiling
@@ -7238,12 +7320,12 @@ def _lower(task: dict, body: list, witness: dict | None = None) -> str:
         parts += [sf]
     parts += lemma_parts
     parts += method_parts
-    for h in L.helpers:
-        parts += [h]
     if any("T_Ix (" in txt for _k, txt in L.comps.values()):
         parts += ["   function T_Ix (K : Big_Integer) return Big_Integer is (K);\n"]
     for _k, txt in sorted(L.comps.values()):
         parts += [txt]   # SPEC.md "Comprehensions (v1)", PREDICT T18: after every preamble each one calls
+    for h in L.helpers:
+        parts += [h]     # PREDICT T45: after the comprehensions, which a loop's contract may call (count_evens_skip)
     parts += [
         f"   {fsig}",
         "   with\n     " + ",\n     ".join(aspects) + ";",

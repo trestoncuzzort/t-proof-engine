@@ -1611,8 +1611,13 @@ def _lib_defs() -> list:
 # pattern) gives the element facts, so the function's own postcondition carries the length and every element to each
 # call site. Definedness is the shared formula (lower_verus.defined) at every element, as the function's precondition;
 # over a range the index is written `t_a + t_ix t_i` through the identity `t_ix`, the term that precondition's
-# quantifier is triggered on (F* runs Z3 without MBQI; Dafny's t_ix, the same measured reason). A filter, and a
-# comprehension inside a spec_fun, method or lemma, refuse by name (`_comp_refusal`).
+# quantifier is triggered on (F* runs Z3 without MBQI; Dafny's t_ix, the same measured reason). A comprehension
+# inside a spec_fun, method or lemma refuses by name (`_comp_refusal`).
+# PREDICT T45: a FILTER is Dafny's own shape (lower_dafny's filter `t_comp`), a prefix-form recursion that keeps the
+# last element when the condition holds of it: `t_comp k s n = let p = t_comp k s (n - 1) in if cond(s[n - 1]) then
+# p ++ [body(s[n - 1])] else p`. Its postcondition is the length bound and, for a pure filter (the body is the bound
+# variable), the condition at every element; a call site needing more (a count over a growing prefix) gets it by
+# unfolding the definition one step, which F*'s encoding of a recursive Pure function gives the SMT solver.
 _COMP_F: dict = {}          # shape key -> (k, F* text)
 _TIX_TEXT = "let t_ix (t_i:int) : int = t_i\n"
 
@@ -1633,9 +1638,6 @@ def _comp_refusal(task: dict, body: list) -> None:
                 if not inside_task:
                     raise NotImplementedError("fstar: a comprehension inside a spec_fun, method or lemma is not "
                                               "lowered yet (SPEC.md 'Comprehensions (v1)')")
-                if x["comp"].get("cond") != {"bool": True}:
-                    raise NotImplementedError("fstar: a filtered comprehension is not lowered yet "
-                                              "(SPEC.md 'Comprehensions (v1)')")
             for v in x.values():
                 walk(v, inside_task)
         elif isinstance(x, list):
@@ -2414,6 +2416,8 @@ class Ctx:
         return f"(t_comp{k} {' '.join(args)})"
 
     def _comp_text(self, k: int, c: dict, fvs: list, ftys: dict, local2: dict) -> str:
+        if c["cond"] != {"bool": True}:
+            return self._filter_text(k, c, fvs, ftys, local2)
         v = c["var"]
         is_seq = "seq" in c
         el = (lambda i: f"(Seq.index t_s {i})") if is_seq else (lambda i: f"(t_a + t_ix {i})")
@@ -2465,6 +2469,61 @@ class Ctx:
                 f"let t_f = (fun (t_i:nat{{t_i < {size}}}) -> {body_i}) in\n"
                 f"  Seq.init_index {size} t_f;\n"
                 f"  Seq.init {size} t_f\n")
+
+    def _filter_text(self, k: int, c: dict, fvs: list, ftys: dict, local2: dict) -> str:
+        """PREDICT T45: a filtered comprehension's function (the comment above `_COMP_F`)."""
+        v = c["var"]
+        is_seq = "seq" in c
+        el = (lambda i: f"(Seq.index t_s {i})") if is_seq else (lambda i: f"(t_a + t_ix {i})")
+        last = el("(t_n - 1)")
+        cond_last = self.bx(c["cond"], {v: last}, local2)
+        body_last = self.zx(c["body"], {v: last}, local2)
+        lower_verus._SCOPE.clear()
+        lower_verus._SCOPE.update(local2)
+        lower_verus._SCOPE_FUNS.clear()
+        lower_verus._SCOPE_FUNS.update({f["name"]: f for f in self.task.get("spec_funs", [])})
+        d_cond = lower_verus.defined(c["cond"])
+        d_body = lower_verus.defined(c["body"])
+        guard = d_body if d_body == lower_verus.TRUE else {"op": "implies", "args": [c["cond"], d_body]}
+        d = lower_verus._conj([d_cond, guard])
+
+        def flat(x):
+            if isinstance(x, dict) and x.get("op") == "and":
+                return [y for a in x["args"] for y in flat(a)]
+            return [x]
+        parts = [x for x in flat(d) if x != lower_verus.TRUE and not lower_dafny._ground_true(x)]
+        fixed = [x for x in parts if not lower_dafny._mentions_var(x, v)]
+        per_el = [x for x in parts if lower_dafny._mentions_var(x, v)]
+        fv_bind = " ".join(f"({n}:{_tystr(ftys[n])})" for n in fvs)
+        fv_bind = (" " + fv_bind) if fv_bind else ""
+        fv_args = "".join(f" {n}" for n in fvs)
+        pat = "(Seq.index t_s t_di)" if is_seq else "(t_ix t_di)"
+        if is_seq:
+            head = f"let rec t_comp{k} (t_s:Seq.seq int) (t_n:nat){fv_bind}"
+            pre = ["(t_n <= Seq.length t_s)"]
+            size, dec, stop = "t_n", "t_n", "t_n = 0"
+        else:
+            head = f"let rec t_comp{k} (t_a:int) (t_n:int){fv_bind}"
+            pre = []
+            size, dec, stop = "(if t_n < 0 then 0 else t_n)", "(if t_n < 0 then 0 else t_n)", "t_n <= 0"
+        if fixed:
+            pre.append(f"(t_n > 0 ==> {self.prop(lower_verus._conj(fixed), {}, local2)})")
+        if per_el:
+            pre.append(f"(forall (t_di:nat).{{:pattern {pat}}} t_di < t_n ==> "
+                       f"{self.prop(lower_verus._conj(per_el), {v: el('t_di')}, local2)})")
+        req = " /\\ ".join(pre) if pre else "True"
+        ens = [f"Seq.length t_r <= {size}"]
+        if c["body"] == {"var": v}:
+            ens.append(f"(forall (t_i:nat).{{:pattern (Seq.index t_r t_i)}} t_i < Seq.length t_r ==> "
+                       f"{self.prop(c['cond'], {v: '(Seq.index t_r t_i)'}, local2)})")
+        return (f"{head}\n"
+                f"  : Pure (Seq.seq int)\n"
+                f"    (requires ({req}))\n"
+                f"    (ensures (fun t_r -> {' /\\ '.join(ens)}))\n"
+                f"    (decreases {dec})\n"
+                f"= if {stop} then Seq.empty\n"
+                f"  else let t_p = t_comp{k} {'t_s' if is_seq else 't_a'} (t_n - 1){fv_args} in\n"
+                f"       if {cond_last} then Seq.append t_p (Seq.create 1 {body_last}) else t_p\n")
 
     def sx(self, e: dict, env: dict, local: dict) -> str:
         """Seq-valued term. Through 2026-09-08 a seq position could only be
@@ -6397,7 +6456,8 @@ def lower(task: dict, body: list, witness: dict | None = None) -> str:
 def _lower(task: dict, body: list, witness: dict | None = None) -> str:
     import tshape
     task, body = tshape.desugar_seq_quants(task, body)   # SPEC.md "Quantifiers over a collection": seq ranges as indices
-    tshape.abstain_unless_carried(task, body, "fstar", carried=frozenset({"real", "comp"}), lib=FSTAR_LIB)
+    task, body = tshape.desugar_exits(task, body)        # PREDICT T44: break/continue rewritten; `while true` stays
+    tshape.abstain_unless_carried(task, body, "fstar", carried=frozenset({"real", "comp", "exit"}), lib=FSTAR_LIB)
     _comp_refusal(task, body)                              # PREDICT T16: maps carried, the rest refused by name
     _LIB_USED.clear()
     _COMP_F.clear()

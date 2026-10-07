@@ -2085,3 +2085,70 @@ from 73 to 75, and SPARK from 65 to 67.
 (3) **Held:** discrete_log_naive's Rocq cell reads unproved/refuted. AlgoVeri stays at 30 programs: Dafny 30,
 Verus 9, F* 5, SPARK 4, Frama-C 2, Lean 1, Rocq 1; all seven 1.
 - No other cell moved, in either table.
+
+## T43, T44 and T45 registered (2026-10-07 09:03Z, after hand probes and before the clean-clone runs)
+
+**T43: a datatype with a seq field, flattened in Frama-C.** bag_size (`datatype Bag = Bag(items: seq, active:
+bool)`) was Frama-C's only gap on it. A C struct field cannot hold a seq buffer. Receipt 7210be66f2c9: ACSL by
+Example's Stack keeps (pointer, capacity, size) in a struct passed by pointer and moves the buffer's obligations into
+predicates over the struct. t's datatypes are passed by value, so the backend's existing answer for a pair with a seq
+component is taken instead (`_pair_flat`, DESIGN-framac-nested-seq.md section 5).
+- **The flattening:** a datatype with one constructor whose fields are int, bool and seq is a FLATTENED parameter,
+  each field its own C parameter (`int *b_items, int b_items_n, int b_active`). `b.items` is the bare name
+  `b_items`, so every reader of a seq (`len`, `at`, definedness) takes it unchanged, and the seq field joins the seq
+  parameters' `_n >= 0`, `\valid_read` and pairwise `\separated` clauses.
+- **The certificate:** declares the witness field by field.
+- **Refused by name:** any other use of such a datatype (a return, local, constructor, match, equality, call
+  argument, spec-function parameter), and a seq field in a datatype of several constructors (checked_tail, whose
+  refusal is reworded).
+
+**T44: early exits in Verus, Lean, Rocq, F*, SPARK and Frama-C.** Receipt 28d3ddecb054. One rewrite,
+`tshape.desugar_exits`, not six lowerings: every one of the six already carries `return` inside a loop (SPEC "Early
+exit (v1)"), which owes the task's `ensures` and not the invariant.
+- **`continue`:** the statements after it on its path move into the other branch of each `if` on that path. The
+  iteration ends in the same state, where the invariants and `decreases` are owed exactly as at the `continue`.
+- **`break`:** becomes the loop's continuation (the rest of the task body) followed by `return`. When the
+  continuation ends in an assignment to the return name, that assignment becomes the `return`.
+- **Refused by name:** a `break` of a loop nested in another loop's body, unless the rest of that body ends in
+  `return` and holds no `continue`; a `break` or `continue` in a method body; a `break` in a task with several returns.
+- **`while true`** is left as written.
+- **Checked against the interpreter** (`test_exits_desugar.py`): on every input of a small domain (seqs over
+  {-1, 0, 1, 2} up to length 3, ints -2..3) the rewrite computes what the original computes. Covered: the three
+  tasks, their twins, and five programs written to reach each case (nested `if`s, two loops in a row, a loop inside
+  an `if`, a nested loop followed by `return`, `continue` beside `return`).
+
+**Measured before this registration, stated plainly.**
+- **T43:** bag_size COUNTS in Frama-C (verified, its collapse-if twin refuted).
+- **T44 and T45, the four tasks in the six kernels** (`cli.py verify`, 3 jobs): every carried cell reads
+  verified/refuted. That is index_of and find_zero in all six, count_evens_skip in Verus, Lean, F* and SPARK, and evens
+  in F* and SPARK (and still in Lean). Rocq and Frama-C refuse count_evens_skip and evens by name (filters).
+- **What the first probe found, and what fixed it:**
+  - SPARK emitted the comprehension's function after the loop function whose contract calls it (malformed): the
+    comprehensions now come first.
+  - Verus left count_evens_skip unproved: its comprehension recursion is `drop_last` over the whole source, so a
+    prefix `s[0..i + 1]` needs subrange extensionality at every step. Two broadcast lemmas (`t_compK_prefix`,
+    `t_compK_whole`) state it once, and a loop's proof function now uses them.
+  - Lean left it unproved: grind did not unfold the filter through `(i + 1).toNat`, so `t_compK_step` states the
+    length one step on.
+  - Frama-C left find_zero unproved on one smoke goal: the dead code after `while (1)`. The rewrite now drops
+    statements after a `while true` that has no `break` left, and Frama-C emits no trailing `return` there.
+- **Byte identity:** every lowering of the 104 tasks and the 30 AlgoVeri programs, real and twin, in all seven
+  kernels, with the witness (1,560 and 450 entries), was compared with fb3e1f8. Only bag_size and checked_tail
+  (Frama-C), the three early-exit tasks (the six kernels) and evens (F*, SPARK, and Lean's new step lemma) change;
+  no AlgoVeri lowering changes.
+- **Suite:** the whole suite passes (746, with test_exits_desugar.py's 51 checks).
+
+**Bars**, for the clean-clone matrix and AlgoVeri table at this registration's commit:
+(1) bag_size reads verified/refuted in Frama-C, and index_of and find_zero in Verus, Lean, Rocq, F*, SPARK and
+Frama-C, so all three are in all seven: all seven go from 59 to 62.
+(2) count_evens_skip reads verified/refuted in Verus, Lean, F* and SPARK (five kernels with Dafny), and evens in F* and
+SPARK (five); Rocq and Frama-C refuse both by name. evens keeps verified/refuted in Lean.
+(3) Per kernel: Verus 96 to 99, Lean 81 to 84, Rocq 77 to 79, F* 75 to 79, SPARK 67 to 71, Frama-C 59 to 62; Dafny 104.
+checked_tail keeps its Frama-C refusal, reworded. No other cell moves.
+(4) The AlgoVeri table does not move (no lowering of it changed).
+
+**T45: filtered comprehensions in F* and SPARK.** Receipt 0e4e244fa954 (F*'s fuel-instrumented equation for a `let
+rec`, fetched). Dafny's own shape: a prefix-form recursion keeping the last element when the condition holds, its
+contract the length bound and, for a pure filter, the condition at every element; the definedness is the condition at
+every element and the body where it holds. SPARK's definedness formula gains the comprehension case
+lower_verus.defined already has (count_evens_skip's ensures holds one).

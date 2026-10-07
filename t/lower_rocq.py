@@ -13023,7 +13023,8 @@ def _lower(task: dict, body: list, witness: dict | None = None) -> str:
     import tshape
     task, body = tshape.desugar_seq_quants(task, body)   # SPEC.md "Quantifiers over a collection": seq ranges as indices
     import rocq_lib
-    tshape.abstain_unless_carried(task, body, "rocq", carried={"comp-reduction", "comp"},
+    task, body = tshape.desugar_exits(task, body)        # PREDICT T44: break/continue rewritten; `while true` stays
+    tshape.abstain_unless_carried(task, body, "rocq", carried={"comp-reduction", "comp", "exit"},
                                   lib=rocq_lib.ROCQ_LIB)   # PREDICT T10: the library in Rocq
     _comp_refusal(task, body)                              # PREDICT T14: maps carried, the rest refused by name
     _dt_check(task)                                        # PREDICT T34: datatypes lowered; the rest by name

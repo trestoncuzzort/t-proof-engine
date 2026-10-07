@@ -5249,6 +5249,7 @@ class _V1:
             f"    decreases ({expr(dec)}) + (2int),\n"
             "{\n"
             + "".join(ln + "\n" for ln in _hof_lemma_lines("    "))   # SPEC.md "Higher-order calls (v1)"
+            + "".join(ln + "\n" for ln in _comp_lemma_lines("    ", loop=True))   # PREDICT T45
             + f"{old_lets}{carry_pre}{shadows}{guard_pre}"
             f"    if {expr(cond)} {{\n"
             + "\n".join(inner) + "\n"
@@ -5646,9 +5647,7 @@ class _V1:
             # SPEC.md "Reductions (v1)" (2026-10-06)
             lib_lines.append("    broadcast use t_toset_mem;")
             lib_lines.append("    broadcast use t_toset_sub;")
-        for key, (k, _node) in sorted(_COMP_INDEX.items(), key=lambda kv: kv[1][0]):
-            lib_lines.append(f"    reveal_with_fuel(t_comp{k}, 6);")
-            lib_lines.append(f"    broadcast use t_comp{k}_spec;")
+        lib_lines += _comp_lemma_lines("    ")
         lib_lines += _hof_lemma_lines("    ")   # SPEC.md "Higher-order calls (v1)" (2026-10-06)
         param_names = {p["name"] for p in task["params"]}
         # SPEC.md "Reductions (v1)" (2026-10-06): vstd's max_ensures/min_ensures are not broadcast; stated for every
@@ -6623,6 +6622,11 @@ _VLIB["sort"] = (
 # SPEC.md "Comprehensions (v1)" (2026-10-06): one `spec fn` per comprehension, recursing from the end, with a broadcast
 # lemma carrying the ensures its shape admits (as t_rev_spec does), revealed with fuel inside the proof fn.
 _COMP_INDEX: dict = {}
+# PREDICT T45: the shapes some instance of which ranges over a prefix `s[0..e]`; each gets two more broadcast lemmas,
+# `t_comp{k}_prefix` (the prefix of length n is the one of length n - 1 and the element at n - 1, under the subrange
+# extensionality that the drop_last recursion needs at every step) and `t_comp{k}_whole` (the prefix of the full
+# length is the whole), so a loop invariant over `s[0..i]` meets a postcondition over `s` (count_evens_skip)
+_COMP_PREFIX: set = set()
 
 
 def _comp_key(e: dict) -> str:
@@ -6665,11 +6669,15 @@ def _comp_free(node: dict) -> list:
 
 def _comp_register(task: dict, body: list) -> None:
     _COMP_INDEX.clear()
+    _COMP_PREFIX.clear()
 
     def walk(x):
         if isinstance(x, dict):
             if "comp" in x:
                 _COMP_INDEX.setdefault(_comp_key(x), (len(_COMP_INDEX) + 1, x))
+                src = x["comp"].get("seq")
+                if isinstance(src, dict) and src.get("op") == "slice" and src["args"][1] == {"int": 0}:
+                    _COMP_PREFIX.add(_comp_key(x))
             for v in x.values():
                 walk(v)
         elif isinstance(x, list):
@@ -6738,6 +6746,22 @@ def _comp_blocks(task: dict, body: list) -> list:
             f"if {expr(c['cond'])} {{ t_p.push({expr(c['body'])}) }} else {{ t_p }} }} }}\n"
             f"pub broadcast proof fn t_comp{k}_spec({', '.join(params)})\n    ensures {', '.join(ens)},\n    decreases {size},\n"
             f"{{ if !({base}) {{ {rec_call}; }} }}\n")
+        if key in _COMP_PREFIX and "seq" in c:
+            # PREDICT T45 (`_COMP_PREFIX`): the element at n - 1 named by a placeholder, as the filter's ensures does
+            fv_args = "".join(f", {n}" for n in fvs)
+            fv_params = "".join(f", {n}: {_vty(hints[n])}" for n in fvs)
+            at_last = {"op": "at", "args": [{"var": "t_s"}, {"op": "-", "args": [{"var": "t_n"}, {"int": 1}]}]}
+            pre_n = f"t_comp{k}(t_s.subrange(0, t_n - 1){fv_args})"
+            step = (f"if {expr(subst(c['cond'], {v: at_last}))} {{ {pre_n}.push({expr(subst(c['body'], {v: at_last}))}) }} "
+                    f"else {{ {pre_n} }}")
+            out.append(
+                f"pub broadcast proof fn t_comp{k}_prefix(t_s: {_vty(src_t)}, t_n: int{fv_params})\n"
+                f"    requires 0 < t_n <= t_s.len(),\n"
+                f"    ensures #[trigger] t_comp{k}(t_s.subrange(0, t_n){fv_args}) == ({step}),\n"
+                f"{{ assert(t_s.subrange(0, t_n).drop_last() =~= t_s.subrange(0, t_n - 1)); }}\n"
+                f"pub broadcast proof fn t_comp{k}_whole(t_s: {_vty(src_t)}{fv_params})\n"
+                f"    ensures #[trigger] t_comp{k}(t_s.subrange(0, t_s.len() as int){fv_args}) == t_comp{k}(t_s{fv_args}),\n"
+                f"{{ assert(t_s.subrange(0, t_s.len() as int) =~= t_s); }}\n")
     return out
 
 
@@ -7015,6 +7039,21 @@ def _hof_blocks(task: dict, body: list) -> list:
     finally:
         _SCOPE.clear()
         _SCOPE.update(saved)
+    return out
+
+
+def _comp_lemma_lines(ind: str, loop: bool = False) -> list:
+    """The fuel and `broadcast use` lines a proof fn needs for the registered comprehensions. A loop's helper gets
+    them only for a shape over a prefix (PREDICT T45, `_COMP_PREFIX`): its invariant is where a prefix is read."""
+    out = []
+    for key, (k, _node) in sorted(_COMP_INDEX.items(), key=lambda kv: kv[1][0]):
+        if loop and key not in _COMP_PREFIX:
+            continue
+        out.append(f"{ind}reveal_with_fuel(t_comp{k}, 6);")
+        out.append(f"{ind}broadcast use t_comp{k}_spec;")
+        if key in _COMP_PREFIX and "seq" in _node["comp"]:
+            out.append(f"{ind}broadcast use t_comp{k}_prefix;")
+            out.append(f"{ind}broadcast use t_comp{k}_whole;")
     return out
 
 
@@ -7313,7 +7352,8 @@ def lower(task: dict, body: list, witness: dict | None = None) -> str:
     # SPEC.md "Exact rationals (v1)" (2026-10-06): Verus has no reals; a task that names one abstains by name
     tshape.abstain_on_reals(task, body, "verus")
     tshape.abstain_on_library(task, body, "verus", carried=VERUS_LIB)   # SPEC.md "The library (v1)" (2026-10-06)
-    tshape.abstain_on_exits(task, body, "verus")   # SPEC.md "Early exits (v1)" (2026-10-06): a loop here is a recursive fn
+    # PREDICT T44: `break` and `continue` rewritten into `return` and branches (tshape.desugar_exits); `while true` stays
+    task, body = tshape.desugar_exits(task, body)
     _comp_register(task, body)   # SPEC.md "Comprehensions (v1)" (2026-10-06)
     # NAMES (2026-09-11, ROADMAP 13.2): sanitize away any identifier that
     # collides with a Verus/Rust reserved word, before either lowering

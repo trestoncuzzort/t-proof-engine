@@ -3772,6 +3772,30 @@ def _dt_field_ctors(d: str, f: str) -> list:
     return [k["name"] for k in _DTS[d]["ctors"] if any(fd["name"] == f for fd in k.get("fields", []))]
 
 
+# PREDICT T43: a single-constructor, non-recursive datatype with a seq field cannot be a struct by value (a struct
+# field holds neither a buffer nor its `\\valid` obligation, the PAIRS section's reason). As a PARAMETER it is
+# FLATTENED instead, as a pair with a seq component is (`_pair_flat`): each field its own C parameter, the seq field
+# `int *p_f, int p_f_n`, so `p.f` IS the bare name `p_f` everywhere (`_dt_flat_field`). `_DT_FLAT` maps each such
+# parameter to its datatype for exactly one `lower()` call.
+_DT_FLAT: dict = {}
+
+
+def _dt_flattens(d: str) -> bool:
+    ks = _DTS[d]["ctors"]
+    fs = ks[0].get("fields", []) if len(ks) == 1 else []
+    return (len(ks) == 1 and any(f["type"] == "seq" for f in fs)
+            and all(f["type"] in ("int", "bool", "seq") for f in fs))
+
+
+def _dt_flat_field(e):
+    """(flattened C name, field type) for `p.f` with `p` a flattened datatype parameter, else None."""
+    if isinstance(e, dict) and "field" in e and isinstance(e["field"].get("of"), dict) and "var" in e["field"]["of"]:
+        d = _DT_FLAT.get(e["field"]["of"]["var"])
+        if d is not None:
+            return f"{e['field']['of']['var']}_{e['field']['name']}", _dt_field_type(d, e["field"]["name"])
+    return None
+
+
 def _dt_check(task: dict, body: list) -> None:
     names = {d["name"] for d in task.get("datatypes", [])}
     for d in task.get("datatypes", []):
@@ -3782,10 +3806,53 @@ def _dt_check(task: dict, body: list) -> None:
                     raise NotImplementedError(
                         "framac: a recursive datatype (SPEC.md 'Datatypes (v3): recursion'): a C struct cannot hold "
                         "itself by value, and the pointer encoding is not built")
+                if t == "seq" and _dt_flattens(d["name"]):
+                    continue                              # PREDICT T43: flattened, as a parameter only (below)
+                if t == "seq":
+                    raise NotImplementedError(
+                        "framac: a seq field in a datatype with several constructors or a field other than int, bool "
+                        "or seq (SPEC.md 'Datatypes (v2): fields'): a C struct field cannot hold a seq buffer, and "
+                        "only a single-constructor datatype is flattened into parameters (PREDICT T43)")
                 if t not in ("int", "bool") and _dt_of(t) not in names:
                     raise NotImplementedError(
                         f"framac: a datatype field of type {t!r} (SPEC.md 'Datatypes (v2): fields'): only int, bool "
                         "and datatype fields are lowered yet")
+    flat_types = {d["name"] for d in task.get("datatypes", []) if any(
+        fd["type"] == "seq" for k in d["ctors"] for fd in k.get("fields", []))}
+    if flat_types:
+        # PREDICT T43: such a datatype exists only as flattened task parameters, each read only as `p.f` (that read
+        # is the bare C name `p_f`); any other use of `p`, and any return, local, spec-function parameter,
+        # constructor or field of the type, would need a value of it that C has no struct for
+        flat_params = {p["name"] for p in task["params"] if _dt_of(p["type"]) in flat_types}
+
+        def bad(x) -> bool:
+            if isinstance(x, list):
+                return any(bad(v) for v in x)
+            if not isinstance(x, dict):
+                return False
+            if ("field" in x and isinstance(x["field"].get("of"), dict)
+                    and x["field"]["of"].get("var") in flat_params):
+                return False                              # the one admitted use
+            if isinstance(x.get("var"), str) and x["var"] in flat_params:
+                return True
+            if isinstance(x.get("var"), dict) and _dt_of(x["var"]["type"]) in flat_types:
+                return True
+            if "ctor" in x and x["ctor"]["dtype"] in flat_types:
+                return True
+            return any(bad(v) for v in x.values())
+        typed = ([r["type"] for r in task["returns"]]
+                 + [q["type"] for f in task.get("spec_funs", []) for q in f.get("params", [])]
+                 + [f.get("result") for f in task.get("spec_funs", [])]
+                 + [q["type"] for m in task.get("methods", []) for q in m.get("params", []) + m.get("returns", [])]
+                 + [fd["type"] for d in task.get("datatypes", []) for k in d["ctors"] for fd in k.get("fields", [])])
+        if (any(_dt_of(t) in flat_types for t in typed if t is not None)
+                or bad([task.get("requires", []), task.get("ensures", []), body, task.get("spec_funs", []),
+                        task.get("methods", [])])):
+            raise NotImplementedError(
+                "framac: a datatype with a seq field (SPEC.md 'Datatypes (v2): fields') is lowered only as a "
+                "flattened task parameter read field by field: any other use of it (a return, local, constructor, "
+                "match, equality, call argument or spec-function parameter) needs a struct that holds a buffer, "
+                "which C does not")
 
 
 def _dt_decls(task: dict) -> list:
@@ -3793,6 +3860,8 @@ def _dt_decls(task: dict) -> list:
     out = []
     for d in task.get("datatypes", []):
         name = d["name"]
+        if any(fd["type"] == "seq" for k in d["ctors"] for fd in k.get("fields", [])):
+            continue                                      # PREDICT T43: flattened, no struct
         tags = ", ".join(_ctag(name, k["name"]) for k in d["ctors"])
         out.append(f"enum dt_{name}_tag {{ {tags} }};")
         fields = []
@@ -3962,6 +4031,9 @@ def seq_var(e: dict, env: dict) -> str:
         t = env.get(e["var"])
         if t == "seq" or is_nested_seq_type(t):
             return e["var"]
+    dflat = _dt_flat_field(e)
+    if dflat is not None and dflat[1] == "seq":
+        return dflat[0]                                   # PREDICT T43: a flattened datatype's seq field
     flat = _pair_flat(e, env)
     if flat is not None and (flat[1] == "seq" or is_nested_seq_type(flat[1])):
         # A PAIR WITH A SEQ COMPONENT, 2026-09-19: `fst(p)` IS a bare
@@ -3989,7 +4061,7 @@ def _seq_val_len_c(e: dict, env: dict, funs: dict, task_name: str,
     reached for `update`/`fill` (SPEC.md's own grammar restricts those to
     the whole right-hand side of a seq-typed assignment, `seq_assign_lines`
     above, never nested inside a `len(...)`)."""
-    if "var" in e or _pair_flat(e, env) is not None:
+    if "var" in e or _pair_flat(e, env) is not None or _dt_flat_field(e) is not None:
         # The flattened seq component of a pair PARAMETER (2026-09-19,
         # `_pair_flat`) IS a bare seq name in the emitted C, so its
         # length is the same `{v}_n` a bare seq variable's is; `seq_var`
@@ -4374,6 +4446,13 @@ def term(e: dict, ctx: Ctx) -> str:
     if "_dtf" in e:
         txt = f"({term(e['_dtf']['of'], ctx)}).{e['_dtf']['field']}"      # PREDICT T37: a match binder
         return f"({txt} != 0)" if e["_dtf"]["type"] == "bool" else txt
+    if _dt_flat_field(e) is not None:
+        name, ft = _dt_flat_field(e)                      # PREDICT T43
+        if ft == "seq":
+            raise NotImplementedError(
+                "a seq-typed datatype field in ACSL TERM position (not under `len`/`at`): a seq has no ACSL term "
+                "of its own in this lowering, the same gap a bare seq-typed variable already has there")
+        return f"({name} != 0)" if ft == "bool" else name
     if "field" in e:
         # PREDICT T37: the constructor's own field (a field several constructors declare: chosen by the tag)
         f = e["field"]
@@ -5198,6 +5277,13 @@ def cexpr(e: dict, env: dict, funs: dict, task_name: str,
             f".{_cfield(c['name'], fd['name'])} = {cexpr(a, env, funs, task_name, _div_style)}"
             for a, fd in zip(c["args"], _dt_fields(d, c["name"]), strict=True)]
         return f"((struct dt_{d}){{{', '.join(inits)}}})"
+    if _dt_flat_field(e) is not None:
+        name, ft = _dt_flat_field(e)                      # PREDICT T43
+        if ft == "seq":
+            raise NotImplementedError(
+                "a seq-typed datatype field in C VALUE position (not under `len`/`at`): a seq has no single C "
+                "value in this lowering, only a pointer and a length")
+        return name
     if "field" in e:
         f = e["field"]
         d = _dt_of(typ(f["of"], env, funs))
@@ -9948,6 +10034,26 @@ def _value_certificate(task: dict, twin_body: list, w: dict,
                 decls.append(f"  struct {psname} {p['name']} = "
                              f"(struct {psname}){{{a0}, {b0}}};")
                 st[p["name"]] = v
+            elif p["name"] in _DT_FLAT:
+                # PREDICT T43: a flattened datatype witness, declared field by field exactly as its C parameters
+                # are (a seq field as array + pointer + length, the seq branch's own shape), `st` the Ctor itself
+                import interp
+                import surface
+                val = interp.ev(surface.parse_expr(v), {}, {}, interp.St())
+                for fd, fv in zip(_dt_fields(val.dtype, val.ctor), val.args):
+                    nm = f"{p['name']}_{fd['name']}"
+                    if fd["type"] == "seq":
+                        arr = f"t_cert_{nm}"
+                        if arr in used:
+                            return None
+                        vals = [int(x) for x in fv]
+                        init = ", ".join(_int_lit(x) for x in vals) or "0"
+                        decls.append(f"  int {arr}[{max(len(vals), 1)}] = {{{init}}};")
+                        decls.append(f"  int *{nm} = {arr};")
+                        decls.append(f"  int {nm}_n = {len(vals)};")
+                    else:
+                        decls.append(f"  int {nm} = {_int_lit(int(fv))};")
+                st[p["name"]] = val
             elif _dt_of(p["type"]) is not None:
                 # PREDICT T37: a datatype witness, the t text parsed, declared as its ground compound literal
                 import interp
@@ -10958,6 +11064,15 @@ def _always_returns(body: list) -> bool:
     if "if" in s:
         c = s["if"]
         return _always_returns(c["then"]) and _always_returns(c["else"])
+    # PREDICT T44: a `while true` with no `break` (tshape.desugar_exits leaves none) is left only by `return`
+    return "while" in s and s["while"].get("cond") == {"bool": True} and not _has_break(s["while"]["body"])
+
+
+def _has_break(stmts) -> bool:
+    if isinstance(stmts, list):
+        return any(_has_break(x) for x in stmts)
+    if isinstance(stmts, dict):
+        return stmts.get("break") is True or any(_has_break(v) for v in stmts.values())
     return False
 
 
@@ -11034,14 +11149,19 @@ def lower(task: dict, body: list, witness: dict | None = None,
     # PREDICT T37: the task's datatype declarations, for the module-level helpers, for exactly this call
     if _unit is not None:
         return _lower(task, body, witness, _unit)
-    prev = dict(_DTS)
+    prev, prev_flat = dict(_DTS), dict(_DT_FLAT)
     _DTS.clear()
     _DTS.update({d["name"]: d for d in task.get("datatypes", [])})
+    _DT_FLAT.clear()
+    _DT_FLAT.update({p["name"]: _dt_of(p["type"]) for p in task["params"]
+                     if _dt_of(p["type"]) is not None and _dt_flattens(_dt_of(p["type"]))})   # PREDICT T43
     try:
         return _lower(task, body, witness, _unit)
     finally:
         _DTS.clear()
         _DTS.update(prev)
+        _DT_FLAT.clear()
+        _DT_FLAT.update(prev_flat)
 
 
 def _lower(task: dict, body: list, witness: dict | None = None,
@@ -11049,7 +11169,8 @@ def _lower(task: dict, body: list, witness: dict | None = None,
     import tshape
     task, body = tshape.desugar_seq_quants(task, body)   # SPEC.md "Quantifiers over a collection": seq ranges as indices
     import framac_lib
-    tshape.abstain_unless_carried(task, body, "framac", carried={"comp"},
+    task, body = tshape.desugar_exits(task, body)        # PREDICT T44: break/continue rewritten; `while true` stays
+    tshape.abstain_unless_carried(task, body, "framac", carried={"comp", "exit"},
                                   lib=framac_lib.FRAMAC_LIB)   # PREDICT T11: the library in Frama-C
     _comp_refusal(task, body)                              # PREDICT T19: maps assigned to a buffer, the rest by name
     _dt_check(task, body)                                  # PREDICT T37: datatype parameters; the rest by name
@@ -11379,6 +11500,16 @@ def _lower(task: dict, body: list, witness: dict | None = None,
         # the emitted C that is precisely what it now is.
         k = p["type"]["pair"].index("seq")
         seqs.append(f"{p['name']}_{'fst' if k == 0 else 'snd'}")
+    for pname, d in _DT_FLAT.items():
+        # PREDICT T43: a flattened datatype's seq fields join `seqs` the same way, under their flattened names
+        for fd in _dt_fields(d, _DTS[d]["ctors"][0]["name"]):
+            nm = f"{pname}_{fd['name']}"
+            for suffix in ("", "_n"):
+                if f"{nm}{suffix}" in used:
+                    raise NotImplementedError(f"name {nm}{suffix} collides with a fresh parameter this lowering "
+                                              f"synthesizes for the flattened datatype parameter {pname}")
+            if fd["type"] == "seq":
+                seqs.append(nm)
     # SPEC.md "Methods (v1)": workspace buffers for seq locals set by a
     # method call (see the methods section above `stmts()`); empty, and
     # every clause below byte-identical, for a body with no such call.
@@ -11606,8 +11737,8 @@ def _lower(task: dict, body: list, witness: dict | None = None,
                    seq_len=({ret: "\\result"} if capacity_mode else {}))
     clauses = []
     for p in task["params"]:
-        if _dt_of(p["type"]) is not None:
-            # PREDICT T37: a t value is always built by one of its constructors
+        if _dt_of(p["type"]) is not None and p["name"] not in _DT_FLAT:
+            # PREDICT T37: a t value is always built by one of its constructors (a flattened one has one, T43)
             clauses.append(f"  requires dt_{_dt_of(p['type'])}_ok({p['name']});")
     all_seqs = list(seqs)
     for s in seqs:
@@ -11843,6 +11974,11 @@ def _lower(task: dict, body: list, witness: dict | None = None,
                 continue
             sname = _pair_struct_name(*p["type"]["pair"])
             cparams.append(f"struct {sname} {p['name']}")
+        elif p["name"] in _DT_FLAT:
+            # PREDICT T43: flattened, each field its own C parameter
+            for fd in _dt_fields(_DT_FLAT[p["name"]], _DTS[_DT_FLAT[p["name"]]]["ctors"][0]["name"]):
+                nm = f"{p['name']}_{fd['name']}"
+                cparams += [f"int *{nm}", f"int {nm}_n"] if fd["type"] == "seq" else [f"int {nm}"]
         elif _dt_of(p["type"]) is not None:
             cparams.append(f"struct dt_{_dt_of(p['type'])} {p['name']}")   # PREDICT T37: by value
         else:

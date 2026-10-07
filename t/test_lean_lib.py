@@ -115,8 +115,8 @@ def test_comprehensions():
     ok("∀ (t_dk" in src or "(∀ (t_dk" in src, "a partial body owes its definedness at every index of the range")
     prelude = src[:src.find("def diffs_t")]
     ok("termination_by" not in prelude, "the comprehension's function is structurally recursive")
-    ok("break" in refusal("count_evens_skip") or "while-true" in refusal("count_evens_skip"),
-       "a comprehension task with an early exit still refuses by name: %r" % refusal("count_evens_skip"))
+    # PREDICT T44: an early exit is rewritten away (tshape.desugar_exits), so the filter's task lowers
+    ok(refusal("count_evens_skip") == "", "a comprehension task with an early exit lowers: %r" % refusal("count_evens_skip"))
 
 
 if __name__ == "__main__":

@@ -3053,6 +3053,8 @@ class Lower:
                 ga_names += [f"{nm}_length", f"{nm}_get"] + ([f"{nm}_get0"] if "lo" in c else []) + [f"{nm}_getn"]
             else:
                 ga_names += [f"{nm}_length"] + ([f"{nm}_all"] if c["body"] == {"var": c["var"]} else [])
+                if "seq" in c:
+                    ga_names.append(f"{nm}_step")   # PREDICT T45: a count over a growing prefix
             self.lib_fns += [nm]
         if self.comps and (self._has(task, "op", "slice") or self._has(body, "op", "slice")):
             ga_names += ["t_seq_slice_get", "t_seq_slice_get_r"]   # PREDICT T12: a comprehension over a slice
@@ -7036,6 +7038,24 @@ class Lower:
                 f"(if {cond_at(at_m)} then [{body_at(at_m)}] else []) := rfl\n"
                 f"    rw [hcomp]; split <;> simp <;> omega\n")
             thms.append(f"{nm}_length")
+            if "seq" in c:
+                # PREDICT T45: the length one step on, at an Int index, the step a count over a growing prefix needs
+                # (count_evens_skip's invariant `c == len([y for y in s[0..i] if ...])`: grind did not unfold the
+                # definition through `(i + 1).toNat`, measured); seq sources only
+                out.append(
+                    f"theorem {nm}_step {head} :\n"
+                    f"    ∀ (t_i : Int), 0 ≤ t_i → (({call} (t_i + 1).toNat).length : Int) = "
+                    f"(({call} t_i.toNat).length : Int) + (if {cond_at(at_i)} then 1 else 0) := by\n"
+                    f"  intro t_i h0\n"
+                    f"  have he : (t_i + 1).toNat = t_i.toNat + 1 := by omega\n"
+                    f"  rw [he]\n"
+                    f"  have hcomp : {call} (t_i.toNat + 1) = {call} t_i.toNat ++ "
+                    f"(if {cond_at(at_i)} then [{body_at(at_i)}] else []) := rfl\n"
+                    f"  rw [hcomp]\n"
+                    f"  by_cases hc : {cond_at(at_i)}\n"
+                    f"  · simp only [if_pos hc]; simp\n"
+                    f"  · simp only [if_neg hc]; simp\n")
+                thms.append(f"{nm}_step")
             if is_filter:
                 ctop = cond_at(f"({call} t_n)[t_i.toNat]!")
                 out.append(
@@ -11457,7 +11477,8 @@ def _uses_sets(obj) -> bool:
 def lower(task: dict, body: list, witness: dict | None = None) -> str:
     import tshape
     task, body = tshape.desugar_seq_quants(task, body)   # SPEC.md "Quantifiers over a collection": seq ranges as indices
-    tshape.abstain_unless_carried(task, body, "lean", carried={"comp-reduction", "comp", "collection-quant"},
+    task, body = tshape.desugar_exits(task, body)        # PREDICT T44: break/continue rewritten; `while true` stays
+    tshape.abstain_unless_carried(task, body, "lean", carried={"comp-reduction", "comp", "collection-quant", "exit"},
                                   lib=LEAN_LIB)   # PREDICT T9: the library; any/all over a comprehension
     if _set_of_compound(task) or _set_of_compound(body):
         raise NotImplementedError(
