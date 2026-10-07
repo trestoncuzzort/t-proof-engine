@@ -2251,3 +2251,11 @@ The first industry kernel for the heap (NORTH-STAR.md target 1). Receipt 76b38f4
 (2) No other cell moves. All seven stays 62.
 (3) The AlgoVeri table does not move.
 
+### T50 read (2026-10-07 11:34Z): every bar held.
+
+Both tables were regenerated from a clean clone at 905e457, with no proof run beside it, with no OOM.
+(1) **Held:** Frama-C reads verified/refuted on swap_at, clamp_all, ring_push, scale_all, offset_all and relu_all
+(68), and refuses reverse_in_place by name.
+(2) **Held:** no other cell moved. All seven stays 62 of 114.
+(3) **Held:** the AlgoVeri table did not move.
+

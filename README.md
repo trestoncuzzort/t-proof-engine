@@ -37,7 +37,7 @@ Measured from a clean clone of this repository on 2026-10-07 over the 114 commit
 | Lean 4 | 84 | 2 | 28 |
 | F\* | 79 | 2 | 33 |
 | SPARK | 73 | 4 | 37 |
-| Frama-C | 62 | 1 | 51 |
+| Frama-C | 68 | 1 | 45 |
 
 - In every kernel, the twin of every proved program is refuted (100%).
 - 62 of the 114 tasks are proved, with the twin refuted, in all seven kernels.
