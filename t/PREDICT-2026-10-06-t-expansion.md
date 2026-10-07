@@ -2313,3 +2313,17 @@ sat_scale verified/refuted (73). No other cell moves; all seven stays 62.
 (2) `t/AUTONOMY.md`: Frama-C 21, SPARK 19, Dafny 18, F* 17, Verus 14, Lean 14, Rocq 14; all seven 13 of 25.
 (3) The AlgoVeri table does not move.
 
+### T51 and T52 read (2026-10-07 12:27Z): every registered bar held; one unregistered cell moved, under my load.
+
+The three tables were regenerated from a clean clone at d4d87d1, with no OOM.
+(1) **Held:** Frama-C reads verified/refuted on deadband (69), and timeout on sat_scale and rate_limit. SPARK kept
+sat_scale verified/refuted (73).
+(2) **Held:** `t/AUTONOMY.md` reads Frama-C 21, SPARK 19, Dafny 18, F* 17, Verus 14, Lean 14 and Rocq 14; 13 of 25 in
+all seven, exactly the hand probes.
+(3) **Held:** the AlgoVeri table did not move.
+- **Not registered, and caused by me:** sum_tail's Lean twin read timeout (verified/refuted before). I ran the lowering
+  snapshot, four Python processes, beside the matrix half. This is the same borderline cell that timed out under load
+  on clean26. Re-run alone on the clean clone afterwards, it is refuted again. The installed table keeps the measured
+  timeout (Lean 83), and the next clean run re-measures it. A clean run's matrix half now gets an idle machine, with no
+  snapshot and no suite beside it.
+

@@ -64,28 +64,32 @@ invariants, early exits, recursion, methods and lemmas. Since 2026-10-07 it also
 
 ## 4. Results
 
-**The matrix** (114 tasks; `t/AGREEMENT.md`, clean clone at 905e457):
+**The matrix** (114 tasks; `t/AGREEMENT.md`, clean clone at d4d87d1):
 
 | kernel | proved, twin refuted | carried, not proved | refused by name |
 |---|---|---|---|
 | Dafny | 111 | 0 | 3 |
 | Verus | 99 | 1 | 14 |
-| Lean 4 | 84 | 2 | 28 |
+| Lean 4 | 83 | 3 | 28 |
 | Rocq | 79 | 0 | 35 |
 | F\* | 79 | 2 | 33 |
 | SPARK | 73 | 4 | 37 |
-| Frama-C | 68 | 1 | 45 |
+| Frama-C | 69 | 3 | 42 |
 
-- 62 of the 114 tasks are proved with the twin refuted in **all seven**.
+- 62 of the 114 tasks are proved with the twin refuted in **all seven**. (Lean's 83 includes one twin that timed out
+  under load beside the run and is refuted alone.)
 - In every kernel, every proved program's twin is refuted.
 - Frama-C's row is 68 since the heap landing (PREDICT T50) was read.
 
 **AlgoVeri** (30 contracts lifted from the public benchmark; `t/ALGOVERI.md`): Dafny 30, Verus 9, F\* 5, SPARK 4,
 Frama-C 2, Lean 1, Rocq 1. One contract is proved in all seven.
 
-**The autonomy suite** (25 routines; `t/autonomy/`, `t/AUTONOMY.md`): registered (PREDICT T52) and awaiting its
-clean-clone read. The hand probes are Frama-C 21, SPARK 19, Dafny 18, F\* 17, Verus 14, Lean 14 and Rocq 14, with 13
-of 25 in all seven.
+**The autonomy suite** (25 routines; `t/autonomy/`, `t/AUTONOMY.md`, clean clone at d4d87d1), verified with the
+twin refuted: Frama-C 21, SPARK 19, Dafny 18, F\* 17, Verus 14, Lean 14, Rocq 14. 13 of the 25 are in all seven.
+What keeps the others out is measured, not guessed:
+- nonlinear integer division (grid_cell, low_pass_step), which F\* alone proves;
+- float rounding under a step budget (pid_step);
+- each kernel's refusal of floats or the heap.
 
 **Solver change** (PREDICT T22): over 298 cells verified under the default solver, no second solver refuted a verified
 program. Proof strength is solver-specific: under Z3, 31 of the 49 programs Alt-Ergo proves in Frama-C time out.
