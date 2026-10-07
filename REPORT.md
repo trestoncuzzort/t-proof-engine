@@ -18,7 +18,8 @@ chosen by a search for an input where the mutant breaks the contract, by accepti
 mutant by execution and has the kernel prove the ones the spec cannot tell apart. Over 316 Dafny-verified DafnyBench
 programs, Dafny also proves a different, one-edit program against the same contract in 44; read by hand, 23 of those
 are gaps in the specification. Across five public benchmark corpora in Dafny, Verus and Lean, 72 such gaps are found,
-each with a kernel proof of the wrong program. Each kernel refuses by name what it cannot express, rather than
+each with a kernel proof of the wrong program, and 25 of them are repaired mechanically, each repaired contract
+kernel-proved for the program as written. Each kernel refuses by name what it cannot express, rather than
 weakening it. The language now carries the constructs embedded control code needs: in-place
 arrays, parallel loops whose race freedom is checked by rule, and IEEE-754 doubles. A suite of 25 autonomy routines
 is checked the same way.
@@ -150,7 +151,7 @@ The same audit, in the kernel each source was verified in (PREDICT T56 and T59; 
 | ACSL by Example | Frama-C | 16 | 100% | 0 | 13 | 0 | 0 |
 
 Across the five benchmark corpora, 102 tasks have a kernel-proved one-edit wrong program. By hand reading, 72 of them
-are gaps in the specification.
+are gaps in the specification. 25 are repaired with a proof (below).
 
 Specification quality tracks the source:
 - ACSL by Example, an expert-written library, kills every mutant, including on ties: `max_element` names the
@@ -173,6 +174,29 @@ All seven were rewritten to pin their results down (PREDICT T55, T60; tree_inser
 order). Each kills every behaviour-changing mutant, and the suite's audit reads 1,578 of 1,578 killed. The stronger filter_pos costs Frama-C one cell: WP has no frame fact for a
 recursive logic function over memory, and the loop invariant steps out. The stronger tree_insert costs Rocq and Lean
 one cell each. A stronger contract is harder to prove, and the matrix now counts the harder one.
+
+**Repair: from a measured gap to a proved contract** (PREDICT T61; `t/repair.py`, `t/REPAIR-*.md`, `t/repairs/`).
+A gap the audit measures can be repaired mechanically:
+- **Candidates:** clauses from a grammar over the task's own vocabulary (result-to-parameter relations, membership,
+  extremes and their attainment, bounds, the converse of a subset-only postcondition), plus Daikon-style fits read off
+  the real program's values on the domain.
+- **Filter:** each clause must hold for the real program at every domain point.
+- **Cover:** the fewest clauses that kill every survivor.
+- **Check:** the repaired task is audited again, then proved in the kernel. Where the old loop invariants cannot
+  carry the stronger contract, invariants are inferred the same way from the loop-head states the interpreter
+  observes, and proved with it.
+
+25 of the 72 benchmark gaps are repaired with a kernel proof:
+- the converse that MutDafny's authors proposed by hand for three subset-only specs, with the loop invariant that
+  carries it;
+- `0 <= r < b` for a Euclidean division;
+- `z == (x == y)` for the precedence slip;
+- attainment for a maximum difference, with the running extremes attained in the scanned prefix as invariants.
+
+Each repair is printed as source lines in the kernel's language. Most of the rest cannot be repaired from their own
+vocabulary: the APPS- and NumPy-derived specifications never define the function the task computes. The repair
+refuses a solution that never reads its inputs. 13 of vericoding's 509 Dafny solutions and 8 of its 63 Verus ones are
+such programs, including a recorded Verus solution that returns `'R'` for every input.
 
 ## 5. What the kernels taught
 

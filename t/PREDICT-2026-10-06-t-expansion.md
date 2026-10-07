@@ -2792,3 +2792,10 @@ the kernel's proof, so a fitted clause true only on the domain reads unproved.
 (1) Each corpus's table reproduces the hand run's counts exactly. A kernel verdict may differ by one task per corpus.
 (2) No repaired contract is installed whose real body the kernel did not prove. The patches list only proved
 repairs.
+
+### T61 read (2026-10-07 18:34Z): both bars held, exactly.
+
+All four tables were regenerated from a clean clone at b2a51bf and are installed: `t/REPAIR-*.md`, and the proved
+repairs as source lines in `t/repairs/*.md`. Every count matches the hand runs, kernel verdicts included:
+DafnyBench 24 repaired and 19 proved; vericoding Dafny 12 and 9; HumanEval-Dafny 2 and 2; vericoding Verus 4 and 3.
+25 of the 72 hand-read gaps are repaired with a kernel proof.

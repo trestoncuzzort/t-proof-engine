@@ -62,7 +62,12 @@ Measured from a clean clone of this repository on 2026-10-07 over the 114 commit
   by hand. In vericoding's Verus track, Verus proves a one-edit wrong program in 14 of 55 verified tasks (13 gaps;
   two specs are met by a constant), and Dafny in 39 of 425 in its Dafny track (31 gaps); in HumanEval-Dafny, 5 of 39.
   Across five benchmark corpora that is 72 gaps, each with a proof. ACSL by Example and vericoding's Lean track kill
-  every mutant
+  every mutant.
+- **Specification repair** (`python3 t/cli.py repair DIR --kernel dafny --patches PATCHES.md`, PREDICT T61) proposes
+  the clauses that kill an audit's survivors and keeps those the real program meets on the whole domain. Loop
+  invariants are inferred from observed loop-head states, and everything is proved in the kernel. 25 of the 72
+  benchmark gaps are repaired with a proof ([t/repairs/](t/repairs/)). 21 vericoding solutions that never read their
+  inputs are refused
   ([t/vericoding/CLASSIFIED.md](t/vericoding/CLASSIFIED.md), PREDICT T56). On t's own suites it found seven specs to strengthen, and all seven were (T55, T60): the task suite's audit now
   kills 1,578 of 1,578 behaviour-changing mutants.
 - [t/AUTONOMY.md](t/AUTONOMY.md): 25 navigation, guidance and control routines (`t/autonomy/`). Verified with the
