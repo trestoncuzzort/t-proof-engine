@@ -2422,3 +2422,27 @@ difference outside it is not seen.
 (3) A guess: between 25% and 60% of the audited tasks admit a survivor.
 (4) A guess: where the real body is verified and a survivor exists, Dafny proves a survivor in at least half.
 (5) The four tasks above read as measured.
+
+### T54 read (2026-10-07 13:42Z): four bars held, and the one guess about how many specs are weak missed low.
+
+Read from a clean clone at 62fa15e (`t/AUDIT-DAFNYBENCH.md`, `t/AUDIT-TASKS.md`, `t/AUDIT-AUTONOMY.md`), the same
+numbers as the hand run.
+(1) **Held:** 320 of the 326 are audited. 4 have no input inside the bounded domain that meets `requires`; in 2 the
+real body breaks its own `ensures` inside the domain.
+(2) **Held:** Dafny verifies the real body in 316 of the 320 (98.8%). Three read vacuous and one timeout.
+(3) **Missed, low:** 53 of the 320 (16.6%) admit a survivor, below the guessed 25% to 60%. Over all 9,145 mutants,
+6,829 are killed, 896 compute the same, 1,002 diverge and 418 survive: the specs kill 94.2% of the mutants that change
+behaviour.
+(4) **Held:** where the real body is verified and a survivor exists (50 tasks), Dafny proves a survivor in 44 (88%).
+Each is a wrong program with a proof.
+(5) **Held:** MutDafny's four read as measured.
+- **The 44, read by hand** (`t/dafnybench/CLASSIFIED.md`):
+  - 23 are gaps: the spec admits a result that is wrong for what the routine evidently computes. Three `max`
+    routines admit a value above both inputs; a Euclidean division admits remainder 1 for 1 / 1; a median of three
+    admits a non-median; an `==>` precedence slip makes one contract a tautology; plus MutDafny's four.
+  - 3 have no spec (`ensures true`).
+  - 3 are test cases that are bounds by design.
+  - 15 are intended latitude: ties, either order, any negative sentinel, VSComp 2010's stated property.
+- **t's own suites,** with Dafny: of the 6 tasks with survivors, Dafny proves one in 5. rate_limit is a float task,
+  which Dafny refuses. Of the autonomy suite's 2, Dafny proves nearest_index's tie (pid_step is a float routine). The
+  seven gaps named at registration stand.

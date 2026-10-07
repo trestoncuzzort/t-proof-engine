@@ -14,7 +14,10 @@ from a wrong one proves nothing. t is a small language in which a routine and it
 lowered mechanically into seven independently built proof systems. A cell of the resulting table counts only if two
 things hold. First, the kernel proves the real program. Second, it refutes the routine's **twin**, a one-edit mutant
 chosen by a search for an input where the mutant breaks the contract, by accepting a certificate at that input. Over
-114 tasks, 65 are proved with their twins refuted in all seven kernels. Each kernel refuses by name what it cannot
+114 tasks, 65 are proved with their twins refuted in all seven kernels. A specification audit runs every one-edit
+mutant by execution and has the kernel prove the ones the spec cannot tell apart. Over 316 Dafny-verified DafnyBench
+programs, Dafny also proves a different, one-edit program against the same contract in 44; read by hand, 23 of those
+are gaps in the specification. Each kernel refuses by name what it cannot
 express, rather than weakening it. The language now carries the constructs embedded control code needs: in-place
 arrays, parallel loops whose race freedom is checked by rule, and IEEE-754 doubles. A suite of 25 autonomy routines
 is checked the same way.
@@ -96,6 +99,49 @@ What keeps the others out is measured, not guessed:
 
 **Solver change** (PREDICT T22): over 298 cells verified under the default solver, no second solver refuted a verified
 program. Proof strength is solver-specific: under Z3, 31 of the 49 programs Alt-Ergo proves in Frama-C time out.
+
+**D8: auditing public specifications** (PREDICT T54; `t/audit.py`, `t/AUDIT-DAFNYBENCH.md`, clean clone at 62fa15e).
+The twin rule asks one question of a spec: does it refute one wrong program? The audit asks a wider one: of every
+one-edit mutant of the body, which change what the routine computes, and does the spec catch each of them? The
+interpreter classes every mutant over the task's bounded domain. A **survivor** computes a different result at a
+ground input and meets the `ensures` at every domain point. Dafny then verifies the real body and the first
+survivors. A survivor Dafny proves is a second, different program with a proof against the same contract.
+
+Over the 326 DafnyBench tasks t can state (`t/dafnybench/`, a selection biased toward simple programs):
+
+| measure | count |
+|---|---|
+| tasks audited | 320 |
+| real body verified by Dafny | 316 |
+| mutants: killed / same / diverge / survive | 6,829 / 896 / 1,002 / 418 |
+| tasks with a survivor | 53 |
+| tasks whose verified real body has a survivor **Dafny also proves** | 44 |
+
+The 44 were read by hand (`t/dafnybench/CLASSIFIED.md`):
+- 23 are gaps:
+  - three `max` routines whose contract (`c >= a && c >= b`) admits a value above both;
+  - a Euclidean division with no bound on the remainder;
+  - a median of three that admits a non-median;
+  - a contract that an `==>` precedence slip makes a tautology;
+  - the four weak specs MutDafny's authors found by hand.
+- 3 are `ensures true`.
+- 3 are test cases.
+- 15 are intended latitude, mostly ties among maxima.
+
+MutDafny (arXiv 2511.15403) ran 118,458 Dafny-verified mutants of 794 programs, 30,459 of them alive, and triaged a
+sample by hand: 157 of 284 alive mutants were equivalent to the original. The audit removes that step:
+- equivalence is decided by running the mutants, so no kernel time or reading goes to the 896 mutants that compute
+  the same thing;
+- every survivor comes with the input where it differs;
+- a survivor is a fact about the postcondition alone, independent of the loop invariants.
+
+The cost is the bounded domain: a difference outside it is not seen.
+
+Run on t's own suites, the audit found seven of its own specs too weak, each of which passes the twin rule:
+- count_pos_for, evens, filter_pos and index_map;
+- rate_limit, where the direction of a limited step is unstated;
+- pid_step, where the limit a saturated command takes is unstated;
+- tree_insert, where the search-tree order is unstated.
 
 ## 5. What the kernels taught
 
