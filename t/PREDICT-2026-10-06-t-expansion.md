@@ -1420,7 +1420,7 @@ The matrix was regenerated from a clean clone at 947c37c (`t/AGREEMENT.md`) and 
 (4) **Held:** Dafny 99, Verus 91, Lean 73; the other four unchanged. All seven stays 48, now of 99. Every kernel still
 refutes the twin of every real it verifies (100%).
 
-## T27 registered (2026-10-07 04:00Z, after hand probes and before the clean-clone runs): AlgoVeri's BST family, first five (G12)
+## T27 registered (2026-10-07 04:01Z, after hand probes and before the clean-clone runs): AlgoVeri's BST family, first five (G12)
 
 `bst_search`, `bst_insert`, `bst_zig`, `bst_zigzag` and `bst_zigzig` are stated in t, making 27 AlgoVeri programs.
 `t/algoveri/MAPPING.md` gives them clause by clause. They stand on recursive datatypes (T25) and set-ranged
