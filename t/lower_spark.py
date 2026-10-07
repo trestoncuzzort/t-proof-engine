@@ -1502,8 +1502,24 @@ TYPE = {"int": "Big_Integer", "bool": "Boolean", "seq": "Seq",
         # SPEC.md "Exact rationals (v1)" (2026-10-06): Ada 2022's Big_Real (A.5.7), an exact rational with
         # Numerator/Denominator in lowest terms; gnatprove maps it to the reals (measured on this desktop:
         # literals as quotients, "/" with its Pre, To_Big_Real, the comparisons)
-        "real": "Big_Real"}
+        "real": "Big_Real",
+        # SPEC.md "Floats (v1)" (PREDICT T49): GNAT's Long_Float, IEEE binary64 with ties-to-even rounding, its
+        # infinities and NaN invalid values that gnatprove's overflow checks rule out (the SPARK UG's "Semantics
+        # of Floating Point Operations"), which is t's definedness for a float operation exactly
+        "float": "Long_Float"}
 _RAT_TEXT = __import__("re").compile(r"^-?\d+/\d+$")   # interp._j's rendering of a real witness value
+
+
+def _float_lit(v: float) -> str:
+    """SPEC.md "Floats (v1)": a double as an Ada real literal of its EXACT decimal value (every double has one), so
+    the literal names that double with no rounding left to the compiler; Ada wants a digit on both sides of the
+    point and takes an exponent."""
+    from decimal import Decimal
+    sign, digits, exp = Decimal(v).as_tuple()
+    ds = "".join(str(d) for d in digits) or "0"
+    mant = ds[0] + "." + (ds[1:] or "0")
+    e10 = exp + len(ds) - 1
+    return f"Long_Float'({'-' if sign else ''}{mant}E{e10})"
 
 
 def _real_lit(n: int, d: int) -> str:
@@ -3673,7 +3689,7 @@ def _dead_lit(t) -> str:
         return (f"{_pair_ada_name(t)}'(P_A => {_dead_lit(t1)}, "
                f"P_B => {_dead_lit(t2)})")
     return {"int": "Big_Integer'(0)", "bool": "False",
-           "seq": "Seqs.Empty_Sequence", "real": _real_lit(0, 1)}[t]
+           "seq": "Seqs.Empty_Sequence", "real": _real_lit(0, 1), "float": "Long_Float'(0.0)"}[t]
 
 
 def locals_seq(body: list) -> bool:
@@ -4460,6 +4476,8 @@ class Lower:
             if not (isinstance(pty, dict) and "pair" in pty):
                 raise ValueError(f"{op} of a non-pair expression")
             return pty["pair"][0 if op == "fst" else 1]
+        if op in ("float", "sqrt"):
+            return "float"  # SPEC.md "Floats (v1)"
         if op == "toreal":
             return "real"   # SPEC.md "Exact rationals (v1)": real(x)
         if op in ("floor", "ceil"):
@@ -4533,6 +4551,14 @@ class Lower:
             # SPEC.md "Exact rationals (v1)" (2026-10-06): a real literal, the quotient of two Big_Reals
             self.needs_reals = True
             return _real_lit(*e["rat"])
+        if e.get("op") == "float":
+            # SPEC.md "Floats (v1)" (PREDICT T49): float(literal), rounded here as t rounds it, written as the exact
+            # double; a run-time conversion of a Big_Integer is not lowered yet
+            a0 = e["args"][0]
+            if "rat" in a0 or "int" in a0:
+                from fractions import Fraction
+                return _float_lit(float(Fraction(*a0["rat"]) if "rat" in a0 else a0["int"]))
+            raise NotImplementedError("spark: float() of a non-literal is not lowered yet (SPEC.md 'Floats (v1)')")
         if "bool" in e:
             return "True" if e["bool"] else "False"
         if "var" in e:
@@ -4865,14 +4891,23 @@ class Lower:
             self.needs_lib.add("T_Contains")
             self.needs_range = True
             return f"T_Contains ({args[1]}, {args[0]})"
+        if op == "toreal" and self._ty(e["args"][0], types) == "float":
+            raise NotImplementedError("spark: real(f) of a float is not lowered yet (SPEC.md 'Floats (v1)')")
         if op == "toreal":
             # SPEC.md "Exact rationals (v1)": real(x) is Big_Reals' own conversion from a Big_Integer
             self.needs_reals = True
             return f"To_Big_Real ({args[0]})"
+        if op == "sqrt":
+            raise NotImplementedError("spark: sqrt is not lowered yet (SPEC.md 'Floats (v1)')")
+        if op in ("min", "max") and self._ty(e["args"][0], types) == "float":
+            return f"Long_Float'{op.capitalize()} ({args[0]}, {args[1]})"   # SPEC.md "Floats (v1)"
         if op in ("floor", "ceil"):
             # Big_Reals (A.5.7) has no floor or ceiling; lower() refuses the task by name before emission
             raise NotImplementedError(
                 f"spark: {op}: Ada.Numerics.Big_Numbers.Big_Reals has no floor or ceiling (SPEC.md 'Exact rationals (v1)')")
+        if op == "div" and self._ty(e["args"][0], types) == "float":
+            # SPEC.md "Floats (v1)": Long_Float's own "/", whose division and overflow checks are its definedness
+            return f"({args[0]} / {args[1]})"
         if op == "div" and self._ty(e["args"][0], types) == "real":
             # SPEC.md "Exact rationals (v1)": exact division, Big_Reals' own "/" whose Pre (Den /= 0) is the
             # definedness obligation, checked by gnatprove at this call site exactly as T_Div's is for ints
@@ -5695,6 +5730,8 @@ def _cert_lit(v) -> str:
     either, by the same argument one level down."""
     if isinstance(v, bool):
         return "True" if v else "False"
+    if isinstance(v, float):
+        return _float_lit(v)                              # SPEC.md "Floats (v1)"
     if _is_real_value(v):
         # SPEC.md "Exact rationals (v1)" (2026-10-06): a Fraction from interp.exit_env, or a witness's "n/d"
         return _real_lit_of(v)
@@ -5747,6 +5784,8 @@ def _cert_lit_of_type(v, ty) -> str:
     second time; a seq component recurses into the same literal `_cert_lit`
     itself builds, since a seq witness value is unambiguous once `ty` says
     "seq" rather than "pair"."""
+    if ty == "float" and isinstance(v, (int, float)) and not isinstance(v, bool):
+        return _float_lit(float(v))                       # SPEC.md "Floats (v1)"
     if _is_nested_seq(ty):
         # SPEC.md "Nested sequences (v1)" (2026-09-10): a seq<seq>-typed
         # parameter's witness value, a list of row-lists, rendered as a
@@ -6778,8 +6817,10 @@ def lower(task: dict, body: list, witness: dict | None = None) -> str:
 def _lower(task: dict, body: list, witness: dict | None = None) -> str:
     import tshape
     task, body = tshape.desugar_seq_quants(task, body)   # SPEC.md "Quantifiers over a collection": seq ranges as indices
+    task, body = tshape.desugar_par(task, body)          # PREDICT T47: a parallel loop as its sequential `for`
     task, body = tshape.desugar_exits(task, body)        # PREDICT T44: break/continue rewritten; `while true` stays
-    tshape.abstain_unless_carried(task, body, "spark", carried=frozenset({"real", "comp", "exit"}), lib=SPARK_LIB)
+    tshape.abstain_on_heap(task, "spark")                   # SPEC.md "Heap (v1)" (PREDICT T46): Dafny first
+    tshape.abstain_unless_carried(task, body, "spark", carried=frozenset({"real", "comp", "exit", "float"}), lib=SPARK_LIB)
     _comp_refusal(task, body)                              # PREDICT T18: maps carried, the rest refused by name
     if tshape.uses_ops(body, task, {"floor", "ceil"}):
         # SPEC.md "Exact rationals (v1)" (2026-10-06): Big_Reals (Ada 2022 A.5.7) has no floor or ceiling

@@ -6456,7 +6456,10 @@ def lower(task: dict, body: list, witness: dict | None = None) -> str:
 def _lower(task: dict, body: list, witness: dict | None = None) -> str:
     import tshape
     task, body = tshape.desugar_seq_quants(task, body)   # SPEC.md "Quantifiers over a collection": seq ranges as indices
+    task, body = tshape.desugar_par(task, body)          # PREDICT T47: a parallel loop as its sequential `for`
     task, body = tshape.desugar_exits(task, body)        # PREDICT T44: break/continue rewritten; `while true` stays
+    tshape.abstain_on_heap(task, "fstar")                   # SPEC.md "Heap (v1)" (PREDICT T46): Dafny first
+    tshape.abstain_on_floats(task, body, "fstar")           # SPEC.md "Floats (v1)" (PREDICT T48)
     tshape.abstain_unless_carried(task, body, "fstar", carried=frozenset({"real", "comp", "exit"}), lib=FSTAR_LIB)
     _comp_refusal(task, body)                              # PREDICT T16: maps carried, the rest refused by name
     _LIB_USED.clear()

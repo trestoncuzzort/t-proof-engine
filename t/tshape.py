@@ -263,7 +263,7 @@ STRLIB2_OPS = frozenset({"index", "rfind", "zfill", "center", "ljust", "rjust", 
 
 def _scope_of(task: dict, body: list) -> dict:
     """name -> declared type over params, the return, locals anywhere and spec_fun params (shadowing ignored)."""
-    out = {p["name"]: p["type"] for p in task.get("params", [])}
+    out = {p["name"]: ("seq" if p["type"] == "array" else p["type"]) for p in task.get("params", [])}   # Heap (v1)
     for r in task.get("returns", []):
         out[r["name"]] = r["type"]
     for f in task.get("spec_funs", []):
@@ -379,6 +379,117 @@ def has_exit(task: dict, body: list) -> bool:
             return any(walk(v) for v in x.values())
         return isinstance(x, list) and any(walk(v) for v in x)
     return walk(body or []) or walk(task.get("methods", []))
+
+
+def _rename_var(x, old: str, new: str):
+    if isinstance(x, list):
+        return [_rename_var(v, old, new) for v in x]
+    if not isinstance(x, dict):
+        return x
+    if x.get("var") == old:
+        return {**x, "var": new}
+    return {k: _rename_var(v, old, new) for k, v in x.items()}
+
+
+def desugar_par(task: dict, body: list) -> tuple:
+    """SPEC.md "Concurrency (v1)" (PREDICT T47): each `parallel for i in [lo, hi)` as the sequential `for` it equals
+    under `par-race`: `var i := lo; while i < hi invariant lo <= i and i <= hi, ... decreases hi - i { body;
+    i := i + 1; }`. The index is renamed when another declaration in the body already has its name, so two parallel
+    loops in one block declare two variables. The real body stays the same object as task["body"]."""
+    def has(x) -> bool:
+        if isinstance(x, dict):
+            return "par" in x or any(has(v) for v in x.values())
+        return isinstance(x, list) and any(has(v) for v in x)
+    if not has(body or []) and not has(task.get("body") or []):
+        return task, body
+    names: set = set()
+
+    def declared(x):
+        if isinstance(x, dict):
+            if "var" in x and isinstance(x["var"], dict):
+                names.add(x["var"]["name"])
+            if "par" in x and isinstance(x["par"], dict):
+                names.add(x["par"]["var"])
+            for v in x.values():
+                declared(v)
+        elif isinstance(x, list):
+            for v in x:
+                declared(v)
+    counter = [0]
+
+    def one(stmts: list) -> list:
+        out = []
+        for st in stmts:
+            if "par" in st:
+                w = st["par"]
+                counter[0] += 1
+                i = w["var"]
+                if i in seen:
+                    i2 = f"{i}_p{counter[0]}"
+                    w = _rename_var(w, i, i2)
+                    w["var"] = i2
+                    i = i2
+                seen.add(i)
+                iv = {"var": i}
+                out.append({"var": {"name": i, "type": "int", "init": copy.deepcopy(w["lo"])}})
+                out.append({"while": {
+                    "cond": {"op": "<", "args": [iv, copy.deepcopy(w["hi"])]},
+                    "invariants": [{"op": "<=", "args": [copy.deepcopy(w["lo"]), iv]},
+                                   {"op": "<=", "args": [iv, copy.deepcopy(w["hi"])]}] + copy.deepcopy(w["invariants"]),
+                    "decreases": {"op": "-", "args": [copy.deepcopy(w["hi"]), iv]},
+                    "body": one(copy.deepcopy(w["body"])) + [{"assign": [i, {"op": "+", "args": [iv, {"int": 1}]}]}]}})
+            elif "if" in st:
+                f = st["if"]
+                out.append({"if": {**f, "then": one(f["then"]), "else": one(f.get("else", []))}})
+            elif "while" in st:
+                out.append({"while": {**st["while"], "body": one(st["while"]["body"])}})
+            else:
+                if "var" in st and isinstance(st["var"], dict):
+                    seen.add(st["var"]["name"])
+                out.append(st)
+        return out
+    seen: set = {p["name"] for p in task.get("params", [])} | {r["name"] for r in task.get("returns", [])}
+    new_body = one(body or [])
+    new = dict(task)
+    if "body" in task:
+        seen = {p["name"] for p in task.get("params", [])} | {r["name"] for r in task.get("returns", [])}
+        counter[0] = 0
+        new["body"] = new_body if body is task["body"] else one(task["body"])
+    return new, new_body
+
+
+def has_float(task: dict, body: list) -> bool:
+    """Whether the task or this body names the float type or a float operation (SPEC.md "Floats (v1)", PREDICT T48)."""
+    def ftype(t) -> bool:
+        if t == "float":
+            return True
+        if isinstance(t, dict):
+            return any(ftype(v) for v in t.values())
+        return isinstance(t, list) and any(ftype(v) for v in t)
+
+    def walk(x) -> bool:
+        if isinstance(x, dict):
+            if ftype(x.get("type")) or ftype(x.get("result")) or x.get("op") in ("float", "sqrt"):
+                return True
+            return any(walk(v) for v in x.values())
+        return isinstance(x, list) and any(walk(v) for v in x)
+    return walk([task.get("params"), task.get("returns"), task.get("requires"), task.get("ensures"),
+                 task.get("spec_funs"), task.get("methods"), task.get("lemmas"), body or []])
+
+
+def abstain_on_floats(task: dict, body: list, kernel: str) -> None:
+    if has_float(task, body):
+        raise NotImplementedError(f"{kernel}: floats are not lowered yet (SPEC.md 'Floats (v1)')")
+
+
+def has_heap(task: dict) -> bool:
+    """Whether the task has an array parameter (SPEC.md "Heap (v1)", PREDICT T46)."""
+    return any(p.get("type") == "array" for p in task.get("params", []))
+
+
+def abstain_on_heap(task: dict, kernel: str) -> None:
+    if has_heap(task):
+        raise NotImplementedError(f"{kernel}: arrays by reference are not lowered yet (SPEC.md 'Heap (v1)')")
 
 
 def abstain_on_exits(task: dict, body: list, kernel: str) -> None:

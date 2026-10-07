@@ -7353,7 +7353,10 @@ def lower(task: dict, body: list, witness: dict | None = None) -> str:
     tshape.abstain_on_reals(task, body, "verus")
     tshape.abstain_on_library(task, body, "verus", carried=VERUS_LIB)   # SPEC.md "The library (v1)" (2026-10-06)
     # PREDICT T44: `break` and `continue` rewritten into `return` and branches (tshape.desugar_exits); `while true` stays
+    task, body = tshape.desugar_par(task, body)          # PREDICT T47: a parallel loop as its sequential `for`
     task, body = tshape.desugar_exits(task, body)
+    tshape.abstain_on_heap(task, "verus")                # SPEC.md "Heap (v1)" (PREDICT T46): Dafny first
+    tshape.abstain_on_floats(task, body, "verus")        # SPEC.md "Floats (v1)" (PREDICT T48)
     _comp_register(task, body)   # SPEC.md "Comprehensions (v1)" (2026-10-06)
     # NAMES (2026-09-11, ROADMAP 13.2): sanitize away any identifier that
     # collides with a Verus/Rust reserved word, before either lowering

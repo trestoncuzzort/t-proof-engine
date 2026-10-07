@@ -13023,7 +13023,10 @@ def _lower(task: dict, body: list, witness: dict | None = None) -> str:
     import tshape
     task, body = tshape.desugar_seq_quants(task, body)   # SPEC.md "Quantifiers over a collection": seq ranges as indices
     import rocq_lib
+    task, body = tshape.desugar_par(task, body)          # PREDICT T47: a parallel loop as its sequential `for`
     task, body = tshape.desugar_exits(task, body)        # PREDICT T44: break/continue rewritten; `while true` stays
+    tshape.abstain_on_heap(task, "rocq")                   # SPEC.md "Heap (v1)" (PREDICT T46): Dafny first
+    tshape.abstain_on_floats(task, body, "rocq")           # SPEC.md "Floats (v1)" (PREDICT T48)
     tshape.abstain_unless_carried(task, body, "rocq", carried={"comp-reduction", "comp", "exit"},
                                   lib=rocq_lib.ROCQ_LIB)   # PREDICT T10: the library in Rocq
     _comp_refusal(task, body)                              # PREDICT T14: maps carried, the rest refused by name

@@ -2830,6 +2830,120 @@ nested defs that mutate what they capture).
 the output), `weighted_sum` (a loop whose invariant is the fold over the
 prefix and whose postcondition is the fold over the whole).
 
+### Heap (v1): arrays by reference
+
+Stated 2026-10-07 (PREDICT T46), the first form of NORTH-STAR.md's target 1, with the pages on receipt 76b38f46f235
+read first: Ada 2022 RM 6.2 (an array parameter is passed by copy or by reference, unspecified, and reading an object
+through a second access path after an update is a bounded error, so the two mechanisms agree exactly when nothing is
+aliased) and Dafny's `array<T>` with `modifies` and `old` (reference manual, "Array types"). In-place routines are
+what embedded code is made of (a ring buffer's push, a filter over a sensor window, an in-place sort), and SPARK and
+Frama-C verify them natively.
+
+**One type mode, one clause, one statement, one expression.**
+
+```
+task f(a: array, ...) returns (r: T)        // an array parameter: a seq of ints passed by reference
+  modifies a                                 // the arrays the task may write; at most once each
+{"aset": [ID, IdxExpr, ValExpr]}             // a[i] := e;  DEFINED IFF 0 <= i < len(a) and e defined
+{"old": Expr}                                // old(e): e evaluated in the task's entry state
+```
+
+- **An array is a task parameter**, nothing else: no array local, return, spec-function or method parameter,
+  datatype field, or component of a compound type (`array-param-only`).
+- **Read as a value**, an array name denotes its current contents, a `seq`: `len(a)`, `a[i]`, `sum(a)`, `a ==
+  rev(old(a))` all read it so. It is never assigned whole (`array-assign`).
+- **`a[i] := e`** writes one element. The array must be named in `modifies` (`aset-modifies`), and its length never
+  changes.
+- **`old(e)`** may appear in an `ensures` and in a loop invariant (`old-position`), not nested in another `old`. It is
+  e evaluated in the state at the task's entry, so `old(a)` is the array's contents then.
+- **No aliasing:** two array parameters are distinct objects, so a write through one is never visible through the
+  other. A caller passing one array twice is outside the semantics, which is the case Ada calls a bounded error and
+  SPARK forbids.
+- **Not in v1, refused by name:** allocation, an array that escapes the task, arrays of anything but ints.
+
+**Semantics.** Because nothing is aliased and nothing escapes, writing in place and copying in and out are the same
+program. The interpreter keeps an array as a seq value and replaces it on each write. A run's observable result is the
+return value together with the final contents of each array in `modifies`. Two runs differ when either differs, and
+the `ensures` reads both, with `old(a)` the input.
+
+**The twins.** The ladder's moves apply inside a write's index and value as anywhere else. A witness records each
+modified array's final contents for the real body and the twin (`_real_heap`, `_twin_heap`) beside the return values,
+so a certificate can ground `a` and `old(a)`.
+
+**The lowerings.**
+- **Dafny:** natively. `a: array<int>`, `modifies a`, a pairwise `requires a != b` (the caller's no-alias obligation,
+  stated) and `a[i] := e;`. An element and the length are read on the array itself, `a[i]` and `a.Length`, the terms
+  Dafny's array axioms trigger on (measured: reverse_in_place timed out reading `a[..][k]`). A whole read is `a[..]`,
+  and the entry state is `old(a[..])`.
+- **The others** refuse by name (`tshape.has_heap`) until each is built and measured.
+- **The hand-back:** writes a Python list mutated in place.
+
+### Concurrency (v1): parallel loops
+
+Stated 2026-10-07 (PREDICT T47), NORTH-STAR.md's target 1, built on "Heap (v1)". A sensor pass (scale, clamp,
+offset, compare every element) is the concurrency embedded code uses most, and its correctness has one question: do
+two iterations touch the same memory? OpenMP's `parallel for` and Rust's `par_iter_mut` answer it by construction,
+by giving each iteration only its own element, and so does t.
+
+```
+{"par": {"var": ID, "lo": Expr, "hi": Expr, "invariants": [Expr, ...], "body": [Stmt, ...]}}
+// parallel for i in [lo, hi) invariant ... { ... }
+```
+
+**Semantics.** The iterations for i in [lo, hi) run concurrently, in any interleaving. `lo` and `hi` are evaluated
+once, before any iteration; `i` is the iteration's own constant.
+
+**Race freedom, checked (`par-race`).** In the body:
+- an array is written only at the iteration's own element, `a[i] := e` with the index exactly `i`;
+- an array the loop writes is read only at that element, `a[i]` (and `len(a)`, which no write changes);
+- the only names assigned are the body's own locals;
+- there is no `return`, `break` or `continue` (`par-exit`), and no `parallel for` inside another.
+
+Under these rules no two iterations touch a common location, so every interleaving computes what the sequential
+order computes. That is the standard non-interference argument (Owicki-Gries), here discharged by the rule itself
+rather than by a proof. Each kernel therefore verifies the loop as the sequential `for i in [lo, hi)` with the same
+invariants (`tshape.desugar_par`), which owes `lo <= hi` as the `for` sugar does. The interpreter runs the iterations in
+reverse order, a second schedule, so a gap in the rule would show as a disagreement with the kernels.
+
+**The lowerings:** every kernel through the sequential rewrite. A loop writes an array, so this needs "Heap (v1)"
+(Dafny today); the hand-back submits the iterations to a thread pool, which the rule makes safe.
+
+### Floats (v1): IEEE-754 binary64
+
+Stated 2026-10-07 (PREDICT T48), NORTH-STAR.md's target 1, with the page on receipt 18db794aff2e read first: the
+SPARK User's Guide's "Semantics of Floating Point Operations" (binary64, round to nearest with ties to even, and
+infinities and NaN invalid values that proof obligations rule out). A navigation or control routine computes in
+doubles, and the question a reviewer asks of it is how far its answer can be from the exact one. t states floats
+the way SPARK proves them, and keeps `real` as the exact arithmetic to measure them against.
+
+```
+"float"                                              // the type: IEEE-754 binary64
+{"op": "float", "args": [IntOrRealExpr]}             // float(x): x rounded to the nearest double; DEFINED IFF finite
+{"op": "sqrt",  "args": [FloatExpr]}                 // sqrt(x): correctly rounded; DEFINED IFF x >= 0
+{"op": "toreal", "args": [FloatExpr]}                // real(f): f's exact value, a rational
+```
+
+- **Arithmetic:** `+`, `-`, `*`, `/` and unary minus on two floats give a float, each correctly rounded (to nearest,
+  ties to even). Each is DEFINED IFF its result is finite: division by zero, overflow and NaN have no value. `%` is
+  int-only. A float never mixes with an int or a real: `float(n)` converts, and `real(f)` measures (`float-conv`).
+- **Comparison:** `< <= > >= == !=` on two floats, a total order on the finite values (`-0.0 == 0.0`).
+- **The library:** `abs`, `min`, `max` take floats too.
+- **Literals:** written `float(1.5)`, the real literal rounded to the nearest double.
+- **Error bounds:** stated in `real`. For `r := x * y` with a normal result, `abs(real(r) - real(x) * real(y)) <=
+  abs(real(x) * real(y)) / 9007199254740992.0` (half an ulp, 2^-53 relative) is one ensures about the rounding.
+
+**The interpreter and the hand-back** compute with Python's float, binary64 with ties-to-even rounding and a
+correctly rounded square root, and check finiteness after each operation. The input ladder adds the near values,
+a value that rounds, the largest finite doubles (an overflow twin's witness) and a subnormal-scale one.
+
+**The lowerings.**
+- **SPARK (PREDICT T49):** `Long_Float`, which carries exactly these semantics, its division and overflow checks
+  being the definedness obligation. A literal is written as the exact decimal value of its double, so no rounding
+  is left to the compiler. `Long_Float'Min`/`'Max` are used. `sqrt`, `real(f)` and a run-time `float(n)` refuse by
+  name until built.
+- **Refused by name:** the other six. Dafny has no IEEE type; Verus, Lean, Rocq and F* have no float theory
+  installed here; Frama-C's `double` is the next landing.
+
 ## The twins
 
 A ladder of mutation operators. None is optional or configurable; the choice

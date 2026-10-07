@@ -2165,3 +2165,55 @@ and Frama-C refuse both by name. evens kept verified/refuted in Lean.
 refusal. No other cell moved.
 (4) **Held:** the AlgoVeri table did not move.
 
+## T46, T47, T48 and T49 registered (2026-10-07 09:50Z, after hand probes and before the clean-clone runs)
+
+The operator, 2026-10-07 09:00Z: add the heap, floats and concurrency to t, under a new north star
+(`NORTH-STAR.md`, "write it once, prove it everywhere it ships"), whose first target they are. Each is in SPEC.md
+with its own section, SYNTAX.md, t.gbnf (`grammar_check.py`: 114 of 114 committed programs accepted), the checker
+(rules with a `malformed/` example each), the interpreter, the twins and the Python hand-back.
+
+**T46: Heap (v1), arrays by reference.** Receipt 76b38f46f235 (Ada RM 6.2: by copy and by reference agree when nothing
+is aliased; Dafny's `array<T>`).
+- **The form:** an `array` task parameter, `modifies a`, `a[i] := e`, and `old(e)` in an ensures or a loop
+  invariant. No aliasing; an array is nothing but a task parameter.
+- **The observable result** is the return value and the modified arrays' final contents. Witnesses record both
+  (`_real_heap`, `_twin_heap`), and the real-witness scan reads them.
+- **Dafny** lowers it natively. The other six refuse it by name (`tshape.has_heap`).
+- **Four tasks:** reverse_in_place, swap_at, clamp_all, ring_push.
+
+**T47: Concurrency (v1), parallel loops.** Receipt 1338b1d7d06d (rayon's par_iter_mut; Dafny's forall statement).
+- **The form:** `parallel for i in [lo, hi)`, whose iterations run in any interleaving.
+- **Race freedom is checked by rule** (`par-race`, `par-exit`): an iteration writes only its own element, reads a
+  written array only there, assigns only its own locals and has fixed bounds. So every schedule equals the
+  sequential loop, which each kernel verifies (`tshape.desugar_par`).
+- **The interpreter** runs the iterations in reverse, a second schedule; `test_concurrency.py` checks it against
+  the sequential rewrite on every domain point. The hand-back runs them on a thread pool.
+- **Three tasks:** scale_all, offset_all, relu_all.
+
+**T48: Floats (v1), IEEE-754 binary64.** Receipt 18db794aff2e (the SPARK UG's semantics of floating point).
+- **The form:** `float`, `float(x)`, `sqrt`, `real(f)`. Arithmetic rounds to nearest even and is defined only when
+  finite; a float never mixes with an int or a real.
+- **The interpreter and the hand-back** compute in Python's float, with a finiteness check after each operation.
+- **T49, SPARK:** `Long_Float`, literals as the exact decimal value of their double. `sqrt`, `real(f)` and a run-time
+  `float(n)` refuse by name. The other six refuse floats by name.
+- **Three tasks:** sat_scale, deadband, rate_limit (autonomy shapes: saturation, deadband, rate limiter).
+
+**Measured before this registration, stated plainly.**
+- **Dafny, the seven heap and parallel tasks:** every one verified, with its twin refuted. scale_all's twin
+  differs from the real body only in the array, and its certificate grounds the twin's final contents.
+  reverse_in_place first timed out reading `a[..][k]`; with `a[k]` and `a.Length` read on the array itself (the
+  terms Dafny's array axioms trigger on) it verified, and the other six re-verified.
+- **SPARK, the three float tasks:** sat_scale and deadband verified with the twin refuted. rate_limit's real body
+  TIMES OUT: its ensures `r >= prev - step` where `r = prev + step` needs the monotonicity of rounding, which Z3 (the
+  pinned prover) did not find within the budget.
+- **Every other cell** of the ten tasks is a refusal by name (heap, or floats).
+- **Byte identity:** no lowering of the 104 matrix tasks or the 30 AlgoVeri programs changes (the 10 tasks are new).
+- **Suite:** the whole suite passes, including test_heap.py, test_concurrency.py and test_floats.py.
+
+**Bars**, for the clean-clone matrix and AlgoVeri table at this registration's commit:
+(1) The matrix has 114 tasks. Dafny reads verified/refuted on all of them except the three float tasks, which it
+refuses by name: 111.
+(2) SPARK reads verified/refuted on sat_scale and deadband (73), and timeout/refuted on rate_limit.
+(3) Every other new cell is abstain/abstain, and no cell of the 104 moves. All seven stays 62 of 114.
+(4) The AlgoVeri table does not move.
+
