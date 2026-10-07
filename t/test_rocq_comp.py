@@ -86,10 +86,10 @@ spec fun dbl(q: seq): int
     ok("comprehension inside a spec_fun, method or lemma" in e, f"a spec_fun's comprehension refuses by name: {e}")
 
 
-def test_other_kernels_unchanged():
-    for mod in (lower_framac,):   # F* and SPARK carry maps since PREDICT T16, T18 (test_fstar_comp.py, test_spark_comp.py)
-        e = refusal(load("doubled"), mod)
-        ok("comprehensions are not lowered yet" in e, f"{mod.__name__} still refuses doubled by name: {e}")
+def test_other_kernels_refuse_a_filter_by_name():
+    # every kernel carries maps since PREDICT T16, T18, T19; a filter is still refused by name in Frama-C
+    e = refusal(load("evens"), lower_framac)
+    ok("filtered comprehension is not lowered yet" in e, f"lower_framac refuses evens by name: {e}")
 
 
 if __name__ == "__main__":

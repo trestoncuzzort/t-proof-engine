@@ -1019,3 +1019,52 @@ lowerings of the other 81 committed tasks are byte-identical, and the whole suit
 **What would falsify the design:** a twin certificate that does not reach the comprehension's value (counted
 against bar 1), or a verdict that depends on the step budget (a TIMEOUT where the probe verified).
 
+### T18 read (2026-10-07 00:52Z): comprehensions in SPARK. 3 of 5 at the registered commit, 5 of 5 after a certificate repair.
+
+(1) **Bar 1 missed at 48c59e3.** The whole SPARK column was re-run over the 88 tasks. SPARK verifies all five maps'
+real programs, but refutes the twin on only three (`doubled`, `every_other`, `odd_positions`). The twins of `squares`
+and `diffs` read TIMEOUT, because their files carried no refutation certificate.
+
+The witness is undefined at the ensures: the twin's result is shorter, so `r[k]` falls past it. The certificate
+builder's ensures-level branch could not render an obligation that names the return value, and it failed closed, as
+its own note says it would. The repair binds the return to `F (inputs)`, as the "value" kind already does, when the
+witness values every parameter. That `F` is an expression function whose value comes through the helper's proved
+Post. Measured after the repair: both cells read verified with the twin refuted, from single-file runs. Only those
+two tasks' SPARK files change; the other 86 are byte-identical.
+
+(2) **Bar 2 held:** `evens` refuses as a filter, and `count_evens_skip` for its early exit.
+(3) **Bar 3 held:** in the column, only the five comprehension cells moved. SPARK goes from 50 to 55 verified with the
+twin refuted, counting the repaired two.
+(4) **Bar 4 held:** all seven stays 43 for now. Frama-C is the last kernel that refuses the maps (T19, next).
+
+## T19 registered (2026-10-07 00:52Z, after hand probes and before the column run): comprehensions in Frama-C
+
+D1's eighth landing, and the last kernel between the four map tasks Lean verifies (`doubled`, `squares`, `diffs`,
+`every_other`) and all seven.
+
+**Design.** A map that is the whole right-hand side of an assignment to a seq is one write loop over the buffer, the
+copy loop a slice already uses with the body's value in place of the source's element:
+- the count is asserted equal to the buffer's length, as an ACSL term;
+- each step asserts the body's definedness at its element;
+- the invariant states every element written so far;
+- the return's length is the map's closed form (the source's length, or `hi - lo`), so the buffer is EXACT;
+- in the body, `s[a..b][i]` is read as `s[a + i]`, with the slice's definedness asserted, since Frama-C indexes only a
+  buffer by name.
+
+A filter, and a comprehension anywhere but an assignment's right-hand side, refuse by name.
+
+**Measured before this registration.** All five maps' real files verify under the adapter's own `verify`. The first
+probe found the count rendered by `cexpr`, whose branch-free division Frama-C rejects inside an annotation. It is
+now an ACSL term. The Frama-C lowerings of the other 81 committed tasks are byte-identical, and the whole suite
+passes (695).
+
+**Bars.**
+(1) Frama-C verifies the real program and refutes the twin on at least 4 of the 5 maps.
+(2) `evens` and `count_evens_skip` refuse by name.
+(3) No Frama-C cell that agreed before changes; the whole Frama-C column is re-run.
+(4) **The headline:** all seven goes from 43 to 47 (`doubled`, `squares`, `diffs`, `every_other`), with
+`odd_positions` held out by Lean's UNPROVED. The installed table moves only with a clean-clone matrix, which follows.
+
+**What would falsify the design:** a twin whose certificate does not reach the buffer's written value (counted
+against bar 1), or a verdict that differs between the probe and the adapter's run.
+
