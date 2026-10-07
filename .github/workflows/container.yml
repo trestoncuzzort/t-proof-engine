@@ -51,14 +51,15 @@ jobs:
         if: failure()
         run: |
           docker run --rm --entrypoint sh t-proof-engine -c '
-            cd t && python3 -c "
-          import sys, pathlib
-          sys.path.insert(0, \".\")
-          import tasks_io, tlib
-          from verifiers import framac
-          p = pathlib.Path(\"/tmp/reverse.c\")
-          p.write_text(tlib.lower(tasks_io.load_task(\"tasks/reverse.t\"), \"framac\"))
-          r = framac.verify(p)
-          print(r.outcome)
-          print(r.error)
-          " && frama-c -wp -wp-prover alt-ergo -wp-steps 20000 /tmp/reverse.c 2>&1 | tail -40'
+            set -x
+            alt-ergo --version
+            why3 --version
+            why3 config list-provers
+            sed -n 1,60p ~/.why3.conf
+            cd t && python3 t_lower_one.py 2>/dev/null || python3 cli.py lower tasks/reverse.t --kernel framac > /tmp/reverse.c
+            frama-c -wp -wp-prover alt-ergo -wp-steps 20000 -wp-out /tmp/wp /tmp/reverse.c 2>&1 | tail -5
+            ls -R /tmp/wp | head -20
+            f=$(find /tmp/wp -name "*.why" -o -name "*.mlw" | head -1); echo "goal file: $f"
+            [ -n "$f" ] && why3 prove -P Alt-Ergo "$f" 2>&1 | tail -20
+            f=$(find /tmp/wp -name "*.ergo" | head -1); [ -n "$f" ] && alt-ergo "$f" 2>&1 | tail -20
+            true'
