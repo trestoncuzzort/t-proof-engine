@@ -3739,8 +3739,8 @@ SEQOPS = ("update", "fill")
 # on the tag, each binder bound by ACSL's `\let` (in C, substituted by its field). A field read owes its constructor:
 # in a specification `defs()` states it, in code `code_ats` asserts it before the statement (its guard included).
 # Each datatype parameter `requires dt_D_ok(p)`, the tag one of its constructors' (a t value is always built by one).
-# This landing: datatype PARAMETERS. A datatype return or local, `==` on datatypes in executable position, a recursive
-# datatype (a C struct cannot hold itself by value) and a seq, set or pair field refuse by name.
+# Since PREDICT T40 a datatype is a return or local too (a struct value, as a pair's). `==` on datatypes in executable
+# position, a recursive datatype (a C struct cannot hold itself by value) and a seq, set or pair field refuse by name.
 _DTS: dict = {}
 
 
@@ -3786,21 +3786,6 @@ def _dt_check(task: dict, body: list) -> None:
                     raise NotImplementedError(
                         f"framac: a datatype field of type {t!r} (SPEC.md 'Datatypes (v2): fields'): only int, bool "
                         "and datatype fields are lowered yet")
-    if _dt_of(task["returns"][0]["type"]) is not None:
-        raise NotImplementedError("framac: a datatype return (SPEC.md 'Datatypes (v2): fields') is not lowered yet: "
-                                  "this landing passes datatypes as parameters only")
-
-    def locals_(stmts):
-        for st in stmts:
-            if "var" in st and _dt_of(st["var"]["type"]) is not None:
-                raise NotImplementedError("framac: a datatype local (SPEC.md 'Datatypes (v2): fields') is not "
-                                          "lowered yet: this landing passes datatypes as parameters only")
-            for k in ("then", "else"):
-                if "if" in st:
-                    locals_(st["if"][k])
-            if "while" in st:
-                locals_(st["while"]["body"])
-    locals_(body)
 
 
 def _dt_decls(task: dict) -> list:
@@ -8051,7 +8036,11 @@ def stmts(body: list, ctx: Ctx, task_name: str, indent: str,
                 continue
             out += at_asserts(v["init"], ctx, indent, ctx.funs, task_name)
             ctx = ctx.bind(v["name"], v["type"])
-            if isinstance(v["type"], dict) and "pair" in v["type"]:
+            if _dt_of(v["type"]) is not None:
+                # PREDICT T40: a datatype local, its struct by value
+                out.append(f"{indent}struct dt_{_dt_of(v['type'])} {v['name']} = "
+                           f"{cexpr(v['init'], ctx.env, ctx.funs, task_name)};")
+            elif isinstance(v["type"], dict) and "pair" in v["type"]:
                 # PAIRS, extended 2026-09-10: a pair-typed LOCAL (`var p:
                 # (int, int) := ...;`), one of the two gaps the section
                 # comment above `_pair_field_c` named by construction
@@ -9728,6 +9717,20 @@ def _cert_stmts(body: list, ctx: Ctx, st: dict, name: str,
     return ctx, False
 
 
+def _dt_local_types(body: list) -> dict:
+    """PREDICT T40: name -> datatype of every datatype-typed `var` in `body`."""
+    out: dict = {}
+    for st in body:
+        if "var" in st and _dt_of(st["var"]["type"]):
+            out[st["var"]["name"]] = _dt_of(st["var"]["type"])
+        if "if" in st:
+            out.update(_dt_local_types(st["if"]["then"]))
+            out.update(_dt_local_types(st["if"]["else"]))
+        if "while" in st:
+            out.update(_dt_local_types(st["while"]["body"]))
+    return out
+
+
 def _tty(v):
     """Value tagged with its t type (bool is not int; interp._tv precedent,
     restated locally so this file keeps importing nothing of interp's).
@@ -9743,6 +9746,11 @@ def _tty(v):
         return ("bool", v)
     if isinstance(v, list):
         return ("pair", v)
+    import interp
+    if isinstance(v, interp.Ctor):
+        return ("dt", interp._j(v))                  # PREDICT T40: a constructor value, by its t text
+    if isinstance(v, str):
+        return ("dt", v)
     return ("int", v)
 
 
@@ -9800,6 +9808,9 @@ def _value_certificate(task: dict, twin_body: list, w: dict,
                and all(isinstance(x, int) and not isinstance(x, bool)
                        for x in twin_val)):
             return None                # a bool-seq or non-ground value
+    elif _dt_of(rett) is not None:
+        if not isinstance(twin_val, str):
+            return None                # PREDICT T40: a datatype twin value is its t text
     elif not isinstance(twin_val, (bool, int)):
         return None                    # no-value twins have no ground replay
     if CERT_FN in used or CERT_GOAL in used:
@@ -9970,7 +9981,9 @@ def _value_certificate(task: dict, twin_body: list, w: dict,
             names = [ret] + [d for d in dec if d != ret and d not in seq_locals]
             if len(set(dec)) != len(dec) or set(dec) & set(st):
                 return None            # flattening scopes would collide
-            decls += [f"  {'struct ' + struct_name if is_pair and n == ret else 'int'}"
+            dt_names = {ret: _dt_of(rett)} if _dt_of(rett) else {}
+            dt_names.update(_dt_local_types(twin_body))                 # PREDICT T40
+            decls += [f"  {'struct dt_' + dt_names[n] if n in dt_names else 'struct ' + struct_name if is_pair and n == ret else 'int'}"
                      f" {n};" for n in names]
             _cert_stmts(twin_body, Ctx(env, funs, ret=None, label="Here"),
                         st, task["name"], body_out, [0])
@@ -11936,13 +11949,15 @@ def _lower(task: dict, body: list, witness: dict | None = None,
     # CAPACITY use, nothing here grows it; the point is only to make the
     # TASK's own length invariant a real preservation obligation instead
     # of a `requires`-derivable one.
-    ret_decl = (f"  struct {struct_name} {ret};\n" if pair_ty is not None else
+    ret_decl = (f"  struct dt_{_dt_of(rett)} {ret};\n" if _dt_of(rett) is not None else   # PREDICT T40
+               f"  struct {struct_name} {ret};\n" if pair_ty is not None else
                f"  int {LEN} = {cexpr(ret_len_expr, env, funs, name)};\n"
                if tracked_exact else
                f"  int {LEN};\n" if capacity_mode else
                "" if nested_return_rows is not None else
                ("" if rett == "seq" else f"  int {ret};\n"))
-    cfun_ret_ty = (f"struct {struct_name}" if pair_ty is not None else
+    cfun_ret_ty = (f"struct dt_{_dt_of(rett)}" if _dt_of(rett) is not None else   # PREDICT T40
+                  f"struct {struct_name}" if pair_ty is not None else
                   "void" if rett == "seq" and not capacity_mode
                   else "void" if nested_return_rows is not None
                   else "int")

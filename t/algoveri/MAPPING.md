@@ -479,3 +479,73 @@ ensures res == is_prime(n) => ensures res == is_prime(n)
 ```
 
 Notes: Task is named trial_division_optimized (the id); the Dafny method name was check_prime. Same preamble translation as trial_division_naive (divides totalized with d != 0; the bounded forall over [2, n) is exactly 1 < d < n). Body: n < 2 -> false; else i from 2 while i * i <= n, invariants 2 <= i and forall k in [2, i) . not divides(k, n), decreases n - i; return false at the first divisor; after the loop (i * i > n) call prime_beyond_root and return true. The sqrt-bound proof is a chain of t lemmas, each with only if/assert/lemma calls: mul_mono (a <= b, c >= 0 implies a*c <= b*c, by induction on c), quotient_unique, mod_of_multiple ((q*d) % q == 0, from the two, because Z3 cannot do that nonlinear step unaided), no_divisor_above_root (a divisor d >= i with i*i > n has cofactor n/d in [2, i) that also divides n, contradicting the invariant), no_divisors_above_root (range version by recursion on d, which lifts the pointwise fact to a bounded forall without a forall statement), prime_beyond_root (is_prime(n)), plus divisor_makes_composite for the early return. One cli verify attempt, COUNTS (I prototyped the lemma chain by running dafny directly, memory capped, before the cli attempt; those runs are not counted).
+
+## llrbt_rotateleft
+
+Status: stated (2026-10-07, PREDICT T38). Task is named rotate_left; the Dafny method name was fixup_rotate_left.
+
+```
+datatype Option<T> = Some(value: T) | None; datatype Node = Node(val: int, is_red: bool, left: Option<Node>, right: Option<Node>) => datatype Tree = Nil | Node(val: int, is_red: bool, left: Tree, right: Tree)
+ghost function Node.view(): set<int> (left_set + right_set + {val}, a child's set {} at None) => spec fun view(tree: Tree): set decreases tree = case tree { Nil => {}, Node(val, is_red, left, right) => union(union(view(left), view(right)), {val}) }
+ghost predicate Node.is_bst() (each Some child: its keys below/above val and itself a BST; None: true) => spec fun is_bst(tree: Tree): bool decreases tree = case tree { Nil => true, Node(val, is_red, left, right) => (forall x in view(left) . x < val) and is_bst(left) and (forall x in view(right) . x > val) and is_bst(right) }
+ghost function Node.black_height(): int (a child's height 1 at None; -1 if invalid) => spec fun black_height(tree: Tree): int decreases tree = case tree { Nil => 1, Node(val, is_red, left, right) => if black_height(left) != -1 and black_height(right) != -1 and black_height(left) == black_height(right) then (if not is_red then black_height(left) + 1 else black_height(left)) else -1 }
+(node: Node) => requires case node { Nil => false, Node(val, is_red, left, right) => true }
+requires node.is_bst() => requires is_bst(node)
+requires node.right.Some? && node.right.value.is_red => requires case node.right { Nil => false, Node(val, is_red, left, right) => is_red }
+(res: Node) => ensures case res { Nil => false, Node(val, is_red, left, right) => true }
+ensures res.left.Some? => ensures case res.left { Nil => false, Node(val, is_red, left, right) => true }
+ensures res.is_bst() => ensures is_bst(res)
+ensures res.view() == node.view() => ensures view(res) == view(node)
+ensures res.black_height() == node.black_height() => ensures black_height(res) == black_height(node)
+ensures res.is_red == node.is_red => ensures res.is_red == node.is_red
+ensures res.left.value.is_red => ensures res.left.is_red
+```
+
+Notes: Body: the standard left rotation, `Node(rv, c, Node(v, true, l, rl), rr)` from `Node(v, c, l, Node(rv, rc, rl, rr))`, by nested `case`s (the impossible arms return the input, excluded by requires). Proof step: lemma `rotate_left_keeps_order` (rv above v, rl's keys between v and rv, the new left subtree a BST below rv), as bst_zig's. Departures, shared by the three LLRB programs: t's datatypes are monomorphic and not mutually recursive, so `Node` with `Option<Node>` children is the one type `Tree`, whose `Nil` is the source's `None`. Each member function becomes a spec fun over `Tree`, and its value at `Nil` is the one the source gives a `None` child (`{}`, true, 1), so it agrees with the source on every `Node`. The source's parameter and result have type `Node`, never `None`: t states that as a requires on the parameter and an ensures on the result. `x.Some? && x.value.f` is a `case` on x reading the field.
+
+## llrbt_rotateright
+
+Status: stated (2026-10-07, PREDICT T38). Task is named rotate_right; the Dafny method name was fixup_rotate_right.
+
+```
+datatype Option<T> = Some(value: T) | None; datatype Node = Node(val: int, is_red: bool, left: Option<Node>, right: Option<Node>) => datatype Tree = Nil | Node(val: int, is_red: bool, left: Tree, right: Tree)
+ghost function Node.view(): set<int> (left_set + right_set + {val}, a child's set {} at None) => spec fun view(tree: Tree): set decreases tree = case tree { Nil => {}, Node(val, is_red, left, right) => union(union(view(left), view(right)), {val}) }
+ghost predicate Node.is_bst() (each Some child: its keys below/above val and itself a BST; None: true) => spec fun is_bst(tree: Tree): bool decreases tree = case tree { Nil => true, Node(val, is_red, left, right) => (forall x in view(left) . x < val) and is_bst(left) and (forall x in view(right) . x > val) and is_bst(right) }
+ghost function Node.black_height(): int (a child's height 1 at None; -1 if invalid) => spec fun black_height(tree: Tree): int decreases tree = case tree { Nil => 1, Node(val, is_red, left, right) => if black_height(left) != -1 and black_height(right) != -1 and black_height(left) == black_height(right) then (if not is_red then black_height(left) + 1 else black_height(left)) else -1 }
+(node: Node) => requires case node { Nil => false, Node(val, is_red, left, right) => true }
+requires node.is_bst() => requires is_bst(node)
+requires node.left.Some? && node.left.value.is_red => requires case node.left { Nil => false, Node(val, is_red, left, right) => is_red }
+(res: Node) => ensures case res { Nil => false, Node(val, is_red, left, right) => true }
+ensures res.right.Some? => ensures case res.right { Nil => false, Node(val, is_red, left, right) => true }
+ensures res.is_bst() => ensures is_bst(res)
+ensures res.view() == node.view() => ensures view(res) == view(node)
+ensures res.black_height() == node.black_height() => ensures black_height(res) == black_height(node)
+ensures res.is_red == node.is_red => ensures res.is_red == node.is_red
+ensures res.right.value.is_red => ensures res.right.is_red
+```
+
+Notes: Body: the mirror of rotate_left, `Node(lv, c, ll, Node(v, true, lr, r))`; proof step: lemma `rotate_right_keeps_order`. Departures, shared by the three LLRB programs: t's datatypes are monomorphic and not mutually recursive, so `Node` with `Option<Node>` children is the one type `Tree`, whose `Nil` is the source's `None`. Each member function becomes a spec fun over `Tree`, and its value at `Nil` is the one the source gives a `None` child (`{}`, true, 1), so it agrees with the source on every `Node`. The source's parameter and result have type `Node`, never `None`: t states that as a requires on the parameter and an ensures on the result. `x.Some? && x.value.f` is a `case` on x reading the field.
+
+## llrbt_flipcolor
+
+Status: stated (2026-10-07, PREDICT T38). Task is named flip_colors, as the Dafny method.
+
+```
+datatype Option<T> = Some(value: T) | None; datatype Node = Node(val: int, is_red: bool, left: Option<Node>, right: Option<Node>) => datatype Tree = Nil | Node(val: int, is_red: bool, left: Tree, right: Tree)
+ghost function Node.view(): set<int> (left_set + right_set + {val}, a child's set {} at None) => spec fun view(tree: Tree): set decreases tree = case tree { Nil => {}, Node(val, is_red, left, right) => union(union(view(left), view(right)), {val}) }
+ghost predicate Node.is_bst() (each Some child: its keys below/above val and itself a BST; None: true) => spec fun is_bst(tree: Tree): bool decreases tree = case tree { Nil => true, Node(val, is_red, left, right) => (forall x in view(left) . x < val) and is_bst(left) and (forall x in view(right) . x > val) and is_bst(right) }
+ghost function Node.black_height(): int (a child's height 1 at None; -1 if invalid) => spec fun black_height(tree: Tree): int decreases tree = case tree { Nil => 1, Node(val, is_red, left, right) => if black_height(left) != -1 and black_height(right) != -1 and black_height(left) == black_height(right) then (if not is_red then black_height(left) + 1 else black_height(left)) else -1 }
+(node: Node) => requires case node { Nil => false, Node(val, is_red, left, right) => true }
+requires node.left.Some? && node.right.Some? => requires case node.left { Nil => false, ... => true }; requires case node.right { Nil => false, ... => true }
+requires node.is_red != node.left.value.is_red => requires node.is_red != node.left.is_red
+requires node.left.value.is_red == node.right.value.is_red => requires node.left.is_red == node.right.is_red
+(res: Node) => ensures case res { Nil => false, Node(val, is_red, left, right) => true }
+ensures res.left.Some? && res.right.Some? => ensures case res.left { ... }; ensures case res.right { ... }
+ensures res.view() == node.view() => ensures view(res) == view(node)
+ensures res.is_bst() == node.is_bst() => ensures is_bst(res) == is_bst(node)
+ensures res.black_height() == node.black_height() => ensures black_height(res) == black_height(node)
+ensures res.is_red != node.is_red => ensures res.is_red != node.is_red
+ensures res.left.value.is_red != node.left.value.is_red => ensures res.left.is_red != node.left.is_red
+```
+
+Notes: Body: the three colours toggled, keys and shape unchanged. A conjunction in the source's requires and ensures is written as two clauses. Departures, shared by the three LLRB programs: t's datatypes are monomorphic and not mutually recursive, so `Node` with `Option<Node>` children is the one type `Tree`, whose `Nil` is the source's `None`. Each member function becomes a spec fun over `Tree`, and its value at `Nil` is the one the source gives a `None` child (`{}`, true, 1), so it agrees with the source on every `Node`. The source's parameter and result have type `Node`, never `None`: t states that as a requires on the parameter and an ensures on the result. `x.Some? && x.value.f` is a `case` on x reading the field.

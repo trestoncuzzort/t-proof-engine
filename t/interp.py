@@ -1575,8 +1575,54 @@ def _labelled_shapes(d: dict, ctors: list, lad: dict) -> list:
         for sh in shapes(n):
             out.append(label(sh, [0]))
             if len(out) >= DT_SHAPE_CAP:
-                return out
-    return out
+                return out + _bool_variants(out, name, recs)
+    return out + _bool_variants(out, name, recs)
+
+
+DT_BOOL_VARIANTS_CAP = 3 * DT_SHAPE_CAP   # bool variants of the labelled shapes (_bool_variants)
+
+
+def _bool_variants(shapes: list, name: str, recs: list) -> list:
+    """SPEC.md "Datatypes (v3): recursion" (PREDICT T38): a labelled shape fixes every bool field at its ladder's first
+    value, so a red-black node is always black and no shape meets a red-child precondition (measured on
+    llrbt_rotate_left: no input satisfied `requires`). For a recursive constructor with a bool field, each shape
+    also enters with one node's bools flipped, every node in turn, then with all of them flipped; after the plain
+    shapes, so their order is unchanged, and capped. Empty for every other datatype."""
+    if not any(f["type"] == "bool" for c in recs for f in c.get("fields") or []):
+        return []
+
+    def flip(v, k, cnt, every):
+        if not isinstance(v, Ctor) or v.dtype != name:
+            return v
+        mine = cnt[0]
+        cnt[0] += 1
+        fields = next(c for c in recs if c["name"] == v.ctor)["fields"] if any(c["name"] == v.ctor for c in recs) \
+            else []
+        args = []
+        for i, a in enumerate(v.args):
+            ty = fields[i]["type"] if i < len(fields) else None
+            if ty == "bool" and (every or mine == k):
+                args.append(not a)
+            elif ty == {"datatype": name}:
+                args.append(flip(a, k, cnt, every))
+            else:
+                args.append(a)
+        return Ctor(v.dtype, v.ctor, tuple(args))
+
+    def nodes(v) -> int:
+        if not isinstance(v, Ctor) or v.dtype != name:
+            return 0
+        return (1 if any(c["name"] == v.ctor for c in recs) else 0) + sum(nodes(a) for a in v.args)
+
+    out = []
+    for v in shapes:
+        for k in range(nodes(v)):
+            out.append(flip(v, k, [0], False))
+        out.append(flip(v, -1, [0], True))
+        if len(out) >= DT_BOOL_VARIANTS_CAP:
+            break
+    seen = set(shapes)
+    return [v for v in dict.fromkeys(out) if v not in seen][:DT_BOOL_VARIANTS_CAP]
 
 
 def _compositions(total: int, parts: int):

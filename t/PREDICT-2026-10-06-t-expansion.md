@@ -1965,3 +1965,54 @@ it would be. Lean is back at 80.
 
 All seven: 57. Frama-C alone keeps double_all, grid_row_sums and swap_rows out of all seven; Lean alone keeps
 odd_positions out.
+
+## T38, T39 and T40 registered (2026-10-07 07:26Z, after hand probes and before the clean-clone runs)
+
+Three disjoint changes, read from one clean-clone matrix and one AlgoVeri table. The AlgoVeri half runs alone at 2
+jobs under 11 GB, as clean27's re-run did.
+
+**T38: AlgoVeri's left-leaning red-black tree, three contracts.** `llrbt_rotateleft`, `llrbt_rotateright` and
+`llrbt_flipcolor` are stated (MAPPING.md, README.md).
+- **Encoding.** t's datatypes are monomorphic and not mutually recursive, so `Node` with `Option<Node>` children is
+  one `Tree` whose `Nil` is the source's `None`. Each member function is a spec fun agreeing with the source on
+  every `Node`.
+- **Proofs.** The two rotations carry an order lemma, as bst_zig does.
+- **Witness ladder.** The ladder found no input satisfying their `requires`, because every labelled shape held each
+  bool field at its first value, so every node was black. Receipt 7d3153ed1847 (SmallCheck's small-scope
+  enumeration): for a recursive datatype with a bool field only, each labelled shape now also enters with one
+  node's bools flipped and with all of them flipped, appended and capped (SPEC.md "Datatypes (v3)").
+
+**T39: a slice read in a Lean comprehension body is the base's read** (receipt 4ba739e6c40b, the grind E-matching
+chapter, as T32). odd_positions' stepped slice desugars to a map whose body reads `s[1..len(s)][2*i]`. grind
+normalizes that nested `drop`/`take` past every lemma pattern, so T32's read left it unproved. The helper's body now
+reads `s[1 + 2*i]`, which is equal wherever the slice is defined. The definedness theorems still state the slice's
+bounds from the task's own AST, and a slice from the literal 0 reads the bare index. With a `0 + ` left in,
+every_other's `_get0` read MALFORMED in the first probe; fixed before this registration.
+
+**T40: datatype returns and locals in Frama-C** (receipt 030f8d5520b2, as T37). A datatype return or local is the
+struct by value, as a pair's is. The loop frame havocs it by name. The certificate declares and compares constructor
+values by their t text. `==` on datatypes in executable position still refuses by name.
+
+**Measured before this registration, stated plainly.**
+- **T38, `cli verify`, all seven on the three:**
+  - Dafny verifies each with the twin refuted.
+  - Lean: unproved/refuted. Verus: unproved/unproved.
+  - Rocq, F*, SPARK and Frama-C abstain by name on the set-ranged quantifier in `is_bst`.
+- **T39, Lean:** odd_positions and every_other read verified/refuted.
+- **T40, Frama-C:** some_negative reads verified/refuted. AlgoVeri's discrete_log_naive refuses by name, on its
+  executable `==` on an Option.
+- **Byte identity:** of the 104 tasks and 27 AlgoVeri programs, exactly eight lowerings change, and three programs
+  are new:
+  - the Lean pairs of every_other and odd_positions;
+  - the Frama-C pairs of some_negative and discrete_log_naive.
+
+  No earlier witness changed for the ladder's bool variants.
+- **Suite:** the whole suite passes (734).
+
+**Bars**, for the clean-clone matrix of 104 and the AlgoVeri table of 30 at this registration's commit:
+(1) odd_positions reads verified/refuted in Lean, so it is in all seven: all seven go from 57 to 58, and Lean from 80
+to 81. every_other keeps verified/refuted.
+(2) some_negative reads verified/refuted in Frama-C, so it is in six (all but Rocq): Frama-C goes from 58 to 59.
+(3) AlgoVeri grows to 30 programs. The three LLRB programs are verified/refuted in Dafny (30 of 30), unproved
+otherwise or abstaining as measured above. discrete_log_naive's Frama-C cell stays an abstention, with its new reason.
+No other cell moves.

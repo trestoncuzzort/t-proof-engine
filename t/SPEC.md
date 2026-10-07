@@ -1708,6 +1708,12 @@ The kernels check this, each by its own order. The interpreter's opt-in measure 
   distinct keys. A BST contract's `requires` asks for exactly that, and the near corner, mostly zeros, almost never
   has it: measured, AlgoVeri's zig_zag had no input satisfying its requires until these were added. They are
   appended, so no earlier task's witness changed.
+- **Bool variants of the labelled shapes (PREDICT T38):** a labelled shape holds every bool field at its ladder's
+  first value, so a red-black node is always black and no shape meets a red-child precondition (measured:
+  AlgoVeri's llrbt_rotateleft had no input satisfying its requires). For a recursive constructor with a bool field,
+  each shape also enters with one node's bools flipped, every node in turn, then with all of them flipped; appended
+  after the plain shapes and capped at three times their cap. No earlier task has a recursive datatype with a bool
+  field, so no earlier witness changed.
 
 **Lowering status (2026-10-07).** Three of the seven kernels state the construct end to end.
 - **Dafny** declares the datatype natively. A self-call inside a `case` or `if` on an assignment's right-hand side

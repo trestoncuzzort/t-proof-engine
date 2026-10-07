@@ -70,14 +70,21 @@ def test_certificate():
 
 
 def test_refused_by_name():
-    for name, word in (("tree_sum", "recursive datatype"), ("checked_tail", "datatype field of type 'seq'"),
-                       ("some_negative", "datatype return")):
+    for name, word in (("tree_sum", "recursive datatype"), ("checked_tail", "datatype field of type 'seq'")):
         task = load(name)
         try:
             lower_framac.lower(task, task["body"])
             ok(False, f"{name} refuses")
         except NotImplementedError as e:
             ok(word in str(e), f"{name} refuses by name: {e}")
+
+
+def test_datatype_return_and_local():
+    # PREDICT T40: a datatype return is the struct by value, the loop frame havocs it by name
+    src = framac("some_negative")
+    ok("struct dt_Opt some_negative_t(int *s, int s_n)" in src and "  struct dt_Opt r;" in src, "the struct return")
+    ok("r = ((struct dt_Opt){.tag = dt_Opt_Some, .f_Some_v = s[i]});" in src, "a constructor assigned")
+    ok("loop assigns r, i;" in src, "framed by name")
 
 
 if __name__ == "__main__":

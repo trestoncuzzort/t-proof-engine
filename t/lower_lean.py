@@ -6968,9 +6968,15 @@ class Lower:
                 at_n, at_i, call = "(t_a + (t_n : Int))", "(t_a + t_i)", f"t_compr{k} t_a{fargs}"
                 at_m = "(t_a + (n : Int))"
             btypes = {**self.types, v: elem}
+            # PREDICT T39: the body's VALUE reads a slice's element as the base's, `s[a..b][j]` as `s[a + j]` (equal
+            # wherever defined; the definedness theorems still state the slice's bounds from the task's own AST).
+            # grind normalizes the nested `drop`/`take` a stepped slice desugars to past every lemma pattern
+            # (odd_positions, T32's read); the flat read matches the ensures' own `s[2 * k + 1]`. The very same
+            # object for a body without one (byte identity)
+            body_v = _flat_slice_at(c["body"])
 
             def body_at(x: str) -> str:
-                return self.term(c["body"], {**fenv, v: x}, btypes)
+                return self.term(body_v, {**fenv, v: x}, btypes)
 
             def cond_at(x: str) -> str:
                 return self.prop(c["cond"], {**fenv, v: x}, btypes)
@@ -11309,6 +11315,25 @@ theorem t_any_iff {α : Type} [Inhabited α] (s : List α) (p : α → Bool) :
     exact ⟨_, List.getElem_mem hi, hp⟩
 """, ["t_all_iff", "t_any_iff"])
 _LEAN_LIB_ORDER = ["min", "max", "abs", "gcd", "pow", "isqrt", "sum", "rev", "sort", "maxs", "anyall"]
+
+
+def _flat_slice_at(e):
+    """`e` with each `s[a..b][j]` (s a variable) read as `s[a + j]`; `e` itself when it holds none (PREDICT T39)."""
+    if isinstance(e, list):
+        out = [_flat_slice_at(x) for x in e]
+        return e if all(a is b for a, b in zip(out, e)) else out
+    if not isinstance(e, dict):
+        return e
+    if e.get("op") == "at" and len(e.get("args", [])) == 2:
+        s_e, i_e = e["args"]
+        if isinstance(s_e, dict) and s_e.get("op") == "slice" and "var" in s_e["args"][0]:
+            base, a_e, _ = s_e["args"]
+            i2 = _flat_slice_at(i_e)
+            # a slice from the literal 0 reads the index itself: `_get0`'s own `0 + ` simplification must not meet a
+            # second one (every_other read MALFORMED with `s[0 + 2 * i]`)
+            return {"op": "at", "args": [base, i2 if a_e == {"int": 0} else {"op": "+", "args": [a_e, i2]}]}
+    out = {k: _flat_slice_at(v) for k, v in e.items()}
+    return e if all(out[k] is e[k] for k in e) else out
 
 
 def _comp_key(e: dict) -> str:

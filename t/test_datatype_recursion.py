@@ -205,6 +205,19 @@ def test_two_kernels_refuse_by_name():
             ok("datatype" in str(e), f"{mod.__name__} refuses datatypes by name")   # SPARK: a recursive datatype, T36
 
 
+def test_bool_variants_reach_a_red_child():
+    # PREDICT T38: a recursive datatype with a bool field gets each labelled shape with one node's bools flipped
+    import interp
+    rb = surface.parse("datatype Tree = Nil | Node(val: int, is_red: bool, left: Tree, right: Tree)\nt 1\n"
+                       "task f(x: Tree) returns (r: int)\n  ensures r == 0\n{\n  r := 0;\n}\n")
+    lad = interp.ladders(rb)["datatype:Tree"]
+    ok(any(v.ctor == "Node" and isinstance(v.args[3], interp.Ctor) and v.args[3].ctor == "Node" and v.args[3].args[1]
+           for v in lad), "a node whose right child is red")
+    ok(len(lad) == len(set(lad)), "no value twice")
+    plain = interp.ladders(load("tree_sum"))["datatype:Tree"]
+    ok(not any(isinstance(a, bool) for v in plain for a in v.args), "a tree without a bool field: no variants")
+
+
 if __name__ == "__main__":
     for name, fn in sorted(globals().items()):
         if name.startswith("test_") and callable(fn):

@@ -132,6 +132,10 @@ def test_kernel_text():
     ok("grind [t_comp1_length, t_comp1_get, t_comp1_getn]" in lean, "and grind is handed it")
     ok("t_compr1_getn" in lowered("squares", "lean"), "a range map has one too")
     ok("t_comp1_getn" not in lowered("evens", "lean"), "a filter has none")
+    # PREDICT T39: a stepped slice's comprehension reads the base directly, no nested drop/take
+    lean = lowered("odd_positions", "lean")
+    ok("t_compr1 t_a s t_n ++ [(s[(((1 : Int) + ((2 : Int) * (t_a + (t_n : Int))))).toNat]!)]" in lean,
+       "odd_positions' element is s[1 + 2 i]")
 
 
 def test_hand_back():
