@@ -1380,3 +1380,33 @@ counts are Dafny 22, Verus 7, F* 5, SPARK 3, Frama-C 2, Rocq 1, Lean 0. Two MALF
 named: Verus poly_multiply_naive and F* longest_palindromic_substring.
 
 Receipts behind T24's fixes, which its commit message miscited: 134d11c182fc (Lean) and 2d503d12f07a (Verus).
+
+## T26 registered (2026-10-07 03:28Z, after hand probes and before the clean-clone matrix): quantifiers over a collection (G11)
+
+SPEC.md "Quantifiers over a collection": `forall x in S . P` over the elements of a set or a seq, the form AlgoVeri's
+BST contracts state.
+- **A seq range** is exact sugar for the index form. `tshape.desugar_seq_quants` rewrites it at the top of every
+  lowering, typed by check_wf, so all seven kernels state it.
+- **A set range** is stated natively in Dafny (membership) and Verus (`contains`, as range and trigger). The other
+  five refuse it by name.
+
+Two tasks are added, making 101: `none_neg` (a seq range in the contract, an index invariant in the loop) and
+`all_pos_set` (a set range). Receipt aad9cbc9ffae (Dafny reference: quantifier expressions; Verus guide: forall
+and triggers).
+
+**Measured before this registration, stated plainly.**
+- **Hand probes:** `none_neg` COUNTS in all seven kernels. `all_pos_set` COUNTS in Dafny and Verus, and the other five
+  abstain by name.
+- **A first statement of `none_neg`, with membership left as membership:** Dafny and Verus could not prove it. An
+  invariant in membership form over a slice was unproved in Dafny and Verus and timed out in Lean and Rocq. That
+  measurement is why a seq range is desugared to indices.
+- **A G9 defect, fixed:** check_wf collected a field's types in a Python set, which a datatype-typed field (a dict)
+  cannot enter. It was found by AlgoVeri's BST contracts, written in scratch and not part of this registration.
+- **Byte identity:** every lowering of the 99 tasks and the 22 AlgoVeri programs is unchanged.
+- **Suite and grammar:** the whole suite passes (699). The grammar and the parser agree on all 101 canonical forms.
+
+**Bars**, for the clean-clone matrix of the 101 that follows (after T25's):
+(1) `none_neg` reads verified with the twin refuted in all seven kernels, so all seven goes from 48 to 49.
+(2) `all_pos_set` reads verified with the twin refuted in Dafny and Verus, and abstains by name in the other five.
+(3) No other cell moves against T25's matrix.
+(4) Dafny and Verus gain two each. Lean, Rocq, F*, SPARK and Frama-C gain one each.

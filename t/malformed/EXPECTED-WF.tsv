@@ -77,3 +77,4 @@ wf-field-dup.t	1	1	field-dup
 wf-field-unknown.t	4	9	field-unknown
 wf-field-type-clash.t	4	9	field-type-clash
 wf-datatype-base.t	1	1	datatype-base
+wf-quant-range.t	3	8	quant-range

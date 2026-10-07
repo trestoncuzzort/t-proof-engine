@@ -239,8 +239,9 @@ def _sub(e: dict, path: tuple):
             yield from _sub(e["ite"][k], path + ("ite", k))
     elif "forall" in e or "exists" in e:
         q = "forall" if "forall" in e else "exists"
-        for k in ("lo", "hi", "body"):
-            yield from _sub(e[q][k], path + (q, k))
+        for k in ("lo", "hi", "in", "body"):   # "in": SPEC.md "Quantifiers over a collection"
+            if k in e[q]:
+                yield from _sub(e[q][k], path + (q, k))
     elif "lam" in e:
         yield from _sub(e["lam"]["body"], path + ("lam", "body"))   # SPEC.md "Higher-order calls (v1)"
     elif "comp" in e:
@@ -428,8 +429,9 @@ def _sub_arms(e: dict, path: tuple, arm_sc: dict):
     elif "forall" in e or "exists" in e:
         q = "forall" if "forall" in e else "exists"
         inner = {k: v for k, v in arm_sc.items() if k != e[q]["var"]}
-        for k in ("lo", "hi"):
-            yield from _sub_arms(e[q][k], path + (q, k), arm_sc)
+        for k in ("lo", "hi", "in"):
+            if k in e[q]:
+                yield from _sub_arms(e[q][k], path + (q, k), arm_sc)
         yield from _sub_arms(e[q]["body"], path + (q, "body"), inner)
     elif "lam" in e:
         inner = {k: v for k, v in arm_sc.items() if k not in e["lam"]["vars"]}

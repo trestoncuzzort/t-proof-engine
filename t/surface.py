@@ -1075,6 +1075,33 @@ class Parser:
             kind = self.eat("kw").text
             v = self.name("Expr")
             self.eat("kw", "in")
+            if not self.at("sym", "["):
+                # SPEC.md "Quantifiers over a collection" (2026-10-07): `forall x in S . P`, x ranging over the elements
+                # of a set or seq S. S is a name, a call or a parenthesized expression, read with no postfix, since
+                # a `.` after it is the quantifier's own separator and not a field (`view(l) . x < v`)
+                rtok = self.tok
+                if self.opt("sym", "("):
+                    rng = self.expr()
+                    self.production = "Expr"
+                    self.eat("sym", ")")
+                else:
+                    ident = self.name("Expr")
+                    if self.opt("sym", "("):
+                        cargs = []
+                        if not self.at("sym", ")"):
+                            while True:
+                                cargs.append(self.expr())
+                                self.production = "Expr"
+                                if not self.opt("sym", ","):
+                                    break
+                        self.eat("sym", ")")
+                        rng = self.mark(rtok, {"call": {"fun": ident, "args": cargs}})
+                    else:
+                        rng = self.mark(rtok, {"var": ident})
+                self.eat("sym", ".")
+                body = self.expr()
+                self.production = "Expr"
+                return self.mark(start, {kind: {"var": v, "in": rng, "body": body}})
             self.eat("sym", "[")
             lo = self.expr()
             self.production = "Expr"
@@ -2081,6 +2108,12 @@ def pexpr(e, floor: int = P_QUANT) -> str:
         return _wrap("if %s then %s else %s"
                      % (pexpr(it["cond"]), pexpr(it["then"]),
                         pexpr(it["else"])), P_QUANT, floor)
+    if kind in ("forall", "exists") and "in" in e[kind]:
+        # SPEC.md "Quantifiers over a collection": a name or a call prints bare, anything else in parentheses
+        q = e[kind]
+        r = q["in"]
+        rt = pexpr(r) if ("var" in r or "call" in r) else "(%s)" % pexpr(r)
+        return _wrap("%s %s in %s . %s" % (kind, _ident(q["var"]), rt, pexpr(q["body"])), P_QUANT, floor)
     if kind in ("forall", "exists"):
         q = e[kind]
         return _wrap("%s %s in [%s, %s) . %s"

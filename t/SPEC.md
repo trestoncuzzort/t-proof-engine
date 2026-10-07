@@ -1683,6 +1683,35 @@ after this landing: real and twin, all seven kernels, with the witness. All are 
 - A structurally recursive Lean task with a `requires`.
 - Recursion whose measure is a datatype expression other than a parameter.
 
+### Quantifiers over a collection
+
+Stated 2026-10-07 (G11, PREDICT T26). `forall x in S . P` and `exists x in S . P` let `x` range over the elements of
+a set or a seq `S`, the form AlgoVeri's contracts state as `forall x :: x in view(left) ==> x < val`.
+- **Range:** a name, a call or a parenthesized expression, read with no postfix, since the `.` after it is the
+  quantifier's own separator and would otherwise read as a field (`view(l) . x < v`).
+- **AST:** `{"forall": {"var": x, "in": S, "body": P}}`, beside the range form's `lo`/`hi`.
+- **Types:** check_wf's new rule `quant-range` requires a set or a seq. `x` takes the element type.
+- **Meaning:** `P` must be defined at every element, as over a range. The interpreter visits a set's elements in
+  order, and a seq's in order with repeats.
+
+**A seq range is sugar.** `forall x in S . P` over a seq is `forall i in [0, len(S)) . P[x := S[i]]`. The rewrite
+(`tshape.desugar_seq_quants`) runs at the top of every lowering, typed by check_wf, so all seven kernels state it
+through the index form their automation is built around. Measured on a loop probe: written as membership over a
+seq, the contract left Dafny and Verus a witness index to find and was unproved in both; the index form verifies in
+all seven. The fresh index names, `qi<n>`, are checked against every name in the task.
+
+**A set range** is stated natively by two kernels:
+- **Dafny:** `forall x :: x in S ==> P`, whose membership Dafny takes as the trigger.
+- **Verus:** `forall|x: int| #![trigger S.contains(x)] S.contains(x) ==> P`. A trigger must be a function call
+  naming the bound variable, per the Verus guide.
+
+Lean, Rocq, F*, SPARK and Frama-C refuse a set range by name, at their entry. Lean has no sets in any case. A
+ground set range in a certificate unrolls to a finite conjunction over its elements. Its value is recorded as an
+equation the kernel re-proves unless it is already a literal.
+
+**Byte identity.** No earlier task has a collection quantifier, so the rewrite is the identity for each of them. All
+99 tasks and 22 AlgoVeri programs lower byte for byte as before.
+
 ### Compositional types (v1)
 
 Stated 2026-10-06 (the operator's direction of that morning: t is the ceiling,

@@ -1376,6 +1376,14 @@ def expr(e: dict, self_name: str | None = None) -> str:
         return _comp_call(e, lambda x: expr(x, self_name))   # SPEC.md "Comprehensions (v1)" (2026-10-06)
     if e.get("op") in _HOF_OPS:
         return _hof_call(e, lambda x: expr(x, self_name))    # SPEC.md "Higher-order calls (v1)" (2026-10-06)
+    if ("forall" in e or "exists" in e) and "in" in (e.get("forall") or e.get("exists")):
+        # SPEC.md "Quantifiers over a collection" (2026-10-07): Dafny's own membership range (reference manual,
+        # quantifier expressions: `forall x :: x in S ==> P(x)`), whose `x in S` Dafny takes as the trigger
+        kind = "forall" if "forall" in e else "exists"
+        q = e[kind]
+        glue = "==>" if kind == "forall" else "&&"
+        return (f"({kind} {q['var']} :: {q['var']} in {expr(q['in'], self_name)} {glue} "
+                f"{expr(q['body'], self_name)})")
     if "forall" in e:
         q = e["forall"]
         v = q["var"]
@@ -1744,7 +1752,8 @@ def _comp_free(node: dict) -> list:
                 return out | walk(c["cond"], inner) | walk(c["body"], inner)
             if "forall" in x or "exists" in x:
                 q = x.get("forall") or x.get("exists")
-                return walk(q["lo"], bound) | walk(q["hi"], bound) | walk(q["body"], bound | {q["var"]})
+                rng = walk(q["in"], bound) if "in" in q else walk(q["lo"], bound) | walk(q["hi"], bound)
+                return rng | walk(q["body"], bound | {q["var"]})
             if "call" in x:
                 return set().union(*(walk(a, bound) for a in x["call"]["args"])) if x["call"]["args"] else set()
             return set().union(*(walk(v, bound) for v in x.values())) if x else set()
@@ -1968,7 +1977,8 @@ def _fv(x, bound: frozenset) -> set:
             return out | _fv(c["cond"], inner) | _fv(c["body"], inner)
         if "forall" in x or "exists" in x:
             q = x.get("forall") or x.get("exists")
-            return _fv(q["lo"], bound) | _fv(q["hi"], bound) | _fv(q["body"], bound | {q["var"]})
+            rng = _fv(q["in"], bound) if "in" in q else _fv(q["lo"], bound) | _fv(q["hi"], bound)
+            return rng | _fv(q["body"], bound | {q["var"]})
         return set().union(*(_fv(v, bound) for v in x.values())) if x else set()
     if isinstance(x, list):
         return set().union(*(_fv(v, bound) for v in x)) if x else set()
@@ -2325,6 +2335,11 @@ def body_expr(e: dict, ctx: _Ctx, pre: list[str], lazy: bool = False) -> str:
         q = e.get("forall") or e.get("exists")
         kind = "forall" if "forall" in e else "exists"
         v = q["var"]
+        if "in" in q:
+            # SPEC.md "Quantifiers over a collection", as in spec position
+            rng = body_expr(q["in"], ctx, pre, lazy)
+            b = body_expr(q["body"], ctx, pre, lazy=True)
+            return f"({kind} {v} :: {v} in {rng} {'==>' if kind == 'forall' else '&&'} {b})"
         lo = body_expr(q["lo"], ctx, pre, lazy)
         hi = body_expr(q["hi"], ctx, pre, lazy)
         b = body_expr(q["body"], ctx, pre, lazy=True)
@@ -2634,7 +2649,11 @@ _RAT_TEXT = __import__("re").compile(r"^-?\d+/\d+$")   # interp._j's rendering o
 def _vlit(v) -> dict:
     """A runtime value as a t literal: a constructor directly, its fields too (SPEC.md "Datatypes (v3): recursion": a
     field may be a constructor, whose shown text alone carries no type), anything else through its shown form."""
-    return _tlit(v) if isinstance(v, interp.Ctor) else _tlit(interp._j(v))
+    if isinstance(v, interp.Ctor):
+        return _tlit(v)
+    if isinstance(v, frozenset):
+        return _tlit(interp._j(v), "set")   # a set shows as its sorted list, which alone would read as a seq
+    return _tlit(interp._j(v))
 
 
 def _tlit(v, ty=None):
@@ -2757,6 +2776,8 @@ def subst(e: dict, m: dict) -> dict:
         kind = "forall" if "forall" in e else "exists"
         q = e[kind]
         inner = {k: v for k, v in m.items() if k != q["var"]}
+        if "in" in q:
+            return {kind: {"var": q["var"], "in": subst(q["in"], m), "body": subst(q["body"], inner)}}
         return {kind: {"var": q["var"], "lo": subst(q["lo"], m),
                        "hi": subst(q["hi"], m),
                        "body": subst(q["body"], inner)}}
@@ -2964,12 +2985,17 @@ def _ev(e: dict, env: dict, funs: dict, st, facts: dict, hoist):
             raise ValueError("quantifier survived unrolling")
         kind = "forall" if "forall" in e else "exists"
         q = e[kind]
-        lo = _ev(q["lo"], env, funs, st, facts, None)[1]
-        hi = _ev(q["hi"], env, funs, st, facts, None)[1]
-        if hi - lo > interp.MAX_RANGE:
-            raise interp.Budget("quantifier range")
+        if "in" in q:
+            coll = _ev(q["in"], env, funs, st, facts, None)[1]
+            points = sorted(coll) if isinstance(coll, frozenset) else list(coll)
+        else:
+            lo = _ev(q["lo"], env, funs, st, facts, None)[1]
+            hi = _ev(q["hi"], env, funs, st, facts, None)[1]
+            if hi - lo > interp.MAX_RANGE:
+                raise interp.Budget("quantifier range")
+            points = range(lo, hi)
         acc = kind == "forall"
-        for i in range(lo, hi):
+        for i in points:
             sub = dict(env)
             sub[q["var"]] = i
             v = _ev(q["body"], sub, funs, st, facts, None)[1]
@@ -3273,6 +3299,23 @@ def _unroll(e: dict, funs: dict, st, budget: list, bounds: list) -> dict:
     if "forall" in e or "exists" in e:
         kind = "forall" if "forall" in e else "exists"
         q = e[kind]
+        if "in" in q:
+            # SPEC.md "Quantifiers over a collection": a ground collection's elements, the collection's value
+            # recorded as an equation the kernel re-proves unless it is already a literal
+            rng_e = _unroll(q["in"], funs, st, budget, bounds)
+            coll = _ev(rng_e, {}, funs, st, {}, None)[1]
+            lit = _vlit(coll)
+            if rng_e != lit:
+                bounds.append({"op": "==", "args": [rng_e, lit]})
+            insts = []
+            for k in (sorted(coll) if isinstance(coll, frozenset) else list(coll)):
+                budget[0] -= 1
+                if budget[0] < 0:
+                    raise ValueError("quantifier unroll budget exhausted")
+                insts.append(_unroll(subst(q["body"], {q["var"]: _vlit(k)}), funs, st, budget, bounds))
+            if not insts:
+                return {"bool": kind == "forall"}
+            return _nary("and" if kind == "forall" else "or", insts)
         lo_e = _unroll(q["lo"], funs, st, budget, bounds)
         hi_e = _unroll(q["hi"], funs, st, budget, bounds)
         lo, hi = _gint(lo_e, funs, st), _gint(hi_e, funs, st)
@@ -4118,6 +4161,8 @@ def _lemma_decl(l: dict, self_name: str) -> list[str]:
 
 
 def lower(task: dict, body: list, witness: dict | None = None) -> str:
+    import tshape
+    task, body = tshape.desugar_seq_quants(task, body)   # SPEC.md "Quantifiers over a collection": seq ranges as indices
     # NAMES (2026-09-11, ROADMAP 13.2): sanitize away any identifier that
     # collides with a Dafny reserved word, before anything below ever sees
     # the task -- see names.py's module docstring. `task` is returned

@@ -2350,7 +2350,7 @@ def _has_indexable(e: dict) -> bool:
         return any(_has_indexable(c[k]) for k in ("cond", "then", "else"))
     if "forall" in e or "exists" in e:
         q = e.get("forall") or e.get("exists")
-        return any(_has_indexable(q[k]) for k in ("lo", "hi", "body"))
+        return any(_has_indexable(q[k]) for k in ("lo", "hi", "in", "body") if k in q)
     return False
 
 
@@ -2383,8 +2383,9 @@ def _free_vars(e) -> set:
                 return
             if "forall" in x or "exists" in x:
                 q = x.get("forall") or x.get("exists")
-                walk(q["lo"], bound)
-                walk(q["hi"], bound)
+                for k in ("lo", "hi", "in"):   # "in": SPEC.md "Quantifiers over a collection"
+                    if k in q:
+                        walk(q[k], bound)
                 walk(q["body"], bound | {q["var"]})
                 return
             for val in x.values():
@@ -2405,8 +2406,9 @@ def _nested_index_terms(e: dict, v: str, out: dict, inner: frozenset = frozenset
     if isinstance(e, dict):
         if "forall" in e or "exists" in e:
             q = e.get("forall") or e.get("exists")
-            _nested_index_terms(q["lo"], v, out, inner, depth + 1)
-            _nested_index_terms(q["hi"], v, out, inner, depth + 1)
+            for k in ("lo", "hi", "in"):
+                if k in q:
+                    _nested_index_terms(q[k], v, out, inner, depth + 1)
             if q["var"] != v:   # a nested binder of the same name shadows v: its body's v is not ours
                 _nested_index_terms(q["body"], v, out, inner | {q["var"]}, depth + 1)
             return
@@ -2491,8 +2493,9 @@ def _at_roots_by_var(e: dict, v: str, out: dict) -> None:
             _at_roots_by_var(a, v, out)
     elif "forall" in e or "exists" in e:
         q = e.get("forall") or e.get("exists")
-        for k in ("lo", "hi"):
-            _at_roots_by_var(q[k], v, out)
+        for k in ("lo", "hi", "in"):
+            if k in q:
+                _at_roots_by_var(q[k], v, out)
 
 
 def _nested_at_roots_by_var(e: dict, v: str, out: dict) -> None:
@@ -2537,8 +2540,9 @@ def _nested_at_roots_by_var(e: dict, v: str, out: dict) -> None:
             _nested_at_roots_by_var(a, v, out)
     elif "forall" in e or "exists" in e:
         q = e.get("forall") or e.get("exists")
-        for k in ("lo", "hi"):
-            _nested_at_roots_by_var(q[k], v, out)
+        for k in ("lo", "hi", "in"):
+            if k in q:
+                _nested_at_roots_by_var(q[k], v, out)
         if q["var"] != v:
             _nested_at_roots_by_var(q["body"], v, out)
 
@@ -2583,8 +2587,9 @@ def _offset_at_by_var(e: dict, v: str, out: dict) -> None:
             _offset_at_by_var(a, v, out)
     elif "forall" in e or "exists" in e:
         q = e.get("forall") or e.get("exists")
-        for k in ("lo", "hi"):
-            _offset_at_by_var(q[k], v, out)
+        for k in ("lo", "hi", "in"):
+            if k in q:
+                _offset_at_by_var(q[k], v, out)
 
 
 def _root_plus_offset_trigger(body: dict, v: str, roots: dict) -> str | None:
@@ -2665,7 +2670,7 @@ def _has_fixed_at(e: dict, v: str) -> bool:
         return any(_has_fixed_at(a, v) for a in e["call"]["args"])
     if "forall" in e or "exists" in e:
         q = e.get("forall") or e.get("exists")
-        return any(_has_fixed_at(q[k], v) for k in ("lo", "hi"))
+        return any(_has_fixed_at(q[k], v) for k in ("lo", "hi", "in") if k in q)
     return False
 
 
@@ -2873,6 +2878,15 @@ def expr(e: dict, vty: str | None = None) -> str:
         return f"t_comp{k}({', '.join(src + _comp_free(e))})"
     if e.get("op") in _HOF_OPS:
         return _hof_call(e)   # SPEC.md "Higher-order calls (v1)" (2026-10-06): the registered spec fn
+    if ("forall" in e or "exists" in e) and "in" in (e.get("forall") or e.get("exists")):
+        # SPEC.md "Quantifiers over a collection" (2026-10-07): vstd's `contains`, on a Set or a Seq alike, as the
+        # range and the trigger (a function call naming the bound variable, the Verus guide's rule for a trigger)
+        kind = "forall" if "forall" in e else "exists"
+        q = e[kind]
+        v, coll = q["var"], expr(q["in"])
+        glue = "==>" if kind == "forall" else "&&"
+        return (f"({kind}|{v}: int| #![trigger {coll}.contains({v})] {coll}.contains({v}) {glue} "
+                f"{expr(q['body'])})")
     if "forall" in e or "exists" in e:
         kind = "forall" if "forall" in e else "exists"
         q = e[kind]
@@ -3343,6 +3357,10 @@ def defined(e: dict, is_real=None) -> dict:
     if "forall" in e or "exists" in e:
         q = e.get("forall") or e.get("exists")
         db = defined(q["body"], is_real)
+        if "in" in q:
+            # SPEC.md "Quantifiers over a collection": the collection defined, the body at every element
+            return _conj([defined(q["in"], is_real),
+                          TRUE if db == TRUE else {"forall": {"var": q["var"], "in": q["in"], "body": db}}])
         body_ob = (TRUE if db == TRUE else
                    {"forall": {"var": q["var"], "lo": q["lo"], "hi": q["hi"],
                                "body": db}})
@@ -3535,8 +3553,9 @@ def _nested_eq_bridges(e: dict, scope: dict, out: list) -> None:
             _nested_eq_bridges(a, scope, out)
     elif "forall" in e or "exists" in e:
         q = e.get("forall") or e.get("exists")
-        for k in ("lo", "hi", "body"):
-            _nested_eq_bridges(q[k], scope, out)
+        for k in ("lo", "hi", "in", "body"):
+            if k in q:
+                _nested_eq_bridges(q[k], scope, out)
 
 
 def _walk_at_seq_params(e, seq_params: set, seen: set) -> None:
@@ -3667,6 +3686,8 @@ def subst(e: dict, m: dict) -> dict:
         kind = "forall" if "forall" in e else "exists"
         q = e[kind]
         inner = {k: v for k, v in m.items() if k != q["var"]}
+        if "in" in q:
+            return {kind: {"var": q["var"], "in": subst(q["in"], m), "body": subst(q["body"], inner)}}
         return {kind: {"var": q["var"], "lo": subst(q["lo"], m),
                        "hi": subst(q["hi"], m),
                        "body": subst(q["body"], inner)}}
@@ -3768,7 +3789,7 @@ def _calls(e: dict, name: str) -> bool:
         return any(_calls(c[k], name) for k in ("cond", "then", "else"))
     if "forall" in e or "exists" in e:
         q = e.get("forall") or e.get("exists")
-        return any(_calls(q[k], name) for k in ("lo", "hi", "body"))
+        return any(_calls(q[k], name) for k in ("lo", "hi", "in", "body") if k in q)
     if "ctor" in e:
         return any(_calls(a, name) for a in e["ctor"].get("args", []))
     if "field" in e:
@@ -3890,7 +3911,7 @@ def _has_nonlinear(e: dict) -> bool:
         return any(_has_nonlinear(a) for a in e["call"]["args"])
     if "forall" in e or "exists" in e:
         q = e.get("forall") or e.get("exists")
-        return any(_has_nonlinear(q[k]) for k in ("lo", "hi", "body"))
+        return any(_has_nonlinear(q[k]) for k in ("lo", "hi", "in", "body") if k in q)
     if "op" in e:
         if e["op"] == "*":
             a, b = e["args"]
@@ -3927,7 +3948,7 @@ def _verus_sole_calls_nonlinear_specfn(e: dict, task: dict) -> bool:
             return any(walk(x["ite"][k]) for k in ("cond", "then", "else"))
         if "forall" in x or "exists" in x:
             q = x.get("forall") or x.get("exists")
-            return any(walk(q[k]) for k in ("lo", "hi", "body"))
+            return any(walk(q[k]) for k in ("lo", "hi", "in", "body") if k in q)
         if "op" in x:
             return any(walk(a) for a in x.get("args", []))
         return False
@@ -4005,9 +4026,10 @@ def _prenex(e: dict, fresh) -> tuple[list[str], dict]:
         v = next(fresh)
         body = subst(q["body"], {q["var"]: v})
         bs, mat = _prenex(body, fresh)
-        rng = {"op": "and", "args": [
-            {"op": "<=", "args": [q["lo"], {"var": v}]},
-            {"op": "<", "args": [{"var": v}, q["hi"]]}]}
+        rng = ({"op": "in", "args": [{"var": v}, q["in"]]} if "in" in q else
+               {"op": "and", "args": [
+                   {"op": "<=", "args": [q["lo"], {"var": v}]},
+                   {"op": "<", "args": [{"var": v}, q["hi"]]}]})
         return [v] + bs, {"op": "implies", "args": [rng, mat]}
     if "ite" in e:
         c = e["ite"]
@@ -4050,7 +4072,9 @@ def _div_mod_pairs(e: dict) -> list[tuple[dict, dict]]:
             return
         if "forall" in n or "exists" in n:
             q = n.get("forall") or n.get("exists")
-            walk(q["lo"]); walk(q["hi"]); walk(q["body"])
+            for k in ("lo", "hi", "in", "body"):
+                if k in q:
+                    walk(q[k])
             return
         if "op" in n:
             if n["op"] in ("div", "mod"):
@@ -6040,9 +6064,18 @@ def _unroll(e: dict, budget: list, spec_funs: dict | None = None) -> dict:
     if "forall" in e or "exists" in e:
         kind = "forall" if "forall" in e else "exists"
         q = e[kind]
-        lo, hi = _gint(q["lo"]), _gint(q["hi"])
+        if "in" in q:
+            # SPEC.md "Quantifiers over a collection": only a literal collection is unrolled; anything else raises,
+            # which refuses the certificate rather than guessing its elements
+            coll = q["in"]
+            if not (isinstance(coll, dict) and ("_set" in coll or "_seq" in coll)):
+                raise ValueError("a collection quantifier over a non-literal collection is not unrolled")
+            points = coll.get("_set", coll.get("_seq"))
+        else:
+            lo, hi = _gint(q["lo"]), _gint(q["hi"])
+            points = range(lo, hi)
         insts = []
-        for k in range(lo, hi):
+        for k in points:
             budget[0] -= 1
             if budget[0] < 0:
                 raise ValueError("quantifier unroll budget exhausted")
@@ -6613,7 +6646,8 @@ def _comp_free(node: dict) -> list:
                 return out | walk(c["cond"], inner) | walk(c["body"], inner)
             if "forall" in x or "exists" in x:
                 q = x.get("forall") or x.get("exists")
-                return walk(q["lo"], bound) | walk(q["hi"], bound) | walk(q["body"], bound | {q["var"]})
+                rng = walk(q["in"], bound) if "in" in q else walk(q["lo"], bound) | walk(q["hi"], bound)
+                return rng | walk(q["body"], bound | {q["var"]})
             if "call" in x:
                 return set().union(*(walk(a, bound) for a in x["call"]["args"])) if x["call"]["args"] else set()
             return set().union(*(walk(v, bound) for v in x.values())) if x else set()
@@ -6753,7 +6787,8 @@ def _hof_fv(x, bound: frozenset) -> set:
             return out | _hof_fv(c["cond"], inner) | _hof_fv(c["body"], inner)
         if "forall" in x or "exists" in x:
             q = x.get("forall") or x.get("exists")
-            return _hof_fv(q["lo"], bound) | _hof_fv(q["hi"], bound) | _hof_fv(q["body"], bound | {q["var"]})
+            rng = _hof_fv(q["in"], bound) if "in" in q else _hof_fv(q["lo"], bound) | _hof_fv(q["hi"], bound)
+            return rng | _hof_fv(q["body"], bound | {q["var"]})
         return set().union(*(_hof_fv(v, bound) for v in x.values())) if x else set()
     if isinstance(x, list):
         return set().union(*(_hof_fv(v, bound) for v in x)) if x else set()
@@ -7196,6 +7231,7 @@ def _certificate(task: dict, twin_body: list, w: dict) -> str | None:
 def lower(task: dict, body: list, witness: dict | None = None) -> str:
     global _SUFFIX_INT
     import tshape
+    task, body = tshape.desugar_seq_quants(task, body)   # SPEC.md "Quantifiers over a collection": seq ranges as indices
     _EMPTIES.clear()
     _EMPTIES.update(tshape.empty_display_types(task, body))
     _SCOPE.clear()

@@ -121,6 +121,9 @@ class _Writer:
             q = e[kind]
             fn = "all" if kind == "forall" else "any"
             v = _ident(q["var"])
+            if "in" in q:
+                # SPEC.md "Quantifiers over a collection": Python iterates a set or a list directly
+                return f"{fn}({self.expr(q['body'])} for {v} in {self.expr(q['in'])})"
             return f"{fn}({self.expr(q['body'])} for {v} in range({self.expr(q['lo'])}, {self.expr(q['hi'])}))"
         if "call" in e:
             c = e["call"]

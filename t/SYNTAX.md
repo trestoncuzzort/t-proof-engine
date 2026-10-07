@@ -88,6 +88,9 @@ Expr     ::= {"int": integer}                   (* mathematical integer *)
            | {"op": Op, "args": [Expr+]}
            | {"ite":    {"cond": Expr, "then": Expr, "else": Expr}}      (* v1 *)
            | {"forall": {"var": Id, "lo": Expr, "hi": Expr, "body": Expr}}  (* v1 *)
+           | {"forall": {"var": Id, "in": Expr, "body": Expr}}         (* since 2026-10-07, SPEC.md "Quantifiers
+                                                                           over a collection": written forall x in S . P,
+                                                                           S a set or seq: a name, a call or (Expr) *)
            | {"exists": {"var": Id, "lo": Expr, "hi": Expr, "body": Expr}}  (* v1 *)
            | {"call":   {"fun": Id, "args": [Expr*]}}                    (* v1 *)
            | {"ctor":   {"dtype": Id, "name": Id, "args": [Expr*]}}      (* v1, since 2026-09-27; written D.C or

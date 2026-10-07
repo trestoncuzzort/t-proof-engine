@@ -185,6 +185,8 @@ RULES: dict[str, str] = {
     "loop-invariant-bool": "each loop invariant must be bool (Gate 2)",
     "spec-fun-body-type": "a spec_fun's body type must match its declared result (Gate 3)",
     "spec-fun-result": "a spec_fun's result is any t type (Gate 3; Compositional types)",
+    "quant-range": "a quantifier ranges over [lo, hi) or over a set or seq's elements (Gate 1; Quantifiers over "
+                   "a collection)",
     "spec-fun-decreases-int": "a spec_fun's decreases must be int, or a datatype value whose recursive calls "
                               "take its fields (Gate 3; Datatypes (v3): recursion)",
     "strlib-arity": "each string-library member has a fixed arity (The string library)",
@@ -537,8 +539,11 @@ def _ty(e, env, funs, dtypes, ver, errs, bound, expect=None):
         if not (isinstance(ot, dict) and set(ot) == {"datatype"} and ot["datatype"] in dtypes):
             _e(errs, e, f"field {fld.get('name')!r} of a value that is not a datatype: {ot!r}", "field-unknown")
             return None
-        ftys = {f.get("type") for ct in dtypes[ot["datatype"]].get("ctors", []) if isinstance(ct, dict)
-                for f in (ct.get("fields") or []) if isinstance(f, dict) and f.get("name") == fld.get("name")}
+        ftys = []   # a list, not a set: a datatype field's type is a dict (SPEC.md "Datatypes (v3): recursion")
+        for ct in dtypes[ot["datatype"]].get("ctors", []):
+            for f in ((ct.get("fields") or []) if isinstance(ct, dict) else []):
+                if isinstance(f, dict) and f.get("name") == fld.get("name") and f.get("type") not in ftys:
+                    ftys.append(f.get("type"))
         if not ftys:
             _e(errs, e, f"{ot['datatype']} has no field {fld.get('name')!r}", "field-unknown")
             return None
@@ -637,11 +642,22 @@ def _ty(e, env, funs, dtypes, ver, errs, bound, expect=None):
         v = q["var"]
         if v in env or v in bound:
             _e(errs, e, f"bound var {v} shadows a name in scope", "quant-shadow")
-        for side in ("lo", "hi"):
-            if _ty(q[side], env, funs, dtypes, ver, errs, bound) != "int":
-                _e(errs, e, f"quantifier {side} is not int", "quant-bounds")
+        el = "int"
+        if "in" in q:
+            # SPEC.md "Quantifiers over a collection" (2026-10-07): x ranges over the elements of a set or a seq
+            rt = _ty(q["in"], env, funs, dtypes, ver, errs, bound)
+            if rt in ("set", "seq"):
+                el = "int"
+            elif isinstance(rt, dict) and set(rt) in ({"set"}, {"seq"}):
+                el = rt.get("set", rt.get("seq"))
+            else:
+                _e(errs, e, f"quantifier range is not a set or a seq: {rt!r}", "quant-range")
+        else:
+            for side in ("lo", "hi"):
+                if _ty(q[side], env, funs, dtypes, ver, errs, bound) != "int":
+                    _e(errs, e, f"quantifier {side} is not int", "quant-bounds")
         sub = dict(env)
-        sub[v] = "int"
+        sub[v] = el
         if _ty(q["body"], sub, funs, dtypes, ver, errs, bound | {v}) != "bool":
             _e(errs, e, "quantifier body is not bool", "quant-body")
         return "bool"

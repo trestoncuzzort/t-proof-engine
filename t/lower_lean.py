@@ -11242,6 +11242,7 @@ def _uses_sets(obj) -> bool:
 
 def lower(task: dict, body: list, witness: dict | None = None) -> str:
     import tshape
+    task, body = tshape.desugar_seq_quants(task, body)   # SPEC.md "Quantifiers over a collection": seq ranges as indices
     tshape.abstain_unless_carried(task, body, "lean", carried={"comp-reduction", "comp"},
                                   lib=LEAN_LIB)   # PREDICT T9: the library; any/all over a comprehension
     if _uses_sets(task) or _uses_sets(body):

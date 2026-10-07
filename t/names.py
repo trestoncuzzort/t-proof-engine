@@ -329,7 +329,7 @@ def _rename_walk(node, mapping: dict[str, str]):
         kind = "forall" if "forall" in node else "exists"
         q = dict(node[kind])
         q["var"] = mapping.get(q["var"], q["var"])
-        for k in ("lo", "hi", "body"):
+        for k in ("lo", "hi", "in", "body"):   # "in": SPEC.md "Quantifiers over a collection"
             if k in q:
                 q[k] = _rename_walk(q[k], mapping)
         return {**node, kind: q}

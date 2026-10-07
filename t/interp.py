@@ -751,15 +751,22 @@ def ev(e: dict, env: dict, funs: dict, st: St):
     if "forall" in e or "exists" in e:
         kind = "forall" if "forall" in e else "exists"
         q = e[kind]
-        lo = ev(q["lo"], env, funs, st)
-        hi = ev(q["hi"], env, funs, st)
-        if hi - lo > MAX_RANGE:
-            raise Budget("quantifier range")
+        if "in" in q:
+            # SPEC.md "Quantifiers over a collection" (2026-10-07): the elements of a set (in order) or of a seq
+            # (in order, repeats included), the body defined at every one, as over a range
+            coll = ev(q["in"], env, funs, st)
+            points = sorted(coll) if isinstance(coll, frozenset) else list(coll)
+        else:
+            lo = ev(q["lo"], env, funs, st)
+            hi = ev(q["hi"], env, funs, st)
+            if hi - lo > MAX_RANGE:
+                raise Budget("quantifier range")
+            points = range(lo, hi)
         acc = kind == "forall"
         # SPEC.md: the body must be defined for EVERY value in [lo, hi), so
         # every point is evaluated even after the result is decided; an empty
         # range decides without the body and is therefore defined.
-        for i in range(lo, hi):
+        for i in points:
             sub = dict(env)
             sub[q["var"]] = i
             v = ev(q["body"], sub, funs, st)
