@@ -298,6 +298,10 @@ from .discover import find, missing
 FRAMAC = find("T_FRAMAC", ['frama-c'], [".opam/*/bin/frama-c"])
 _FRAMAC_WHY = missing("framac", "T_FRAMAC", ['frama-c'], [".opam/*/bin/frama-c"])
 DEFAULT_STEPS = 20_000
+# PREDICT T58: a program over doubles gets 100x the steps (Alt-Ergo's float goals report Stepout, the one case where
+# a larger limit can help, SPARK UG 7.8 under receipt eeffe70f487e): rate_limit proves at 10x and sat_scale at 100x;
+# pid_step still steps out. Integer programs keep DEFAULT_STEPS.
+FLOAT_STEPS = 2_000_000
 WALL_S = 240
 PRINT_WALL_S = 60
 PROBE_WALL_S = 120
@@ -789,7 +793,9 @@ def _run(cmd: list, wall: int):
                           + p.stderr.decode("utf-8", errors="replace"))
 
 
-def verify(path: Path, budget: int = DEFAULT_STEPS) -> Result:
+def verify(path: Path, budget: int | None = None) -> Result:
+    if budget is None:
+        budget = FLOAT_STEPS if re.search(r"\bdouble\b", safe_text(path)) else DEFAULT_STEPS
     src_hash = sha256_file(path)
     t0 = time.monotonic()
     if not FRAMAC:

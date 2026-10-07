@@ -2570,3 +2570,33 @@ Rocq and F*, every proved program's twin is now refuted (104 of 104, 84 of 84, 8
 (timeout) is the matrix's one proved program without a refuted twin.
 (2) **Held:** `t/AUTONOMY.md` reads Verus 15, F* 18, Rocq 15; all seven 14 of 25 (zero_fill). sample_push's and
 saturate_all's twins are refuted in the three kernels too; their real bodies stay unproved there.
+
+## T58 registered (2026-10-07 15:40Z, after hand probes and before the clean-clone run): a step budget for programs over floats
+
+**The change.** In SPARK and Frama-C, a lowered program over doubles (`Long_Float`, `double`) gets 2,000,000 prover
+steps by default, 100 times the 20,000 every other program keeps. The SPARK User's Guide (7.8, read under receipt
+eeffe70f487e) says a larger limit helps only where the prover reports reaching it, and that provers handle
+floating-point arithmetic imprecisely, worst with non-linear operations. Both match the measurements below. A
+larger budget lets the same sound search run longer; it cannot weaken a proof. Lowerings do not change.
+
+**Measured before this registration, stated plainly.**
+- Frama-C at 20,000, 200,000 and 2,000,000 steps:
+  - rate_limit verifies from 200,000;
+  - sat_scale verifies at 2,000,000;
+  - pid_step steps out at every budget (its goals reach the 10 s per-goal wall);
+  - every twin stays refuted.
+- SPARK: rate_limit verifies at 200,000 and 2,000,000. pid_step's postcondition reports the limit at both (155 s at
+  2,000,000).
+- **Hand probe** of all eight float tasks at the new default (`cli.py verify --kernels spark,framac`):
+  - rate_limit is verified/refuted in both;
+  - sat_scale is verified/refuted in both;
+  - pid_step is a timeout in both;
+  - clamp_cmd, deadband, geofence_box, ttc_alert and vote3 are unchanged (ttc_alert stays a SPARK refusal).
+- The upstream draft that called rate_limit's SPARK timeout a monotonicity the prover cannot find was wrong: it was
+  the budget. The draft is corrected.
+- **Suite:** passes.
+
+**Bars**, for the clean-clone tables at this registration's commit:
+(1) The matrix: SPARK 79 (rate_limit) and Frama-C 70 (rate_limit, sat_scale); every other cell unchanged; all seven
+65.
+(2) `t/AUTONOMY.md` unchanged (pid_step stays a timeout in both kernels).
