@@ -210,7 +210,19 @@ domain points, and compared with t's interpreter. Over 9,961 compiled runs of th
     `2 * decel * dist` in a stopping-distance check, `prev + max_step` in a throttle limiter.
   - All of them agree at 64 bits up to values beyond 2^63.
 
-  A proof of the routine is not a proof of the shipped binary until the proof is done at the width that ships (R4b).
+  A proof of the routine is not a proof of the shipped binary until the proof is done at the width that ships.
+
+**The proof at the width that ships** (PREDICT T63; `t/ship.py`, `t/SHIP-*.md`). Each C lowering is proved again under
+WP's machine-integer model with runtime-error guards, so every signed operation owes a no-overflow proof. Where an
+overflow is reachable at full width, the largest ±2^k input bound under which everything proves is the routine's
+proved operating envelope:
+- 61 routines ship for every 32-bit input.
+- 12 ship within an envelope:
+  - abs within ±2^30, its `-x` overflowing at INT_MIN;
+  - a throttle limiter within ±2^29;
+  - a cross-track sign test and a stopping-distance check within ±2^14.
+- 21 have no envelope found. That is not proof of unsafety: they are mostly loop counters that WP cannot bound
+  without an invariant relating them to the index, the next item.
 
 ## 5. What the kernels taught
 

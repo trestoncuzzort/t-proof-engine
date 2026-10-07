@@ -2891,3 +2891,15 @@ T62 compiled.
 (1) Both tables reproduce the hand runs' counts. An envelope's k may differ by one only where a goal sits at the
 step budget.
 (2) No routine reads "ships for every int32 input" whose C build (T62) disagrees with the interpreter inside int32.
+
+### T63 read (2026-10-07 19:01Z): both bars held.
+
+Regenerated from a clean clone at da18d3e, and installed (`t/SHIP-TASKS.md`, `t/SHIP-AUTONOMY.md`).
+(1) **Held:** every count and every envelope matches the hand runs:
+  - task suite: 45 for every int32 input, 7 within an envelope, 19 with none found;
+  - autonomy suite: 16, 5 and 2.
+
+  The first clean run differed only in the order of open goal names, because WP's provers finish in any order. They
+  are now sorted (da18d3e), and the installed tables are from the second run.
+(2) **Held:** root_floor, stop_distance_ok and throttle_limit, whose 32-bit builds disagree inside int32, read "no
+envelope found", "within ±2^14" and "within ±2^29"; none reads "ships for every int32 input".

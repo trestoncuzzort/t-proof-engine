@@ -74,6 +74,9 @@ Measured from a clean clone of this repository on 2026-10-07 over the 114 commit
   gcc, the Dafny through its Python backend) and runs them against the interpreter on domain points. Over 9,961 runs
   no lowering bug shows. Every C disagreement is integer width: the proof's integers are mathematical, the shipped
   `int` is 32 bits. Three routines overflow an intermediate even inside int32 inputs ([t/BUILD-TASKS-C.md](t/BUILD-TASKS-C.md)).
+- **Shipping at width** (`python3 t/cli.py ship DIR`, PREDICT T63) proves the C again with machine integers and
+  overflow guards. 61 routines ship for every 32-bit input. 12 ship within a proved operating envelope: abs within
+  ±2^30, a cross-track test within ±2^14 ([t/SHIP-AUTONOMY.md](t/SHIP-AUTONOMY.md)).
 - [t/AUTONOMY.md](t/AUTONOMY.md): 25 navigation, guidance and control routines (`t/autonomy/`). Verified with the
   twin refuted: Frama-C 21, SPARK 20, Dafny 18, F* 18, Lean 15, Verus 15, Rocq 15; 14 in all seven.
 - Most refusals are of constructs added to the language on 2026-10-06, which the other kernels are being taught
