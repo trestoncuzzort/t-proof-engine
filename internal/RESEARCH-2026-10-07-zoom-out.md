@@ -110,3 +110,44 @@ Each is its own registration, measured before it is claimed.
 
 The rules: refusal by name, never a weakened spec; a prediction before every run; the twin rule; tables installed
 only from a clean clone. The landscape changes what is claimed and what comes first, not how anything is measured.
+
+## 6. Addendum, 2026-10-07 04:06Z: after G9-G12
+
+Measured since this note was written (each registered in `t/PREDICT-2026-10-06-t-expansion.md`, read from a clean
+clone):
+
+| measure | 01:20Z | 04:03Z |
+|---|---|---|
+| committed tasks | 88 | 101 |
+| all seven | 48 | 49 |
+| per kernel | Dafny 88, Verus 80, Rocq 62, Lean 61, F* 59, SPARK 56, Frama-C 49 | Dafny 101, Verus 93, Lean 74, Rocq 63, F* 60, SPARK 57, Frama-C 50 |
+| AlgoVeri programs | 21 | 27 (the table of 22 installed by T24; 27 registered in T27) |
+| solver independence | worded ("four engines") | measured (T22): no verified real refuted under a second solver, over 298 cells |
+
+**What landed:**
+- **G9:** datatypes with fields (records, options).
+- **G10:** recursive datatypes (trees).
+- **G11:** quantifiers over a set's or a seq's elements. The seq form is desugared to indices, so all seven kernels
+  state it.
+- **G12:** AlgoVeri's BST family begins, from search and insert to the three rotations.
+
+Each was registered with hand probes, and each left every earlier lowering byte for byte unchanged. Datatypes and
+set ranges are stated in Dafny, Verus and Lean (sets: Dafny and Verus). The other four refuse them by name.
+
+**What the landscape says now.** Item 4 of section 2 still stands: Lean is strong for agents and weak in t, and t's
+Lean column verifies none of AlgoVeri's programs. That is now the largest single gap on the outside benchmark: 0 of
+27, against Dafny's 27 and Verus's 9 registered. The BST family cannot reach Lean at all until Lean carries finite
+sets. Core Lean has no finite-set type without Mathlib, which this column does not import.
+
+**Decisions, in order:**
+1. **Read T27:** the matrix of 101 unchanged, and the AlgoVeri table of 27.
+2. **Lean on AlgoVeri.** D7 (`mvcgen` for loops) as its one-task probe, then finite sets in Lean, as a list with set
+   semantics plus the lemmas grind needs. That unlocks the set tasks and the BST family there.
+3. **Verus's `res.val` shape.** The three rotations are blocked in Verus only by a definedness obligation that
+   Dafny's extensional set equality discharges. An extensional `=~=` bridge in the well-definedness lemma is the
+   candidate, measured first.
+4. **The BST family's rest:** delete, which needs min-extraction helpers, splay and lca, the last restated over
+   `view(root)`.
+5. **Datatypes in Rocq and F*:** 13 committed datatype tasks move two columns, and F* has a set library.
+6. **D8**, the twin audit of public benchmark specs, stays the most distinctive result. It needs the lifter pointed
+   at Vericoding's Dafny sources.
