@@ -2152,3 +2152,16 @@ rec`, fetched). Dafny's own shape: a prefix-form recursion keeping the last elem
 contract the length bound and, for a pure filter, the condition at every element; the definedness is the condition at
 every element and the body where it holds. SPARK's definedness formula gains the comprehension case
 lower_verus.defined already has (count_evens_skip's ensures holds one).
+
+### T43, T44 and T45 read (2026-10-07 09:45Z): every bar held.
+
+Both tables were regenerated from a clean clone at 0ddcce3, with no proof run beside it: the matrix of 104 (3 jobs),
+then the AlgoVeri table of 30 (2 jobs), in one unit under 11 GB, with no OOM.
+(1) **Held:** bag_size reads verified/refuted in Frama-C, and index_of and find_zero in Verus, Lean, Rocq, F*, SPARK
+and Frama-C, so all three are in all seven: all seven went from 59 to 62.
+(2) **Held:** count_evens_skip reads verified/refuted in Verus, Lean, F* and SPARK, and evens in F* and SPARK; Rocq
+and Frama-C refuse both by name. evens kept verified/refuted in Lean.
+(3) **Held:** Verus 99, Lean 84, Rocq 79, F* 79, SPARK 71, Frama-C 62, Dafny 104. checked_tail kept its Frama-C
+refusal. No other cell moved.
+(4) **Held:** the AlgoVeri table did not move.
+
