@@ -1410,3 +1410,12 @@ and triggers).
 (2) `all_pos_set` reads verified with the twin refuted in Dafny and Verus, and abstains by name in the other five.
 (3) No other cell moves against T25's matrix.
 (4) Dafny and Verus gain two each. Lean, Rocq, F*, SPARK and Frama-C gain one each.
+
+### T25 read (2026-10-07 03:45Z): recursive datatypes in Dafny, Verus and Lean. All four bars held.
+
+The matrix was regenerated from a clean clone at 947c37c (`t/AGREEMENT.md`) and compared cell by cell with T24's.
+(1) **Held:** the five tree tasks read verified with the twin refuted in Dafny, Verus and Lean (15 cells).
+(2) **Held:** Rocq, F*, SPARK and Frama-C abstain by name on all five (20 cells).
+(3) **Held:** no other cell moved.
+(4) **Held:** Dafny 99, Verus 91, Lean 73; the other four unchanged. All seven stays 48, now of 99. Every kernel still
+refutes the twin of every real it verifies (100%).

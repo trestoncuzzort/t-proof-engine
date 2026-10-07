@@ -26,23 +26,23 @@ never weakens it.
 
 ## Where it stands
 
-Measured from a clean clone of this repository on 2026-10-07 over the 94 committed tasks
+Measured from a clean clone of this repository on 2026-10-07 over the 99 committed tasks
 ([t/AGREEMENT.md](t/AGREEMENT.md)):
 
 | kernel | proved, twin refuted | carried, not proved | refused by name |
 |---|---|---|---|
-| Dafny | 94 | 0 | 0 |
-| Verus | 86 | 1 | 7 |
-| Rocq | 62 | 0 | 32 |
-| Lean 4 | 68 | 2 | 24 |
-| F\* | 59 | 2 | 33 |
-| SPARK | 56 | 3 | 35 |
-| Frama-C | 49 | 1 | 44 |
+| Dafny | 99 | 0 | 0 |
+| Verus | 91 | 1 | 7 |
+| Rocq | 62 | 0 | 37 |
+| Lean 4 | 73 | 2 | 24 |
+| F\* | 59 | 2 | 38 |
+| SPARK | 56 | 3 | 40 |
+| Frama-C | 49 | 1 | 49 |
 
 - In every kernel, the twin of every proved program is refuted (100%).
-- 48 of the 94 tasks are proved, with the twin refuted, in all seven kernels.
-- Datatypes with fields (records and non-recursive sums) are proved in Dafny, Verus and Lean (PREDICT T23); the
-  other four refuse them by name.
+- 48 of the 99 tasks are proved, with the twin refuted, in all seven kernels.
+- Datatypes with fields (records and non-recursive sums, PREDICT T23) and recursive datatypes (trees, T25) are proved
+  in Dafny, Verus and Lean; the other four refuse them by name.
 - Most refusals are of constructs added to the language on 2026-10-06, which the other kernels are being taught
   now.
 - [t/ALGOVERI.md](t/ALGOVERI.md): 22 of AlgoVeri's contracts in seven kernels, regenerated from a clean clone for
