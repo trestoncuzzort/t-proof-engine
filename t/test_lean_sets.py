@@ -62,7 +62,21 @@ def test_the_type_and_operations():
 def test_what_is_still_refused_by_name():
     ok("compound element type" in refusal("words_seen") or "set<seq>" in refusal("words_seen"),
        "a set of seqs is refused by name")
-    ok("Quantifiers over a collection" in refusal("all_pos_set"), "a set-ranged quantifier is refused by name")
+    ok(refusal("all_pos_set") == "", "a set-ranged quantifier is lowered since T30")
+
+
+def test_set_ranged_quantifiers():
+    # PREDICT T30: in a Prop, membership is the range; computed as a Bool, the set's list of members; a connective
+    # over one is a Bool; the closers carry the simp bridge
+    src = lean("all_pos_set")
+    ok(".toList.all (fun (" in src, "computed as toList.all")
+    ok("∈ s → (" in src, "and stated as a membership range in the contract")
+    ok("List.all_eq_true" in src and "Std.ExtTreeSet.mem_toList" in src, "the closers carry the bridge")
+    av = tasks_io.load_task(str(HERE / "algoveri" / "bst_zig.t"))
+    src = lower_lean.lower(av, av["body"])
+    ok(".toList.all (fun (" in src and " && (is_bst_s left) && " in src, "is_bst is a Bool conjunction")
+    ok("deriving DecidableEq, Inhabited" in src, "a field read's default needs Inhabited")
+    ok("deriving DecidableEq, Inhabited" not in lean("tree_sum"), "and only then")
 
 
 def test_the_adapter_allows_exactly_one_import():

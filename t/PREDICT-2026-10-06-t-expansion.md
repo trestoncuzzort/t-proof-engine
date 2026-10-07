@@ -1531,3 +1531,30 @@ the three rotations unproved, for the named `res.val` definedness. Lean, Rocq, F
 (timeout/timeout) but is marked FLAKED: its reruns disagreed on the way to the same verdict, so the cell is
 provisional, as before.
 (4) **Held:** AlgoVeri Dafny 27 of 27, Verus 9, the rest unchanged (F* 5, SPARK 3, Frama-C 2, Rocq 1, Lean 0).
+
+## T30 registered (2026-10-07 04:43Z, after hand probes and before the clean-clone runs): set-ranged quantifiers in Lean
+
+Lean refused a quantifier over a set's members. On T29's tree sets it now states one in both positions:
+- **In a Prop:** `∀ x, x ∈ S → P` (`∃ x, x ∈ S ∧ P`).
+- **Computed as a Bool:** `S.toList.all (fun x => P)` (`any`). A connective whose operands include one is computed as a
+  Bool too (`&&`, `||`, `!`), because `decide` over the Prop form has no Decidable instance (measured on is_bst).
+- **Closers:** a task with a set range first simps the spec funs and `List.all_eq_true`, `List.any_eq_true`,
+  `ExtTreeSet.mem_toList` and `decide_eq_true_eq` before grind. grind does not use an `all = true` hypothesis
+  through the iff unless simp first states it as the quantifier (measured).
+- **Inhabited:** a datatype that is a field's type derives `Inhabited` when the task reads fields, which the default
+  arm of a field read needs. Measured on AlgoVeri's zig: `tree.left`.
+
+**Measured before this registration, stated plainly.**
+- all_pos_set COUNTS in Lean.
+- AlgoVeri's zig, zig_zag and zig_zig lower in Lean. Their twins are refuted, by kernel-checked certificates over trees
+  and sets. Their reals are unproved: the lemmas' steps reason through the Bool is_bst, and grind does not close
+  them.
+- search and insert stay refused by name: a structurally recursive task with requires (T25).
+- **Byte identity:** exactly these change, all_pos_set's Lean pair and the five BST programs' Lean pairs.
+- **Suite:** the whole suite passes (708).
+
+**Bars**, for the clean-clone runs after T28's and T29's:
+(1) all_pos_set reads verified with the twin refuted in Lean, making three kernels.
+(2) AlgoVeri zig, zig_zag and zig_zig read unproved with the twin refuted in Lean, where they abstained. search and
+insert abstain.
+(3) No other cell moves against T28's and T29's tables.

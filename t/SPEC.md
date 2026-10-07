@@ -1744,7 +1744,11 @@ all seven. The fresh index names, `qi<n>`, are checked against every name in the
 - **Verus:** `forall|x: int| #![trigger S.contains(x)] S.contains(x) ==> P`. A trigger must be a function call
   naming the bound variable, per the Verus guide.
 
-Lean, Rocq, F*, SPARK and Frama-C refuse a set range by name, at their entry. Lean has no sets in any case. A
+Rocq, F*, SPARK and Frama-C refuse a set range by name, at their entry. Since PREDICT T30 (2026-10-07), Lean states
+one on its tree sets:
+- in a Prop as `∀ x, x ∈ S → P`;
+- computed as a Bool, as `S.toList.all`, with a connective over one computed as a Bool too;
+- with closers that first simp the `all = true` bridge into the quantifier. A
 ground set range in a certificate unrolls to a finite conjunction over its elements. Its value is recorded as an
 equation the kernel re-proves unless it is already a literal.
 

@@ -2558,6 +2558,7 @@ import harness                                 # noqa: E402
 import interp                                  # noqa: E402
 import names                                   # noqa: E402
 import surface                                 # noqa: E402
+import tshape                                  # noqa: E402
 from verifiers import lean as lean_backend     # noqa: E402
 
 CMP_OPS = {"<": "<", "<=": "≤", ">": ">", ">=": "≥"}
@@ -3149,6 +3150,7 @@ class Lower:
         self.ga_wo_sfuns = ("" if not other_ga_names else
                             " [" + ", ".join(other_ga_names) + "]")
         self.sfun_names_ga = simp_names
+        self.set_quants = tshape.collection_quantified(task, body)   # set ranges only: seq ones are desugared
         self.sfun_quantified = bool(self.sfuns) and (
             _sfun_under_quantifier(task, set(self.sfuns))
             or _sfun_under_quantifier(body, set(self.sfuns)))
@@ -3700,6 +3702,14 @@ class Lower:
                         "a domain-guarded loop) is not lowered for lean")
                 return f"({c['fun']}_t {args})"
             return f"({c['fun']}_s {args})"
+        if ("forall" in e or "exists" in e) and "in" in (e.get("forall") or e.get("exists")):
+            # SPEC.md "Quantifiers over a collection" in Lean (PREDICT T30): a set range computed as a Bool over the
+            # set's list of members; the closers carry the bridge (List.all_eq_true, ExtTreeSet.mem_toList)
+            q = e.get("forall") or e.get("exists")
+            b = self.fresh(q["var"])
+            coll = self.term(q["in"], env, types, dep)
+            body = self.term(q["body"], {**env, q["var"]: b}, {**types, q["var"]: "int"}, dep)
+            return f"(({coll}).toList.{'all' if 'forall' in e else 'any'} (fun ({b} : Int) => {body}))"
         if "forall" in e or "exists" in e:
             raise NotImplementedError(
                 "bounded quantifier in computational position "
@@ -3892,6 +3902,16 @@ class Lower:
         # Lean's `instDecidableForall`-style instance for `p → q` over two
         # decidable Props makes `decide` exact for it too, and `dcond`
         # already owns its short-circuit definedness.
+        if op in ("and", "or", "not", "implies") and tshape.collection_quantified({}, [e]):
+            # SPEC.md "Quantifiers over a collection" in Lean (PREDICT T30): a connective over a set range is
+            # computed as a Bool from its operands' terms, so the range reaches its `toList.all` form; `decide`
+            # over the Prop form has no Decidable instance for `∀ x, x ∈ s → ...` (measured on is_bst)
+            ts = [self.term(a, env, types, dep) for a in e["args"]]
+            if op == "not":
+                return f"(!{ts[0]})"
+            if op == "implies":
+                return f"(!{ts[0]} || {ts[1]})"
+            return "(" + (" && " if op == "and" else " || ").join(ts) + ")"
         if (op in ("==", "!=") or op in CMP_OPS
                 or op in ("and", "or", "not", "implies")):
             # BOOLEANS AS COMPUTATIONAL VALUES (2026-09-10): a
@@ -3919,6 +3939,15 @@ class Lower:
             v = env.get(e["var"], e["var"])
             assert types[e["var"]] == "bool", f"int var {e['var']} as Prop"
             return f"({v} = true)"
+        if ("forall" in e or "exists" in e) and "in" in (e.get("forall") or e.get("exists")):
+            # SPEC.md "Quantifiers over a collection" in Lean (PREDICT T30): a set range (a seq range was desugared
+            # to indices before any lowering), membership as the range
+            q = e.get("forall") or e.get("exists")
+            b = self.fresh(q["var"])
+            coll = self.term(q["in"], env, types)
+            body = self.prop(q["body"], {**env, q["var"]: b}, {**types, q["var"]: "int"})
+            return (f"(∀ ({b} : Int), {b} ∈ {coll} → {body})" if "forall" in e
+                    else f"(∃ ({b} : Int), {b} ∈ {coll} ∧ {body})")
         if "forall" in e:
             q = e["forall"]
             b = self.fresh(q["var"])
@@ -4076,6 +4105,14 @@ class Lower:
                 self.dcond(c["cond"], env, types),
                 guard(cp, self.dcond(c["then"], env, types)),
                 guard(f"¬{cp}", self.dcond(c["else"], env, types))])
+        if ("forall" in e or "exists" in e) and "in" in (e.get("forall") or e.get("exists")):
+            # SPEC.md "Quantifiers over a collection": the set defined, the body at every member
+            q = e.get("forall") or e.get("exists")
+            b = self.fresh(q["var"])
+            db = self.dcond(q["body"], {**env, q["var"]: b}, {**types, q["var"]: "int"})
+            coll = self.term(q["in"], env, types)
+            return self._conj([self.dcond(q["in"], env, types),
+                               None if db is None else f"(∀ ({b} : Int), {b} ∈ {coll} → {db})"])
         if "forall" in e or "exists" in e:
             q = e["forall"] if "forall" in e else e["exists"]
             b = self.fresh(q["var"])
@@ -5810,6 +5847,13 @@ class Lower:
         theorems), so the fix reaches wherever a spec_fun call under a
         quantifier surfaces, not just the loop-preservation site the
         five committed timeout rows happened to hit it at first."""
+        if self.set_quants:
+            # SPEC.md "Quantifiers over a collection" in Lean (PREDICT T30): a set range computed as `toList.all`
+            # reaches grind only through `all = true`, whose iff grind does not instantiate forward (measured);
+            # simp states it as the quantifier first. Spec funs recursive on an int stay out (their equation loops)
+            names = ", ".join(self.sfun_names_ga + ["List.all_eq_true", "List.any_eq_true",
+                                                   "Std.ExtTreeSet.mem_toList", "decide_eq_true_eq"])
+            return f"(first | (simp only [{names}] at * <;> grind{self.ga}) | grind{self.ga})"
         if self.sfun_quantified and self.sfun_names_ga:
             names = ", ".join(self.sfun_names_ga)
             return (f"(first | (simp only [{names}] at * <;> "
@@ -7466,7 +7510,12 @@ theorem t_str_join_split_roundtrip (s : List Int) (c : Int) :
                     f" ({f['name']} : {self.lean_type(f['type'])})"
                     for f in c.get("fields", []))
                 for c in d["ctors"])
-            dt_src += f"inductive {_ldt(d['name'])} where\n{ctor_lines}\n  deriving DecidableEq\n\n"
+            # a field read whose value is this datatype has a `default` arm when some constructor lacks the field, which
+            # needs Inhabited (measured on AlgoVeri's zig: `tree.left`); derived only then, so no other text changes
+            inh = (", Inhabited" if self._has(self.task, "field") and any(
+                f.get("type") == {"datatype": d["name"]} for dd in self.task.get("datatypes", [])
+                for c in dd["ctors"] for f in c.get("fields") or []) else "")
+            dt_src += f"inductive {_ldt(d['name'])} where\n{ctor_lines}\n  deriving DecidableEq{inh}\n\n"
         seq_src = self.emit_seq_helpers()
         seq_thms = []
         if self.seq_mut:
@@ -9912,6 +9961,8 @@ theorem t_str_join_split_roundtrip (s : List Int) (c : Int) :
 
     def _prove(self, e: dict, tenv: dict, venv: dict, types: dict) -> str:
         g = self._closer()
+        if ("forall" in e or "exists" in e) and "in" in (e.get("forall") or e.get("exists")):
+            return g   # a set range (SPEC.md "Quantifiers over a collection"): the closer's own decide/grind
         if "forall" in e:
             q = e["forall"]
             lo, hi = self._cev(q["lo"], venv), self._cev(q["hi"], venv)
@@ -10009,6 +10060,22 @@ theorem t_str_join_split_roundtrip (s : List Int) (c : Int) :
 
     def _refute(self, e: dict, tenv: dict, venv: dict, types: dict) -> str:
         g = self._closer()
+        if "forall" in e and "in" in e["forall"]:
+            # SPEC.md "Quantifiers over a collection": refuted at a member where the body fails, the hypothesis
+            # applied to it with one membership proof, which decide gives on a ground set
+            q = e["forall"]
+            coll = self._cev(q["in"], venv)
+            if isinstance(coll, (frozenset, tuple, list)):
+                for k in (sorted(coll) if isinstance(coll, frozenset) else coll):
+                    v2 = {**venv, q["var"]: k}
+                    if self._cev(q["body"], v2) is False:
+                        t2 = {**tenv, q["var"]: self._gterm(k, "int")}
+                        rb = self._refute(q["body"], t2, v2, {**types, q["var"]: "int"})
+                        h = self.fresh_hyp()
+                        return f"(intro {h}; exact absurd ({h} ({k} : Int) (by {g})) (by {rb}))"
+            return g
+        if "exists" in e and "in" in e["exists"]:
+            return g
         if "forall" in e:
             q = e["forall"]
             lo, hi = self._cev(q["lo"], venv), self._cev(q["hi"], venv)
@@ -11354,7 +11421,7 @@ def _uses_sets(obj) -> bool:
 def lower(task: dict, body: list, witness: dict | None = None) -> str:
     import tshape
     task, body = tshape.desugar_seq_quants(task, body)   # SPEC.md "Quantifiers over a collection": seq ranges as indices
-    tshape.abstain_unless_carried(task, body, "lean", carried={"comp-reduction", "comp"},
+    tshape.abstain_unless_carried(task, body, "lean", carried={"comp-reduction", "comp", "collection-quant"},
                                   lib=LEAN_LIB)   # PREDICT T9: the library; any/all over a comprehension
     if _set_of_compound(task) or _set_of_compound(body):
         raise NotImplementedError(
