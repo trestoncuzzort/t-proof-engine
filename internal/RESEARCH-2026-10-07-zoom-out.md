@@ -230,3 +230,64 @@ A D8 result worth publishing therefore needs two things:
 - the kernels' verdicts, not the ladder's.
 
 That is a lab-scale run, not a desktop one.
+
+## 8. Zoom out, 2026-10-07 18:30Z: after the heap, the audit and the container
+
+**Where the engine stands (measured, clean clones).**
+- Seven kernels over 114 tasks: 65 in all seven; every proved program's twin is refuted in six kernels.
+- The language has a heap (all seven), parallel loops, and IEEE doubles (SPARK, Frama-C).
+- The autonomy suite: 14 of 25 in all seven.
+- The specification audit (D8):
+  - 72 kernel-proved specification gaps across five public benchmarks;
+  - none in ACSL by Example or vericoding's Lean track;
+  - none left in t's own task suite.
+- The container builds on a fresh machine with all seven kernels.
+
+**What the landscape says now** (sections 2, 6 and 7, and this round's reading, receipts 0139ee2dd35d, ceb1bc69583b,
+dc2c168fbaca):
+1. **Measuring weak specs is crowded:**
+   - by mutants: MutDafny, SpecSyn, SWE-Proof's mutation-kill;
+   - by hand or LLM-as-judge: vericoding, LeetProof, Aristotle;
+   - by behavioural adequacy: Spec-Harness, POSTCONDBENCH, NL2Contract.
+
+   D8 already beats them where they stop: equivalent mutants are set aside by execution, and each survivor is
+   proved. But a better measurement is a small step.
+2. **Nobody repairs a spec with a proof.**
+   - SpecFuzzer and Daikon infer assertions that pass tests; nothing is verified.
+   - LLM contract inference (NL2Contract, SpecGen, AutoSpec) is checked by a verifier for consistency, never for
+     killing the wrong programs a weak spec lets through.
+   - The vericoding paper keeps weak specs deliberately, as "different tasks".
+
+   A repaired spec that is (a) proved for the real program in a kernel, (b) shown to kill every mutant the old one
+   let through, and (c) proved with whatever loop invariants it needs, does not exist in the landscape.
+3. **Competitors still lead on scale and shipping** (section 2, item 7):
+   - VERINA, CLEVER and VerusBench are not yet lifted;
+   - no competitor ships proved executable code from one source to several languages, and t has three executable
+     lowerings already (C through Frama-C, Ada through SPARK, Rust through Verus).
+
+**Decisions, in order (the programme after T60):**
+1. **R1, `t repair`: proved specification repair.**
+   - For each survivor the audit measures, candidate clauses come from a grammar over the task's own vocabulary:
+     - result-to-parameter equalities and disjunctions;
+     - membership in a sequence parameter;
+     - the converse of a subset-only postcondition, built from the spec's own predicates;
+     - length relations;
+     - extremal quantifier templates;
+     - equality to a spec function the task already defines.
+   - The interpreter keeps the clauses that hold for the real program on the whole domain, and a greedy cover picks
+     the fewest that kill every survivor.
+   - The repaired task is re-audited (zero survivors) and proved in the kernel.
+   - Where the old loop invariants cannot carry the stronger postcondition, R1b strengthens them from the same
+     grammar over the loop-head states the interpreter observes, each candidate kept only if it holds at every
+     observed state, the kernel then proving them.
+2. **R2:** apply R1 to the 72 benchmark gaps and publish the repairs as upstream-ready patches (filing stays the
+   operator's call).
+3. **R3:** lift VERINA and CLEVER (Lean) and VerusBench (Verus), and audit them, so D8 covers the benchmarks the agent
+   race is measured on.
+4. **R4, `t build`:** the executable lowerings as a library: proved C, Ada and Rust for a routine, each compiled and
+   checked against the interpreter on the domain. "Prove it everywhere it ships" becomes literal.
+5. **Kernel gaps named in reads:**
+   - Rocq's induction over changing parameters;
+   - Lean's structurally recursive tasks with `requires`;
+   - ring-buffer `mod` in Verus, Lean, Rocq and F*;
+   - Frama-C's frame fact for recursive logic functions.
