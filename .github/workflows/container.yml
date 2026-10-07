@@ -1,0 +1,38 @@
+name: container
+
+# NORTH-STAR.md target 5: the Dockerfile builds on a fresh machine with all seven kernels, and four tasks verify with
+# their twins refuted in every kernel. The image is built and checked here, not published.
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: [Dockerfile, .dockerignore, .github/workflows/container.yml]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    steps:
+      - name: check out the repository
+        uses: actions/checkout@v4
+
+      - name: make room for the kernels
+        # the image is several GB; the runner's preinstalled SDKs are not needed here
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+          df -h /
+
+      - name: build the image
+        run: docker build -t t-proof-engine .
+
+      - name: seven kernels, four tasks
+        run: |
+          start=$(date +%s)
+          docker run --rm -e T_MIN_KERNELS=7 --entrypoint sh t-proof-engine -c '
+            mkdir /tmp/smoke && cp t/tasks/abs.t t/tasks/gcd.t t/tasks/reverse.t t/tasks/swap_at.t /tmp/smoke/ &&
+            t verify /tmp/smoke --jobs 2 --flake 1 --table /tmp/smoke.md; rc=$?; cat /tmp/smoke.md; exit $rc'
+          echo "verify took $(( $(date +%s) - start )) s"
+          docker images t-proof-engine
