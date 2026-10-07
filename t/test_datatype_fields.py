@@ -16,7 +16,6 @@ import interp  # noqa: E402
 import lower_dafny  # noqa: E402
 import lower_framac  # noqa: E402
 import lower_lean  # noqa: E402
-import lower_spark  # noqa: E402
 import lower_verus  # noqa: E402
 import names  # noqa: E402
 import surface  # noqa: E402
@@ -173,10 +172,11 @@ def test_lean():
     ok("| _ => default" not in text(lower_lean, "color_code"), "v1's enumeration reads no field")
 
 
-def test_two_kernels_refuse_by_name():
-    # Rocq and F* lower datatypes since PREDICT T34 and T35 (test_rocq_datatypes.py, test_fstar_datatypes.py)
+def test_framac_refuses_by_name():
+    # Rocq, F* and SPARK lower datatypes since PREDICT T34, T35 and T36 (test_rocq_datatypes.py, test_fstar_datatypes.py,
+    # test_spark_datatypes.py)
     task = load("shape_area")
-    for mod in (lower_spark, lower_framac):
+    for mod in (lower_framac,):
         e = refusal(mod, task)
         ok("datatypes" in e and "SPEC.md" in e, f"{mod.__name__} refuses datatypes by name: {e[:80]}")
 

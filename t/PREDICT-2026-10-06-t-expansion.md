@@ -1807,3 +1807,42 @@ change):
 some_negative is in four: Dafny, Verus, Lean and F*.
 (3) bag_size and checked_tail abstain in F*, and AlgoVeri's discrete_log_naive reads timeout/refuted in F*. No other
 cell moves for this change.
+
+## T36 registered (2026-10-07 06:13Z, after hand probes and before the clean-clone run that follows clean26): datatypes in SPARK
+
+SPARK refused every datatype. Receipt f33fe37e88f8: learn.adacore.com, "More about records", on variant records.
+SPEC.md "Datatypes" v1, v2 and v3 carry the SPARK notes.
+
+**Design.**
+- **Types.** A t datatype is an Ada discriminated record. The discriminant is an enumeration of the constructors,
+  `Dt_<D>_Tag`, with a default, so the type is definite. A constructor's field is the component `F_<C>_<f>`, since
+  Ada forbids one component name twice in a record.
+- **Field reads.** A read is the component selection, and its discriminant check, which gnatprove proves, is the
+  read's definedness. A field several constructors declare is a function over the tag, whose `Pre` names them.
+- **Expressions.** `case` is an Ada case expression on the tag, `==` the record's predefined equality, and a
+  constructor a qualified aggregate.
+- **Certificates.** A certificate binds a datatype parameter by name in a declare expression. A static aggregate
+  selected under another variant's alternative is a compile-time error (measured: shape_area's twin read MALFORMED).
+- **Definedness formula.** `defined()` states a field read's and a match's obligations as a t match.
+  some_negative's crash (KeyError) is fixed by this.
+- **Refused by name:** a recursive datatype (an Ada record cannot hold itself without access types), and a seq, set
+  or pair field.
+
+**Measured before this registration, stated plainly.**
+- **SPARK, `cli verify`:**
+  - color_code, shape_area, manhattan, rect_area and some_negative COUNT.
+  - The five recursive tree tasks, bag_size and checked_tail refuse by name.
+  - AlgoVeri's discrete_log_naive COUNTS.
+- **Byte identity:** of the 104 tasks and 27 AlgoVeri programs, exactly 26 lowerings change:
+  - the SPARK real and twin of the 12 datatype tasks (seven of them only in their refusal text);
+  - discrete_log_naive's SPARK pair.
+- **Suite:** the whole suite passes (728). The fields refusal test now pins Frama-C alone; the recursion test accepts
+  SPARK's refusal by name.
+
+**Bars**, for the clean-clone matrix and AlgoVeri table that follow clean26 (which runs at 1da07b8, without T35 or
+this change). The same run reads T35:
+(1) The five read verified/refuted in SPARK; SPARK gains 5.
+(2) color_code, shape_area, manhattan and rect_area are then verified/refuted in six kernels, all but Frama-C.
+some_negative is in five: all but Rocq and Frama-C.
+(3) AlgoVeri's discrete_log_naive reads verified/refuted in SPARK (AlgoVeri SPARK 3 to 4). No other cell moves for
+this change.

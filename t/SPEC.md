@@ -1526,7 +1526,10 @@ a proof first destructs each matched variable and each decided equality
 2026-10-07 (PREDICT T35): F*'s own inductive type, `dt_<D>` the type (an F*
 type name begins in lower case) and `Dt_<D>_<C>` a constructor; an eqtype,
 so `==` is `=` in a bool and `==` in a Prop; `case` is F*'s `match`, whose
-exhaustiveness F* checks. The
+exhaustiveness F* checks. SPARK since 2026-10-07 (PREDICT T36): an Ada
+discriminated record whose discriminant (with a default, so the type is
+definite) is an enumeration of the constructors, `Dt_<D>_Tag`; `case` is an
+Ada case expression on the tag and `==` the record's predefined equality. The
 lifter's own mapping (source-side admission of Dafny `datatype`/`match`
 into this shape) is LIFTER-DECISIONS.md row 53, which this landing leaves
 open: `lift_classify`/`lift_parse` still refuse every method and file the
@@ -1617,7 +1620,11 @@ mutation site, so every existing rung reaches it. `swap-ctor` is unchanged.
 
 In all three, the certificate reads a datatype witness back through the parser, and a value witness may be a
 datatype. A field or a match binder named like a kernel's keyword is renamed with its uses (`names.py`), as every
-other identifier is. SPARK and Frama-C refuse every datatype by name, as in v1. F* since 2026-10-07 (PREDICT T35):
+other identifier is. Frama-C refuses every datatype by name, as in v1. SPARK since 2026-10-07 (PREDICT T36): a
+field is the component `F_<C>_<f>` of its constructor's variant (Ada forbids a component name twice in one record),
+and `e.f` is the component selection, whose discriminant check gnatprove proves: that check is the read's
+definedness; a field several constructors declare is a function over the tag whose `Pre` names them. A certificate
+binds a datatype parameter by name in a declare expression. F* since 2026-10-07 (PREDICT T35):
 a field is the constructor's argument `f_<f>`, of type int, bool or a datatype, and `e.f` is a function whose argument
 is refined to the constructors that declare `f`, so F* proves the read's definedness itself wherever the field is
 read. Rocq since 2026-10-07 (PREDICT T34): a field is the constructor's argument, of type int, bool or a datatype (a seq, set or pair field refuses by
@@ -1710,7 +1717,8 @@ The kernels check this, each by its own order. The interpreter's opt-in measure 
     with the function equations.
   - A measure that is not a parameter, and a structurally recursive task with a `requires`, are refused by name.
 
-SPARK and Frama-C refuse every datatype by name, as in v1. F* since 2026-10-07 (PREDICT T35): recursion on a
+Frama-C refuses every datatype by name, as in v1, and SPARK a recursive one: an Ada record cannot hold itself
+without access types, which that lowering does not build. F* since 2026-10-07 (PREDICT T35): recursion on a
 datatype parameter is `(decreases q)`, F*'s subterm ordering, and the contract is the SMT proof F* already runs; a loop
 over a datatype state is proved too (some_negative). Rocq since 2026-10-07 (PREDICT T34): a spec fun or a
 task whose measure is a datatype parameter is Rocq's own structural `Fixpoint`, whose guard checker is the

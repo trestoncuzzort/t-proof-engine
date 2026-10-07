@@ -202,7 +202,7 @@ def test_two_kernels_refuse_by_name():
             mod.lower(task, task["body"])
             ok(False, f"{mod.__name__} refuses")
         except NotImplementedError as e:
-            ok("datatypes" in str(e), f"{mod.__name__} refuses datatypes by name")
+            ok("datatype" in str(e), f"{mod.__name__} refuses datatypes by name")   # SPARK: a recursive datatype, T36
 
 
 if __name__ == "__main__":
