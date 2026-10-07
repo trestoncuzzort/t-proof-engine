@@ -2129,9 +2129,21 @@ vacuous), and in code as small C helper functions whose loops mirror the
 logic recursion one step per iteration, each proved once against its own
 contract; membership in a seq as the existential over indices, with
 `t_memb_c` in code; `sum` of a display as its definitional unfolding. No
-ACSL axiom is emitted. Not yet in Frama-C: `rev` and `sort` (a sequence
-value built in code), any/all, `toset`, a sum over a concatenation. The
-writer's side:
+ACSL axiom is emitted. Frama-C since 2026-10-07 (PREDICT T31): `rev` in a
+specification as the element rewrite `rev(s)[k] == s[len(s) - 1 - k]`, and
+in code as a write loop into a buffer: the return's, or a seq local's own.
+A seq local whose initializer the lowering can write (a copy, `seq(n, v)`,
+`s[i := v]`, a literal, `rev` of a variable, a map) and whose length is a
+function of the params gets a workspace buffer, the contract a method
+call's local already had: a caller-provided `int *u, int u_n`, `\valid`,
+separated from every other buffer, `requires u_n == <length>`, in the
+`assigns` (ACSL by Example's `reverse_copy` states the same contract for its
+destination). It is written once, outside any loop; every other seq local
+keeps the refusal by name. The refutation certificate replays such a local
+cell by cell at the witness, each ground length and index asserted as a
+goal first, and decides a seq equality assigned to a bool the way it decides
+a branch. Not yet in Frama-C: `sort`, any/all, `toset`, a sum over a
+concatenation. The writer's side:
 `to_python.py` hands back `min`, `max`, `abs`, `sum`, `math.gcd`, `a **
 n`, `math.isqrt`, `x in s` and `s[::-1]`.
 

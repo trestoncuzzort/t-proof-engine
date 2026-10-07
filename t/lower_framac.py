@@ -3935,6 +3935,8 @@ def _seq_len_render(e: dict, ctx) -> str:
         # element count, formula substitution exactly like `slice`'s case
         # below, never a materialized buffer.
         return str(len(e.get("args", ())))
+    if e.get("op") == "rev":
+        return _seq_len_render(e["args"][0], ctx)       # PREDICT T20: rev keeps the length
     if e.get("op") == "slice":
         _, lo, hi = e["args"]
         return f"(({term(hi, ctx)}) - ({term(lo, ctx)}))"
@@ -4017,6 +4019,11 @@ def _seq_at_render(e: dict, k_render: str, ctx) -> str:
     if e.get("op") == "slice":
         s, lo, _ = e["args"]
         return f"{seq_var(s, ctx.env)}[({term(lo, ctx)}) + ({k_render})]"
+    if e.get("op") == "rev":
+        # SPEC.md "The library (v1)" in Frama-C (PREDICT T20): element k of rev(s) is element len(s) - 1 - k of s,
+        # a formula rewrite like the slice's
+        s0 = e["args"][0]
+        return _seq_at_render(s0, f"(({_seq_len_render(s0, ctx)}) - 1 - ({k_render}))", ctx)
     if e.get("op") == "+":
         # Concatenation (framac track, 2026-09-26): element `k` of `a + b`
         # is `a[k]` below `len(a)` and `b[k - len(a)]` from there on, the
@@ -5651,6 +5658,8 @@ def _expr_seq_len(e: dict, lens: dict) -> dict | None:
     which costs nothing extra to support correctly."""
     if "var" in e:
         return lens.get(e["var"])
+    if e.get("op") == "rev":
+        return _expr_seq_len(e["args"][0], lens)          # PREDICT T20: rev keeps the length
     if "comp" in e and e["comp"].get("cond") == {"bool": True}:
         # SPEC.md "Comprehensions (v1)" (PREDICT T19): a map has its source's length, over a range `[lo, hi)` the
         # count `hi - lo` (the write loop asserts it equal to the buffer's length; a negative one cannot be)
@@ -6221,6 +6230,15 @@ def seq_assign_lines(target: str, e: dict, ctx: Ctx, indent: str,
             f"{target}[__k] = {src}[{idx_k}];",
         ]
 
+    if e.get("op") == "rev" and "var" in e["args"][0]:
+        # SPEC.md "The library (v1)" in Frama-C (PREDICT T20): `target := rev(s)` is the map
+        # `[s[len(s) - 1 - i] for i in [0, len(s))]` (SPEC.md's definition of rev, element by element), so it is
+        # T19's write loop with that body; the bound name t_rv is reserved (t's own names never begin with t_)
+        s0 = e["args"][0]
+        n0 = {"op": "len", "args": [s0]}
+        e = {"comp": {"var": "t_rv", "lo": {"int": 0}, "hi": n0, "cond": {"bool": True},
+                      "body": {"op": "at", "args": [s0, {"op": "-", "args": [
+                          {"op": "-", "args": [n0, {"int": 1}]}, {"var": "t_rv"}]}]}}}
     if "comp" in e:
         # SPEC.md "Comprehensions (v1)" in Frama-C (PREDICT T19): a map is a write loop, the copy loop above with
         # the body's value in place of the source's element
@@ -7277,6 +7295,58 @@ def _method_scratch(task: dict, body: list, funs: dict, used: set) -> list:
     return scratch
 
 
+# SEQ LOCALS AS WORKSPACE (PREDICT T31, 2026-10-07). A seq-typed local `var w: seq := e` whose initializer this
+# lowering can already write into a buffer (`seq_assign_lines`: a copy, `fill`, `update` of a variable, a literal,
+# `rev` of a variable, a map) and whose length is a function of the params alone (`_expr_seq_len`) gets the method
+# call's workspace: a caller-provided buffer `int *w, int w_n`, `\valid`, separated from every other buffer, sized by
+# `requires w_n == E` and listed in the `assigns` -- the contract ACSL by Example's reverse_copy states for its
+# destination. Written once, outside any loop; any other shape keeps `stmts()`'s refusal by name. `_LOCAL_WS` holds
+# the names while `stmts()` renders the body (scoped and restored by `lower()`, as `_EXEC_SEQ_LEN` is).
+_LOCAL_WS: set = set()
+_LOCAL_WS_OPS = frozenset({"fill", "update", "seq", "rev"})
+
+
+def _local_ws_init(e: dict, env: dict) -> bool:
+    if "var" in e:
+        return env.get(e["var"]) == "seq"
+    if "comp" in e:
+        return e["comp"].get("cond") == {"bool": True}
+    if e.get("op") not in _LOCAL_WS_OPS:
+        return False
+    if e["op"] in ("update", "rev"):
+        return "var" in e["args"][0] and env.get(e["args"][0]["var"]) == "seq"
+    return True
+
+
+def _local_scratch(task: dict, body: list, env: dict, funs: dict, used: set, taken: set) -> list:
+    """The workspace buffers for seq locals (see the note above), as `_method_scratch` gives them."""
+    params = {p["name"] for p in task["params"]}
+    lens = {p["name"]: {"op": "len", "args": [{"var": p["name"]}]} for p in task["params"] if p["type"] == "seq"}
+    written = set(assigned_names(body)[0])
+    env2 = dict(env)
+    out: list = []
+
+    def walk(stmts_, in_loop):
+        for s in stmts_:
+            if "var" in s:
+                v = s["var"]
+                if (v["type"] == "seq" and not in_loop and v["name"] not in written and v["name"] not in taken
+                        and f"{v['name']}_n" not in used and not _is_method_call(v["init"], funs)
+                        and _slice_alias_base(v["init"], env2) is None and _local_ws_init(v["init"], env2)):
+                    n = _expr_seq_len(v["init"], lens)
+                    if n is not None and _t_vars(n, set()) <= params:
+                        out.append((v["name"], n))
+                        lens[v["name"]] = n
+                env2[v["name"]] = v["type"]
+            elif "if" in s:
+                walk(s["if"]["then"], in_loop)
+                walk(s["if"]["else"], in_loop)
+            elif "while" in s:
+                walk(s["while"]["body"], True)
+    walk(body, False)
+    return out
+
+
 # SPEC.md "Lemmas (v1)". Each lemma is a ghost C function with an ACSL
 # contract (ACSL reference manual, "Ghost functions", and the "lemma
 # function" idiom of ACSL by Example: a ghost function whose contract is
@@ -7586,6 +7656,12 @@ def stmts(body: list, ctx: Ctx, task_name: str, indent: str,
                                           task_name,
                                           declare=v["type"] != "seq")
                 ctx = ctx.bind(v["name"], v["type"])
+                continue
+            if v["type"] == "seq" and v["name"] in _LOCAL_WS:
+                # PREDICT T31: a workspace buffer `lower()` added to the function's own parameters (`_local_scratch`),
+                # written here exactly as an assignment to a seq name is
+                out += seq_assign_lines(v["name"], v["init"], ctx, indent, ctx.funs, task_name)
+                ctx = ctx.bind(v["name"], "seq")
                 continue
             if v["type"] == "seq":
                 slice_alias = _slice_alias_base(v["init"], ctx.env)
@@ -8715,6 +8791,8 @@ def _cev(e: dict, st: dict):
         if n < 0:
             raise _CertSkip("undefined fill in replay")
         return [v] * n
+    if op == "rev":
+        return list(_cev(args[0], st))[::-1]          # PREDICT T31: SPEC.md's rev
     if op == "pair":
         # SPEC.md "Pairs" (2026-09-10): a pair value, defined iff both
         # components are (both already evaluated above by the time this
@@ -9072,6 +9150,68 @@ def _cert_method_call(target: str, e: dict, ctx: Ctx, st: dict, name: str,
     st[target] = st2[rv]
 
 
+def _cert_seq_cells(e: dict, ctx: Ctx, st: dict, name: str, out: list, ind: str) -> tuple:
+    """PREDICT T31: a seq local's ground value and, cell by cell, the C rvalue the replay stores there -- SPEC.md's
+    definition of each initializer element by element at ground indices (a copy, `rev`, `fill`, `update`, a literal,
+    a map), each ground fact it leans on (a length, an index) asserted first as a kernel goal."""
+    if "var" in e:
+        src = seq_var(e, ctx.env)
+        vals = list(_cev(e, st))
+        out.append(f"{ind}/*@ assert {src}_n == {len(vals)}; */")
+        return vals, [f"{src}[{k}]" for k in range(len(vals))]
+    if "comp" in e:
+        import lower_verus
+        c = e["comp"]
+        if c.get("cond") != {"bool": True}:
+            raise _CertSkip("a filtered comprehension in the replay")
+        if "seq" in c:
+            n = len(_cev(c["seq"], st))
+            src = seq_var(c["seq"], ctx.env)
+            out.append(f"{ind}/*@ assert {src}_n == {n}; */")
+            elems = [{"op": "at", "args": [c["seq"], {"int": k}]} for k in range(n)]
+        else:
+            lo, hi = _cev(c["lo"], st), _cev(c["hi"], st)
+            out.append(f"{ind}/*@ assert ({term(c['lo'], ctx)}) == {_int_lit(lo)}; */")
+            out.append(f"{ind}/*@ assert ({term(c['hi'], ctx)}) == {_int_lit(hi)}; */")
+            elems = [{"int": lo + k} for k in range(max(hi - lo, 0))]
+        vals, cells = [], []
+        for el in elems:
+            b = lower_verus.subst(c["body"], {c["var"]: el})
+            out.extend(at_asserts(b, ctx, ind))
+            vals.append(_cev(b, st))
+            cells.append(_cert_cexpr(b, ctx, st, ctx.funs, name, out, ind))
+        return vals, cells
+    op, args = e.get("op"), e.get("args", [])
+    if op == "rev" and "var" in args[0]:
+        src = seq_var(args[0], ctx.env)
+        vals = list(_cev(args[0], st))
+        n = len(vals)
+        out.append(f"{ind}/*@ assert {src}_n == {n}; */")
+        return vals[::-1], [f"{src}[{n - 1 - k}]" for k in range(n)]
+    if op == "seq":
+        out.extend(at_asserts(e, ctx, ind))
+        return ([_cev(a, st) for a in args],
+                [_cert_cexpr(a, ctx, st, ctx.funs, name, out, ind) for a in args])
+    if op == "fill":
+        out.extend(at_asserts(e, ctx, ind))
+        n = _cev(args[0], st)
+        if n < 0:
+            raise _CertSkip("undefined fill in replay")
+        out.append(f"{ind}/*@ assert ({term(args[0], ctx)}) == {_int_lit(n)}; */")
+        c = _cert_cexpr(args[1], ctx, st, ctx.funs, name, out, ind)
+        return [_cev(args[1], st)] * n, [c] * n
+    if op == "update" and "var" in args[0]:
+        out.extend(at_asserts(e, ctx, ind))
+        src = seq_var(args[0], ctx.env)
+        vals = list(_cev(e, st))
+        i = _cev(args[1], st)
+        out.append(f"{ind}/*@ assert {src}_n == {len(vals)}; */")
+        out.append(f"{ind}/*@ assert ({term(args[1], ctx)}) == {_int_lit(i)}; */")
+        c = _cert_cexpr(args[2], ctx, st, ctx.funs, name, out, ind)
+        return vals, [c if k == i else f"{src}[{k}]" for k in range(len(vals))]
+    raise _CertSkip("no cell-by-cell replay for this seq local's initializer")
+
+
 def _cert_stmts(body: list, ctx: Ctx, st: dict, name: str,
                 out: list, count: list) -> tuple:
     """Branch-free replay of `body` at state `st`: straight-line C plus one
@@ -9100,6 +9240,30 @@ def _cert_stmts(body: list, ctx: Ctx, st: dict, name: str,
             v = s["var"]
             ctx = ctx.bind(v["name"], v["type"])
             _cert_method_call(v["name"], v["init"], ctx, st, name, out, count)
+        elif "var" in s and s["var"]["type"] == "seq":
+            # PREDICT T31: a seq local is a fresh ground array, written cell by cell (`_cert_seq_cells`)
+            v = s["var"]
+            if v["name"] in st:
+                raise _CertSkip(f"seq local {v['name']} declared twice in the replay")
+            vals, cells = _cert_seq_cells(v["init"], ctx, st, name, out, ind)
+            out.append(f"{ind}int t_cert_{v['name']}[{max(len(vals), 1)}];")
+            out.append(f"{ind}int *{v['name']} = t_cert_{v['name']};")
+            out.append(f"{ind}int {v['name']}_n = {len(vals)};")
+            out += [f"{ind}{v['name']}[{k}] = {c};" for k, c in enumerate(cells)]
+            ctx = ctx.bind(v["name"], "seq")
+            st[v["name"]] = vals
+        elif "assign" in s and _contains_seq_eq(s["assign"][1], ctx):
+            # PREDICT T31: a bool built from a seq equality has no C value (`cexpr` refuses it); at ground values its
+            # truth is decided here and asserted as a kernel goal, the way an `if` decision is
+            n, e = s["assign"]
+            if typ(e, ctx.env, ctx.funs) != "bool":
+                raise _CertSkip("a seq equality inside a non-bool expression in the replay")
+            out += at_asserts(e, ctx, ind)
+            val = _cev(e, st)
+            g = pred(e, ctx)
+            out.append(f"{ind}/*@ assert {g if val else f'(!{g})'}; */")
+            out.append(f"{ind}{n} = {1 if val else 0};")
+            st[n] = val
         elif "assign" in s:
             n, e = s["assign"]
             out += at_asserts(e, ctx, ind)
@@ -9415,7 +9579,8 @@ def _value_certificate(task: dict, twin_body: list, w: dict,
             st[ret] = r_vals
         else:
             _, dec = assigned_names(twin_body)
-            names = [ret] + [d for d in dec if d != ret]
+            seq_locals = _seq_local_names(twin_body)             # PREDICT T31: declared where the replay writes them
+            names = [ret] + [d for d in dec if d != ret and d not in seq_locals]
             if len(set(dec)) != len(dec) or set(dec) & set(st):
                 return None            # flattening scopes would collide
             decls += [f"  {'struct ' + struct_name if is_pair and n == ret else 'int'}"
@@ -9526,6 +9691,19 @@ def _value_certificate(task: dict, twin_body: list, w: dict,
              f"  /*@ assert {CERT_GOAL}: !({' && '.join(pieces)}); */",
              "  return;", "}", ""]
     return "\n".join(lines)
+
+
+def _seq_local_names(body: list) -> set:
+    """The seq-typed locals `body` declares (not by a method call), anywhere in it."""
+    out: set = set()
+    for s in body:
+        if "var" in s and s["var"]["type"] == "seq" and not ("call" in s["var"]["init"]):
+            out.add(s["var"]["name"])
+        elif "if" in s:
+            out |= _seq_local_names(s["if"]["then"]) | _seq_local_names(s["if"]["else"])
+        elif "while" in s:
+            out |= _seq_local_names(s["while"]["body"])
+    return out
 
 
 def _call_nodes(e) -> list:
@@ -10806,6 +10984,8 @@ def lower(task: dict, body: list, witness: dict | None = None,
     # every clause below byte-identical, for a body with no such call.
     scratch = (_method_scratch(task, body, funs, used)
                if task.get("methods") else [])
+    local_ws = _local_scratch(task, body, env, funs, used, {w for w, _ in scratch})   # PREDICT T31
+    scratch += local_ws
 
     # PAIRS (SPEC.md "Pairs", 2026-09-10): a pair-typed RETURN's struct
     # type must be declared before anything in the file uses it (the
@@ -11293,6 +11473,9 @@ def lower(task: dict, body: list, witness: dict | None = None,
         prev_len = dict(_EXEC_SEQ_LEN)
         _EXEC_SEQ_LEN.clear()
         _EXEC_SEQ_LEN.update(body_seq_len)
+        prev_ws = set(_LOCAL_WS)
+        _LOCAL_WS.clear()
+        _LOCAL_WS.update(w for w, _ in local_ws)
         try:
             body_lines = stmts(body, Ctx(env, funs, ret=None, label="Here",
                                          seq_len=body_seq_len),
@@ -11300,6 +11483,8 @@ def lower(task: dict, body: list, witness: dict | None = None,
         finally:
             _EXEC_SEQ_LEN.clear()
             _EXEC_SEQ_LEN.update(prev_len)
+            _LOCAL_WS.clear()
+            _LOCAL_WS.update(prev_ws)
     # `certificate` reads the witness `w` against this SAME renamed
     # task/body/env/funs/used, `w`'s own keys already renamed to match
     # (`t_names.remap_witness`, above) -- see that function's own

@@ -1558,3 +1558,47 @@ Lean refused a quantifier over a set's members. On T29's tree sets it now states
 (2) AlgoVeri zig, zig_zag and zig_zig read unproved with the twin refuted in Lean, where they abstained. search and
 insert abstain.
 (3) No other cell moves against T28's and T29's tables.
+
+## T31 registered (2026-10-07 05:08Z, after hand probes and before the clean-clone runs): seq locals in Frama-C
+
+Frama-C refused every seq local except a slice alias, and `rev` everywhere. palindrome was one of four tasks Frama-C
+alone kept out of all seven. Frama-C now gives such a local the workspace a method call's local already had: SPEC.md
+"The library (v1)", the Frama-C note of 2026-10-07. Receipt 74ec03028a6f: ACSL by Example's reverse_copy, whose
+contract for its destination buffer is the one emitted here.
+- **`rev`** (the shelved T20 patch): in a specification, the element rewrite `rev(s)[k] == s[len(s) - 1 - k]`; in
+  code, T19's write loop.
+- **The workspace** (`_local_scratch`). A seq local qualifies when:
+  - its initializer can be written: a copy, `seq(n, v)`, `s[i := v]`, a literal, `rev` of a variable, or a map;
+  - its length is a function of the params;
+  - it is written once, outside any loop.
+
+  It becomes a caller-provided `int *u, int u_n`: `\valid`, separated from every other buffer,
+  `requires u_n == <length>`, and in the `assigns`. Every other seq local keeps the refusal by name.
+- **The certificate** (`_cert_seq_cells`). It replays such a local cell by cell at the witness, and asserts each
+  ground length and index as a goal first. A seq equality assigned to a bool is decided the way a branch is.
+- **Three tasks:**
+  - `rev_equal`: `r == (b == rev(a))` through a local `rev(a)`;
+  - `doubled_head`: a map into a local;
+  - `set_first`: an update into a local.
+
+**Measured before this registration, stated plainly.**
+- **Frama-C, `cli verify`:** palindrome COUNTS. Six probes of a seq local (a copy, a fill, an update, a literal, a
+  map, and `rev` compared to a parameter) read verified with the twin refuted.
+- **All seven, `cli verify`:**
+  - palindrome and set_first read verified/refuted in every kernel.
+  - rev_equal is verified/refuted in six kernels; Rocq's real is unproved.
+  - doubled_head is verified/refuted in six kernels; Lean's real is unproved.
+- **A named gap outside this registration's tasks.** The rev probe with `requires len(s) == len(t2)` drew the witness
+  `s=[0], t2=[1]`. There, Dafny's and F*'s twins read unproved: refuting needs `[1] != rev([0])`. Rocq's real read
+  unproved there too. rev_equal's witness is `a=[], b=[0]`, decided by length alone.
+- **Byte identity:** of the 101 tasks and 27 AlgoVeri programs, exactly two lowerings change: Frama-C's real and twin
+  of palindrome, both from a refusal to a lowering.
+- **Suite:** the whole suite passes (713). `test_framac_lib`'s "palindrome refuses rev" became "rev is lowered", as
+  this registration intends.
+
+**Bars**, for the clean-clone matrix of 104 that follows T30's registration. The same run reads T30, whose cells are
+disjoint from these:
+(1) palindrome reads verified with the twin refuted in Frama-C, so all seven reach 50 of the 101.
+(2) set_first reads verified/refuted in all seven. rev_equal reads the same in six, with Rocq's real unproved.
+doubled_head reads the same in six, with Lean's real unproved.
+(3) No other cell moves against T29's and T30's tables. Frama-C gains 4 (palindrome and the three).
