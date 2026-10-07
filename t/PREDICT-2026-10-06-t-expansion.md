@@ -1240,7 +1240,7 @@ Z3).
 **Still open.** Verus and F* run on Z3 alone. Lean's cells have no independent re-check here (lean4checker is not
 installed). Rocq's are re-checked by `coqchk`.
 
-## T23 registered (2026-10-07 02:33Z, after hand probes and before the clean-clone matrix): datatypes with fields in Dafny, Verus and Lean (G9, first wave)
+## T23 registered (2026-10-07 02:32Z, after hand probes and before the clean-clone matrix): datatypes with fields in Dafny, Verus and Lean (G9, first wave)
 
 SPEC.md "Datatypes (v2): fields". Constructors carry int, bool or seq fields, which gives records and non-recursive
 sums: `D.C(a, ...)`, `case` arms binding fields, `e.f`. Six tasks are added, making 94:
@@ -1256,7 +1256,7 @@ Receipts: f28afa1d8db8 (Dafny), 2d503d12f07a (Verus), 134d11c182fc (Lean).
 **Measured before this registration, stated plainly.**
 - **Hand probes:** all six COUNT in Dafny, Verus and Lean on scratch runs (18 cells). `bag_size` was measured with
   its bool field named `open`, renamed `active` since, so that no committed task needs a keyword rename (`test_names`);
-  its re-run under the committed name (02:35Z) COUNTS in all three.
+  its re-run under the committed name (finished 02:32Z) COUNTS in all three.
 - **Defects the probes found and fixed:**
   - a witness showed a bool field as Python's `False`, which the parser cannot read back;
   - Verus read the datatype declarations before renaming a keyword-named field;
