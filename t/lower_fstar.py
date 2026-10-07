@@ -2516,10 +2516,11 @@ class Ctx:
         if c["body"] == {"var": v}:
             ens.append(f"(forall (t_i:nat).{{:pattern (Seq.index t_r t_i)}} t_i < Seq.length t_r ==> "
                        f"{self.prop(c['cond'], {v: '(Seq.index t_r t_i)'}, local2)})")
+        ens_txt = " /\\ ".join(ens)                     # no backslash inside an f-string's braces (Python < 3.12)
         return (f"{head}\n"
                 f"  : Pure (Seq.seq int)\n"
                 f"    (requires ({req}))\n"
-                f"    (ensures (fun t_r -> {' /\\ '.join(ens)}))\n"
+                f"    (ensures (fun t_r -> {ens_txt}))\n"
                 f"    (decreases {dec})\n"
                 f"= if {stop} then Seq.empty\n"
                 f"  else let t_p = t_comp{k} {'t_s' if is_seq else 't_a'} (t_n - 1){fv_args} in\n"
