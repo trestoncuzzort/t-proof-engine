@@ -10,6 +10,9 @@ Either build the container, which pins every kernel by sha256 at the versions th
     docker build -t t-proof-engine .
     alias t='docker run --rm -v "$PWD:/work" -w /work t-proof-engine'
 
+The build takes about 25 minutes and the image is 10 GB. CI builds it on a fresh runner and checks four tasks
+verified, with their twins refuted, in all seven kernels (`.github/workflows/container.yml`).
+
 or install them natively ([t/RUN-ON-LINUX.md](t/RUN-ON-LINUX.md), [t/RUN-ON-MACOS.md](t/RUN-ON-MACOS.md)) and use:
 
     alias t='python3 t/cli.py'
