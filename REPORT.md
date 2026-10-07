@@ -67,7 +67,7 @@ invariants, early exits, recursion, methods and lemmas. Since 2026-10-07 it also
 
 ## 4. Results
 
-**The matrix** (114 tasks; `t/AGREEMENT.md`, clean clone at 156d798):
+**The matrix** (114 tasks; `t/AGREEMENT.md`, clean clone at f4d5570):
 
 | kernel | proved, twin refuted | carried, not proved | refused by name |
 |---|---|---|---|
@@ -76,8 +76,8 @@ invariants, early exits, recursion, methods and lemmas. Since 2026-10-07 it also
 | Lean 4 | 89 | 4 | 21 |
 | Rocq | 84 | 2 | 28 |
 | F\* | 84 | 4 | 26 |
-| SPARK | 78 | 6 | 30 |
-| Frama-C | 68 | 4 | 42 |
+| SPARK | 79 | 5 | 30 |
+| Frama-C | 70 | 2 | 42 |
 
 - 65 of the 114 tasks are proved with the twin refuted in **all seven**.
 - In six kernels every proved program's twin is refuted. The one exception is SPARK's relu_all, whose twin times
@@ -179,8 +179,11 @@ Each item below was found by a measured disagreement and fixed in a lowering, an
 - **Frama-C's** smoke test flags the dead code after a `while (1)` left only by `return`, so the rewrite drops it.
 - **Dafny's** array axioms trigger on `a[i]` and `a.Length`, not on the sequence view `a[..][i]`. In-place reverse
   timed out until elements were read on the array itself.
-- **Z3 under SPARK** does not find the monotonicity of rounding: a rate limiter's `r >= prev - step`, for
-  `r = prev + step`, times out. This is a measured limit, kept in the table.
+- **Float goals need a larger step budget, and one needs more than budget.** A rate limiter timed out at the
+  integer budget in SPARK and Frama-C and proves at ten times it; programs over doubles now get 100 times
+  (PREDICT T58). In Frama-C the per-goal wall then became the binding limit under load and was made a backstop
+  (T58b). The PI controller step, two rounded products and a sum, still times out at every budget, the non-linear
+  case the SPARK User's Guide names as a prover limitation.
 
 ## 6. Limitations
 

@@ -2630,3 +2630,11 @@ Suite passes.
 **Bars**, for the clean-clone tables at this registration's commit:
 (1) The matrix: Frama-C 70 (rate_limit, sat_scale); SPARK 79; every other cell unchanged; all seven 65.
 (2) `t/AUTONOMY.md` unchanged.
+
+### T58b read (2026-10-07 16:57Z): both bars held.
+
+Regenerated from a clean clone at f4d5570, and installed.
+(1) **Held:** Frama-C 70 (rate_limit and sat_scale verified/refuted); SPARK 79; every other cell unchanged; all
+seven 65.
+(2) **Held:** `t/AUTONOMY.md` unchanged. pid_step is the one float routine still a timeout in both kernels, and it is
+named so: two rounded products and a sum, the case the SPARK User's Guide calls a prover limitation, not a budget.

@@ -36,8 +36,8 @@ Measured from a clean clone of this repository on 2026-10-07 over the 114 commit
 | Lean 4 | 89 | 4 | 21 |
 | Rocq | 84 | 2 | 28 |
 | F\* | 84 | 4 | 26 |
-| SPARK | 78 | 6 | 30 |
-| Frama-C | 68 | 4 | 42 |
+| SPARK | 79 | 5 | 30 |
+| Frama-C | 70 | 2 | 42 |
 
 - In six kernels the twin of every proved program is refuted. SPARK's one exception is relu_all, whose twin times
   out.
