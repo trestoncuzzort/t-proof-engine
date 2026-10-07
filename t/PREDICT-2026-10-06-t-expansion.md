@@ -937,3 +937,35 @@ Verus, Rocq and F*, and in Lean for four of them. SPARK and Frama-C are the two 
 Neither falsifier fired. Each twin's certificate states the measured value of the twin's comprehension, and the
 quantifier patterns fired under the adapter's own run as they did in the probes.
 
+## T17 registered (2026-10-07 00:07Z, after hand probes and before the column runs): T13's SPARK and F* repairs
+
+T13's read named eight MALFORMED cells in SPARK and F*. Four repairs, each the smallest change that makes the cause
+go, are written. Each is measured byte-identical on the 88 committed tasks except where named.
+
+**SPARK** (4051116, receipt 43cfb88d4b64). A seq local carried into a loop function's precondition is compared by
+the qualified `Seqs."="`, so gnatprove no longer refuses the file. All 88 SPARK lowerings are identical.
+
+**F*, three repairs.**
+- A computational-position quantifier's helper no longer takes domain obligations that mention a nested
+  quantifier's variable, and its logical binder is fresh when the body already uses `j`. This fixes the out-of-scope
+  `j` (Error 72) in `binary_search` and `linear_search`.
+- `in` left F*'s set detector, as it left Lean's, Rocq's and Frama-C's. A task with seq membership is no longer put
+  in the Ghost effect, where its `Tot` spec functions could not call their helpers (Error 34). Of the 88, only
+  `has_elem`'s lowering changes, and it still verifies with its twin refuted (measured, one-file run).
+- A lemma's SMT pattern takes only calls over its own parameters, never a call under its ensures' quantifier.
+
+**Hand probes, stated plainly** (the adapter's Z3 version, seed and budget, real side):
+- verified: `binary_search`, `linear_search`;
+- compile, with proof obligations unproved (Error 19): `bubble_sort`, `insertion_sort`, `kmp`;
+- still Error 72, an index that is a function of the helper's own bound variable (`s[len(s) - 1 - i]`, which needs
+  an endpoint argument not written here): `longest_palindromic_substring`.
+
+The two SPARK files compile under gnatprove with unproved checks.
+
+**Bars.**
+(1) Of the eight cells, at most one stays MALFORMED (`longest_palindromic_substring` in F*).
+(2) **Prediction:** F* verifies `binary_search` and `linear_search` with the twin refuted. SPARK verifies neither of
+its two.
+(3) No F* cell over the 88 moves except, possibly, `has_elem`, and that one stays verified with the twin refuted. The
+whole F* column is re-run.
+
