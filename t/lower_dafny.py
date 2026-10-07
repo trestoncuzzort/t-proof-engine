@@ -1372,6 +1372,10 @@ def expr(e: dict, self_name: str | None = None) -> str:
         return "true" if e["bool"] else "false"
     if "var" in e:
         return e["var"]
+    if "_set" in e:
+        # a ground set a certificate's fact ladder states (a set-valued spec_fun at a witness, SPEC.md "Quantifiers
+        # over a collection"): Dafny's set display, its element type taken from the comparison it sits in
+        return "{" + ", ".join(str(x) for x in e["_set"]) + "}"
     if "comp" in e:
         return _comp_call(e, lambda x: expr(x, self_name))   # SPEC.md "Comprehensions (v1)" (2026-10-06)
     if e.get("op") in _HOF_OPS:

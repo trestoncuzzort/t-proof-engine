@@ -1651,6 +1651,12 @@ The kernels check this, each by its own order. The interpreter's opt-in measure 
 - **New wrong-var move:** a match arm's binder is read as another binder of the same field type (a tree's `l` for
   its `r`). It comes after every existing move, so no earlier task's twin changes. It is binders only: a
   parameter in a recursive call's place would not terminate.
+- **Labelled shapes (G12, PREDICT T27):** after the near corner, the ladder holds every shape of up to five recursive
+  constructors (`DT_SHAPE_NODES`, at most `DT_SHAPE_CAP = 80`). Each shape's int fields are labelled 0, 1, 2, ... in
+  order: the first subtree, then the node's ints, then the rest. A binary tree so labelled is a search tree with
+  distinct keys. A BST contract's `requires` asks for exactly that, and the near corner, mostly zeros, almost never
+  has it: measured, AlgoVeri's zig_zag had no input satisfying its requires until these were added. They are
+  appended, so no earlier task's witness changed.
 
 **Lowering status (2026-10-07).** Three of the seven kernels state the construct end to end.
 - **Dafny** declares the datatype natively. A self-call inside a `case` or `if` on an assignment's right-hand side
@@ -1672,6 +1678,20 @@ The kernels check this, each by its own order. The interpreter's opt-in measure 
   - A measure that is not a parameter, and a structurally recursive task with a `requires`, are refused by name.
 
 SPARK, Rocq, F* and Frama-C refuse every datatype by name, as in v1.
+
+**Certificates and obligations over trees (G12, PREDICT T27).** Measured on AlgoVeri's BST contracts, which
+recurse on trees and range over sets:
+- **Dafny's certificate** prints a ground set it states, the value of a set-valued spec fun at a witness, as a set
+  display.
+- **Verus's set certificate** is closed by the SMT arm. It now reveals each recursive spec fn the formula calls to
+  the witness's constructor depth plus two. For each constructor literal, it also asserts the membership facts of
+  every set-valued spec fn of one parameter of that datatype, computed by the interpreter and re-proved by the
+  kernel. Refuting `is_bst` at a ground tree needs an element to instantiate its quantifier at, and without these
+  the SMT arm has no term naming one.
+- **Verus's well-definedness lemmas** reveal a structurally recursive spec fn one level past the default, for the
+  clauses that read a field the earlier clauses establish through it.
+- **Not yet stated:** a clause like zig's `res.val`, defined because `view(res) == view(tree)` is non-empty. Dafny's
+  extensional set equality reaches it; Verus's `==` on sets does not, without a hint no lowering emits yet.
 
 **Byte identity.** Every lowering of the 94 committed tasks and the 22 AlgoVeri programs was compared before and
 after this landing: real and twin, all seven kernels, with the witness. All are byte-identical.

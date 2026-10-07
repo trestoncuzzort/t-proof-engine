@@ -26,9 +26,13 @@ The other 55 needed what t did not state on 2026-10-06, and some need more than 
 - heaps, classes or graphs: 23.
 
 Since datatypes carry fields (SPEC.md "Datatypes (v2): fields", 2026-10-07), `discrete_logarithm`, whose result is
-an `Option<int>`, is written here too, making 22 programs. Of the other 36 datatype contracts:
+an `Option<int>`, is written here too, making 22 programs. Since datatypes may be recursive ("Datatypes (v3):
+recursion") and quantifiers may range over a set ("Quantifiers over a collection"), five of the BST family are written
+as well, making 27: `bst_search`, `bst_insert`, `bst_zig`, `bst_zigzag`, `bst_zigzig`. Of the other 31 datatype
+contracts:
 - `linearsys_gf2` needs a quantifier over all sequences;
-- the rest need recursive datatypes (trees, tries, segment trees), set-valued helpers or graphs.
+- `bst_delete`, `splaytree_splay` and `lca` are the BST family's rest;
+- the others need tries, segment trees, ternary search trees, red-black trees or graphs.
 
 `internal/RESEARCH-2026-10-06-landscape.md` gives the counts.
 

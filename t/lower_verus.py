@@ -4635,6 +4635,11 @@ class _V1:
         # SPEC.md "Sorting (v1)" (2026-10-06): a clause that indexes a sort owes `0 <= i < len(sort(s))`, which
         # needs the sort's facts stated first (t_sort_spec), here as beside a statement
         pre = "".join(f"    t_sort_spec({expr(a)});\n" for a in _sort_args([obligation] + list(context)))
+        # SPEC.md "Datatypes (v3): recursion" (2026-10-07): a structurally recursive spec fn the obligation or its
+        # context calls is revealed one level past the default, so a clause can read a field the earlier clauses
+        # establish through it (BST zig: `res.val` is defined because view(res) == view(tree) is non-empty)
+        pre += "".join(f"    reveal_with_fuel({f}, 2);\n" for f in _structural_rec_funs()
+                       if _calls(obligation, f) or any(_calls(c, f) for c in context))
         self.wf.append(
             f"proof fn {lname}({ps})\n{req}"
             "{\n"
@@ -7173,6 +7178,64 @@ def _lib_blocks(task: dict, body: list) -> list:
     return [_VLIB[n] for n in _VLIB_ORDER if n in used]
 
 
+def _ctor_literals(e, out: list) -> list:
+    """Every constructor literal in an expression, inner ones too, each once."""
+    if isinstance(e, dict):
+        if "ctor" in e and e not in out:
+            out.append(e)
+        for v in e.values():
+            _ctor_literals(v, out)
+    elif isinstance(e, list):
+        for v in e:
+            _ctor_literals(v, out)
+    return out
+
+
+def _set_membership_facts(task: dict, formula: dict) -> str:
+    """SPEC.md "Datatypes (v3): recursion" with "Quantifiers over a collection" (2026-10-07): for each constructor
+    literal in a certificate and each set-valued spec fn of one parameter of its datatype, the set's elements as
+    asserted memberships, computed by the interpreter and re-proved by the kernel from the revealed definition.
+    Refuting a quantifier over such a set needs an element to instantiate it at, and the SMT arm has no term naming
+    one (measured on a BST insert twin: `is_bst` of a ground tree was not refuted until `view(c).contains(0)` was
+    stated)."""
+    lines = []
+    funs = interp.funs_of(task, task.get("body") or [])
+    for c in _ctor_literals(formula, []):
+        for name, f in sorted(_SCOPE_FUNS.items()):
+            ps = f.get("params", [])
+            if (f.get("result") != "set" or len(ps) != 1
+                    or ps[0]["type"] != {"datatype": c["ctor"]["dtype"]}):
+                continue
+            try:
+                val = interp.ev({"call": {"fun": name, "args": [c]}}, {}, funs, interp.St())
+            except Exception:                                 # noqa: BLE001  (no fact is better than a guessed one)
+                continue
+            lines += [f"    assert({name}({expr(c)}).contains({k}int));\n" for k in sorted(val)]
+    return "".join(lines)
+
+
+def _structural_rec_funs() -> list:
+    """The spec funs in scope that recurse on a datatype parameter (SPEC.md "Datatypes (v3): recursion")."""
+    out = []
+    for name, f in sorted(_SCOPE_FUNS.items()):
+        dec = f.get("decreases") or {}
+        ptypes = {p["name"]: p["type"] for p in f.get("params", [])}
+        if (_calls(f.get("body") or {}, name) and "var" in dec
+                and isinstance(ptypes.get(dec["var"]), dict) and "datatype" in ptypes[dec["var"]]):
+            out.append(name)
+    return out
+
+
+def _ctor_depth(e) -> int:
+    """The deepest nesting of constructor literals in an expression."""
+    if isinstance(e, dict):
+        inner = max([_ctor_depth(v) for v in e.values()] or [0])
+        return inner + 1 if "ctor" in e else inner
+    if isinstance(e, list):
+        return max([_ctor_depth(v) for v in e] or [0])
+    return 0
+
+
 def _certificate(task: dict, twin_body: list, w: dict) -> str | None:
     """The appended t_refutation_certificate block for a measured twin
     witness, or None when the witness is not expressible as a ground
@@ -7190,6 +7253,13 @@ def _certificate(task: dict, twin_body: list, w: dict) -> str | None:
     if _uses_sets(formula) or _sort_args(formula) or _uses_maps(formula):
         # a formula that sorts (SPEC.md "Sorting (v1)"): sort_by is not computed, its lemma is stated first
         pre = "".join(f"    t_sort_spec({expr(a)});\n" for a in _sort_args(formula))
+        # SPEC.md "Datatypes (v3): recursion" (2026-10-07): the SMT arm unfolds a recursive spec fn only to its
+        # default fuel, too shallow for a tree witness; each one the formula calls is revealed to the witness's
+        # constructor depth plus two (measured on a BST search twin: unproved at the default, accepted so)
+        rec = sorted(f for f, d in _SCOPE_FUNS.items() if _calls(d.get("body") or {}, f) and _calls(formula, f))
+        depth = _ctor_depth(formula) + 2
+        pre += "".join(f"    reveal_with_fuel({f}, {depth});\n" for f in rec)
+        pre += _set_membership_facts(task, formula)
         # SPEC.md "Finite sets" (2026-09-27): verus's interpreter does not
         # evaluate a set's cardinality (measured: `assert(set![1int, 2int,
         # 1int].len() == 2) by (compute_only)` fails with "failed to

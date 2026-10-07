@@ -1497,6 +1497,12 @@ def ladders(task: dict) -> dict:
                                    else lad[f"datatype:{f['type']['datatype']}"] if isinstance(f["type"], dict)
                                    else lad[f["type"]])[:DT_FIELD_NEAR]) for f in c["fields"]]
                     vals.extend(v for v in _ctor_values(d["name"], c["name"], cols) if v not in vals)
+            if rec:
+                # SPEC.md "Datatypes (v3): recursion": after the near corner, every shape of up to DT_SHAPE_NODES
+                # recursive constructors, its int fields labelled 0, 1, 2, ... in order (the first datatype field's
+                # subtree, the node's own ints, then the rest): a binary tree so labelled is a search tree with
+                # distinct keys, the input a BST contract's requires asks for and the near corner almost never has
+                vals.extend(v for v in _labelled_shapes(d, ctors, lad) if v not in vals)
             lad[f"datatype:{d['name']}"] = tuple(vals)
     return lad
 
@@ -1504,6 +1510,91 @@ def ladders(task: dict) -> dict:
 DT_FIELD_NEAR = 3        # values per field drawn from its own ladder (SPEC.md "Datatypes (v2): fields")
 DT_CTOR_CAP = 12         # values per constructor with fields, the near corner first
 DT_DEPTH = 2             # rounds of a recursive constructor over the values so far (SPEC.md "Datatypes (v3)")
+
+
+DT_SHAPE_NODES = 5       # the labelled shapes' size bound, in recursive constructors (SPEC.md "Datatypes (v3)")
+DT_SHAPE_CAP = 80        # labelled shapes per datatype, smallest first
+
+
+def _labelled_shapes(d: dict, ctors: list, lad: dict) -> list:
+    """Every shape of up to DT_SHAPE_NODES recursive constructors over the first base constructor, int fields
+    labelled in order (see the ladder's note), other non-datatype fields at their ladder's first value; at most
+    DT_SHAPE_CAP, fewest nodes first."""
+    name = d["name"]
+    base = next((c for c in ctors if isinstance(c, dict)
+                 and not any(f["type"] == {"datatype": name} for f in c.get("fields") or [])), None)
+    recs = [c for c in ctors if isinstance(c, dict) and any(f["type"] == {"datatype": name} for f in c.get("fields") or [])]
+    if base is None or not recs or any(isinstance(f["type"], dict) and f["type"] != {"datatype": name}
+                                       for c in [base] + recs for f in c.get("fields") or []):
+        return []
+
+    def first(t):
+        col = lad.get(t) if isinstance(t, str) else None
+        return col[0] if col else None
+
+    def base_val():
+        return Ctor(name, base["name"], tuple(first(f["type"]) for f in base.get("fields") or []))
+
+    def shapes(n):
+        """Unlabelled shapes with exactly n recursive nodes, as nested (ctor, [children]) tuples."""
+        if n == 0:
+            return [None]
+        out = []
+        for c in recs:
+            k = sum(1 for f in c["fields"] if f["type"] == {"datatype": name})
+            for split in _compositions(n - 1, k):
+                for kids in _product([shapes(m) for m in split]):
+                    out.append((c, kids))
+                    if len(out) > DT_SHAPE_CAP:
+                        return out
+        return out
+
+    def label(sh, nxt):
+        if sh is None:
+            return base_val()
+        c, kids = sh
+        kids = list(kids)
+        args, first_dt, fields = [], True, c["fields"]
+        built = {}
+        # in order: the first datatype field's subtree, then the ints, then the remaining subtrees
+        dt_idx = [i for i, f in enumerate(fields) if f["type"] == {"datatype": name}]
+        if dt_idx:
+            built[dt_idx[0]] = label(kids[0], nxt)
+        for i, f in enumerate(fields):
+            if f["type"] == "int":
+                built[i] = nxt[0]
+                nxt[0] += 1
+            elif f["type"] != {"datatype": name}:
+                built[i] = first(f["type"])
+        for j, i in enumerate(dt_idx[1:], start=1):
+            built[i] = label(kids[j], nxt)
+        return Ctor(name, c["name"], tuple(built[i] for i in range(len(fields))))
+
+    out = []
+    for n in range(1, DT_SHAPE_NODES + 1):
+        for sh in shapes(n):
+            out.append(label(sh, [0]))
+            if len(out) >= DT_SHAPE_CAP:
+                return out
+    return out
+
+
+def _compositions(total: int, parts: int):
+    """Every way to write `total` as an ordered sum of `parts` non-negative ints."""
+    if parts == 0:
+        if total == 0:
+            yield ()
+        return
+    for i in range(total + 1):
+        for rest in _compositions(total - i, parts - 1):
+            yield (i,) + rest
+
+
+def _product(cols: list):
+    out = [()]
+    for col in cols:
+        out = [p + (x,) for p in out for x in col]
+    return out
 
 
 def ctor_size(v) -> int:

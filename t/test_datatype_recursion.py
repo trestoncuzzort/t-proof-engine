@@ -82,9 +82,10 @@ def test_rules():
 def test_ladder_and_measure():
     lad = interp.ladders(load("tree_sum"))["datatype:Tree"]
     ok(lad[0] == interp.Ctor("Tree", "Leaf", ()), "the ladder starts at the base case")
-    ok(max(interp.ctor_size(v) for v in lad) == 7 and len(lad) == 13,
-       f"two rounds: Leaf, three one-node trees, nine two-level trees ({len(lad)})")
-    sizes = [interp.ctor_size(v) for v in lad]
+    near = lad[:13]
+    ok(max(interp.ctor_size(v) for v in near) == 7 and interp.ctor_size(lad[13]) > 3,
+       f"two rounds: Leaf, three one-node trees, nine two-level trees, then the labelled shapes ({len(lad)})")
+    sizes = [interp.ctor_size(v) for v in near]
     ok(sizes == sorted(sizes) or sizes[:4] == [1, 3, 3, 3], "smallest first")
     shown = interp._j(lad[4])
     ok(interp.ev(surface.parse_expr(shown), {}, {}, interp.St()) == lad[4], f"a nested value reads back: {shown}")
@@ -142,6 +143,57 @@ def test_lean():
     ok("induction tr generalizing x <;>" in src, "the other parameters are generalized")
     src = text(lower_lean, "tree_height")
     ok(re.search(r"grind \[tree_height_t, height_s, t_max\]", src), "the library functions are grind hints")
+
+
+def _is_bst(v) -> bool:
+    keys = []
+
+    def walk(t):
+        if t.ctor == "Leaf":
+            return True
+        v0, l, r = t.args
+        ok_l, ok_r = walk(l), walk(r)
+        keys.append(v0)
+        return ok_l and ok_r
+    if not walk(v):
+        return False
+    inorder = []
+
+    def io(t):
+        if t.ctor != "Leaf":
+            io(t.args[1])
+            inorder.append(t.args[0])
+            io(t.args[2])
+    io(v)
+    return inorder == sorted(set(inorder)) and len(inorder) == len(set(inorder))
+
+
+def test_labelled_shapes():
+    # G12, PREDICT T27: after the near corner, every shape of up to five nodes, int fields labelled in order
+    lad = interp.ladders(load("tree_sum"))["datatype:Tree"]
+    shapes = lad[13:]
+    ok(len(shapes) >= 60 and all(_is_bst(v) for v in shapes),
+       f"every labelled shape is a search tree with distinct keys ({len(shapes)})")
+    ok(any(interp.ctor_size(v) == 11 for v in shapes), "shapes reach five nodes")
+    ok(lad[:13] == tuple(interp.ladders(load("tree_sum"))["datatype:Tree"][:13]), "the near corner comes first")
+
+
+def test_tree_certificates_g12():
+    # AlgoVeri's BST insert: Verus's set certificate reveals its recursive fns and states memberships; Dafny's
+    # fact ladder prints a ground set
+    task = tasks_io.load_task(str(HERE / "algoveri" / "bst_insert.t"))
+    tb, op, w = harness.twin_for(task)
+    src = lower_verus.lower(task, tb, witness=w)
+    cert = src[src.index("t_refutation_certificate"):]
+    ok(re.search(r"reveal_with_fuel\(view, \d+\);", cert) and re.search(r"reveal_with_fuel\(is_bst, \d+\);", cert),
+       "Verus reveals view and is_bst to the witness's depth")
+    ok(".contains(0int));" in cert, "and asserts the memberships the interpreter computed")
+    real = lower_verus.lower(task, task["body"])
+    ok("reveal_with_fuel(view, 2);" in real or "t_wf_" not in real, "definedness lemmas reveal structural recursion")
+    task = tasks_io.load_task(str(HERE / "algoveri" / "bst_search.t"))
+    tb, op, w = harness.twin_for(task)
+    ok(re.search(r"assert view\(Tree\.Node\(.*\)\) == \{[0-9, ]+\};", lower_dafny.lower(task, tb, witness=w)),
+       "Dafny's certificate prints a ground set as a display")
 
 
 def test_four_kernels_refuse_by_name():

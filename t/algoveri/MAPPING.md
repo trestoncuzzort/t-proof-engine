@@ -60,6 +60,94 @@ ensures res == is_matched(s) => ensures res == is_matched(s)
 
 Notes: Linear scan keeping the running balance c and the running minimum prefix balance m (res := m >= 0 and c == 0); it has no early exit. Lemmas: weight_snoc (the prefix weight grows by the next character's weight, by induction) and slice_all (s[0..len(s)] == s, needed once after the loop). The early-exit form (return false as soon as c < 0) also verified as a real proof (attempt 2) but its collapse-if twin has the witness s=[0], whose ground certificate needs valid_prefix_weights([0]) == true and Dafny cannot prove a quantified spec-fun call at a ground argument unaided, so that cell read REFUSED (twin unproved); the min-tracking form has no if statement, so the twin is the loop-guard compare-flip with an undefined-index witness at s=[] and the certificate goes through. Verify attempts: 3 (1: real unproved, missing slice lemma; 2: real proved, twin unproved; 3: COUNTS). Contract cross-check in Python: agree on 2186 (input, result) pairs.
 
+## bst_insert
+
+Status: stated (2026-10-07, G12); Dafny and Verus verify the real program and refute its twin.
+
+```
+datatype Tree = Empty | Node(val: int, left: Tree, right: Tree) => datatype Tree = Empty | Node(val: int, left: Tree, right: Tree)
+function view(tree: Tree): set<int> decreases tree { match tree case Empty => {} case Node(val, left, right) => view(left) + view(right) + {val} } => spec fun view(tree: Tree): set decreases tree = case tree { Empty => {}, Node(val, left, right) => union(union(view(left), view(right)), {val}) }
+predicate is_bst(tree: Tree) decreases tree { match tree case Empty => true case Node(val, left, right) => (forall x :: x in view(left) ==> x < val) && is_bst(left) && (forall x :: x in view(right) ==> x > val) && is_bst(right) } => spec fun is_bst(tree: Tree): bool decreases tree = case tree { Empty => true, Node(val, left, right) => (forall x in view(left) . x < val) and is_bst(left) and (forall x in view(right) . x > val) and is_bst(right) }
+requires v >= 0 => requires v >= 0
+requires is_bst(tree) => requires is_bst(tree)
+ensures is_bst(res) => ensures is_bst(res)
+ensures view(res) == view(tree) + {v} => ensures view(res) == union(view(tree), {v})
+```
+
+Notes: Body: recursive descent by `decreases tree`, a self-call under an `if` in the Node arm (`v < val` left, `v > val` right, equal: the tree itself). No proof steps: both kernels carry it from the recursive call's own ensures. Departures: set union is spelled `union(a, b)` (t names set operations rather than overloading `+`), the singleton `{v}` is t's set display; the meaning is Dafny's.
+
+## bst_search
+
+Status: stated (2026-10-07, G12); Dafny and Verus verify the real program and refute its twin.
+
+```
+datatype Tree = Empty | Node(val: int, left: Tree, right: Tree) => datatype Tree = Empty | Node(val: int, left: Tree, right: Tree)
+function view(tree: Tree): set<int> decreases tree { match tree case Empty => {} case Node(val, left, right) => view(left) + view(right) + {val} } => spec fun view(tree: Tree): set decreases tree = case tree { Empty => {}, Node(val, left, right) => union(union(view(left), view(right)), {val}) }
+predicate is_bst(tree: Tree) decreases tree { match tree case Empty => true case Node(val, left, right) => (forall x :: x in view(left) ==> x < val) && is_bst(left) && (forall x :: x in view(right) ==> x > val) && is_bst(right) } => spec fun is_bst(tree: Tree): bool decreases tree = case tree { Empty => true, Node(val, left, right) => (forall x in view(left) . x < val) and is_bst(left) and (forall x in view(right) . x > val) and is_bst(right) }
+requires v >= 0 => requires v >= 0
+requires is_bst(tree) => requires is_bst(tree)
+ensures res == (v in view(tree)) => ensures res == (v in view(tree))
+```
+
+Notes: Body: recursive descent by `decreases tree`. Proof step: lemma `bst_split` (from `is_bst(Node(val, left, right))`: below val the tree's view meets v exactly where left's does, above it exactly where right's does), called once in the Node case under a statement-level discriminator. Dafny needed no step; Verus needed the lemma and its `view` unfolding stated.
+
+## bst_zig
+
+Status: stated (2026-10-07, G12); Dafny verifies the real program and refutes its twin; Verus is unproved (below).
+
+```
+datatype Tree = Empty | Node(val: int, left: Tree, right: Tree) => datatype Tree = Empty | Node(val: int, left: Tree, right: Tree)
+function view(tree: Tree): set<int> decreases tree { match tree case Empty => {} case Node(val, left, right) => view(left) + view(right) + {val} } => spec fun view(tree: Tree): set decreases tree = case tree { Empty => {}, Node(val, left, right) => union(union(view(left), view(right)), {val}) }
+predicate is_bst(tree: Tree) decreases tree { match tree case Empty => true case Node(val, left, right) => (forall x :: x in view(left) ==> x < val) && is_bst(left) && (forall x :: x in view(right) ==> x > val) && is_bst(right) } => spec fun is_bst(tree: Tree): bool decreases tree = case tree { Empty => true, Node(val, left, right) => (forall x in view(left) . x < val) and is_bst(left) and (forall x in view(right) . x > val) and is_bst(right) }
+requires tree.Node? => requires case tree { Empty => false, Node(val, left, right) => true }
+requires tree.left.Node? => requires case tree.left { Empty => false, Node(val, left, right) => true }
+requires is_bst(tree) => requires is_bst(tree)
+ensures is_bst(res) => ensures is_bst(res)
+ensures view(res) == view(tree) => ensures view(res) == view(tree)
+ensures res.val == tree.left.val => ensures res.val == tree.left.val
+ensures res.right.Node? && res.right.val == tree.val => ensures (case res.right { Empty => false, Node(val, left, right) => true }) and res.right.val == tree.val
+```
+
+Notes: Body: the right rotation by nested `case`s (the impossible arms return the input, excluded by requires). Proof step: lemma `zig_keeps_order` (lv < val, lr's keys between lv and val, the new right subtree a BST above lv), called with field reads the requires make defined. Departures: Dafny's discriminator `e.Node?` is written as a `case` on e; Verus: the ensures clause `res.val == ...` owes `res` a Node from the earlier clauses (view(res) == view(tree), non-empty), which Dafny's extensional set equality reaches and Verus's does not without a hint no lowering emits yet: unproved, named.
+
+## bst_zigzag
+
+Status: stated (2026-10-07, G12); Dafny verifies the real program and refutes its twin; Verus is unproved (as bst_zig).
+
+```
+datatype Tree = Empty | Node(val: int, left: Tree, right: Tree) => datatype Tree = Empty | Node(val: int, left: Tree, right: Tree)
+function view(tree: Tree): set<int> decreases tree { match tree case Empty => {} case Node(val, left, right) => view(left) + view(right) + {val} } => spec fun view(tree: Tree): set decreases tree = case tree { Empty => {}, Node(val, left, right) => union(union(view(left), view(right)), {val}) }
+predicate is_bst(tree: Tree) decreases tree { match tree case Empty => true case Node(val, left, right) => (forall x :: x in view(left) ==> x < val) && is_bst(left) && (forall x :: x in view(right) ==> x > val) && is_bst(right) } => spec fun is_bst(tree: Tree): bool decreases tree = case tree { Empty => true, Node(val, left, right) => (forall x in view(left) . x < val) and is_bst(left) and (forall x in view(right) . x > val) and is_bst(right) }
+requires g.Node? => requires case g { Empty => false, Node(val, left, right) => true }
+requires g.left.Node? => requires case g.left { Empty => false, Node(val, left, right) => true }
+requires g.left.right.Node? => requires case g.left.right { Empty => false, Node(val, left, right) => true }
+requires is_bst(g) => requires is_bst(g)
+ensures is_bst(res) => ensures is_bst(res)
+ensures view(res) == view(g) => ensures view(res) == view(g)
+ensures res.val == g.left.right.val => ensures res.val == g.left.right.val
+```
+
+Notes: Body: the zig-zag double rotation. Proof steps: four lemmas (zz_inner: one unfolding of is_bst(g); zz_parts: the four subtrees' bounds, with membership bridges into the enclosing views; zz_order: the rebuilt tree's order; zz_view: the view equality by unfolding). Measured: one lemma for all of it ran out of Z3 resources under the adapter's --warn-contradictory-assumptions; split, every symbol verifies.
+
+## bst_zigzig
+
+Status: stated (2026-10-07, G12); Dafny verifies the real program and refutes its twin; Verus is unproved (as bst_zig).
+
+```
+datatype Tree = Empty | Node(val: int, left: Tree, right: Tree) => datatype Tree = Empty | Node(val: int, left: Tree, right: Tree)
+function view(tree: Tree): set<int> decreases tree { match tree case Empty => {} case Node(val, left, right) => view(left) + view(right) + {val} } => spec fun view(tree: Tree): set decreases tree = case tree { Empty => {}, Node(val, left, right) => union(union(view(left), view(right)), {val}) }
+predicate is_bst(tree: Tree) decreases tree { match tree case Empty => true case Node(val, left, right) => (forall x :: x in view(left) ==> x < val) && is_bst(left) && (forall x :: x in view(right) ==> x > val) && is_bst(right) } => spec fun is_bst(tree: Tree): bool decreases tree = case tree { Empty => true, Node(val, left, right) => (forall x in view(left) . x < val) and is_bst(left) and (forall x in view(right) . x > val) and is_bst(right) }
+requires g.Node? => requires case g { Empty => false, Node(val, left, right) => true }
+requires g.left.Node? => requires case g.left { Empty => false, Node(val, left, right) => true }
+requires g.left.left.Node? => requires case g.left.left { Empty => false, Node(val, left, right) => true }
+requires is_bst(g) => requires is_bst(g)
+ensures is_bst(res) => ensures is_bst(res)
+ensures view(res) == view(g) => ensures view(res) == view(g)
+ensures res.val == g.left.left.val => ensures res.val == g.left.left.val
+```
+
+Notes: Body: the zig-zig double rotation, with the same four-lemma structure as bst_zigzag (zzz_inner, zzz_parts, zzz_order, zzz_view). Verified by Dafny on the first run.
+
 ## bubble_sort
 
 Status: stated; Dafny verifies the real program and refutes its twin. Last verdict while writing: dafny: COUNTS, real is a real proof; collapse-if twin is refuted, the kernel found this wrong

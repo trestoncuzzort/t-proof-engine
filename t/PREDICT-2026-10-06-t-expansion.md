@@ -1419,3 +1419,34 @@ The matrix was regenerated from a clean clone at 947c37c (`t/AGREEMENT.md`) and 
 (3) **Held:** no other cell moved.
 (4) **Held:** Dafny 99, Verus 91, Lean 73; the other four unchanged. All seven stays 48, now of 99. Every kernel still
 refutes the twin of every real it verifies (100%).
+
+## T27 registered (2026-10-07 04:00Z, after hand probes and before the clean-clone runs): AlgoVeri's BST family, first five (G12)
+
+`bst_search`, `bst_insert`, `bst_zig`, `bst_zigzag` and `bst_zigzig` are stated in t, making 27 AlgoVeri programs.
+`t/algoveri/MAPPING.md` gives them clause by clause. They stand on recursive datatypes (T25) and set-ranged
+quantifiers (T26), letter for letter, apart from three spellings with Dafny's meaning: `e.Node?` as a `case`, `+` on
+sets as `union`, and `{v}` as t's set display. The rotations carry proof lemmas: zig one, zig_zag and zig_zig four
+each.
+
+**Engine changes, each found while writing these:**
+- **Labelled shapes in the witness ladder:** every shape of up to five nodes, int fields labelled in order, so that
+  BST requires have inputs. zig_zag had none before.
+- **Dafny:** a certificate prints a ground set it states as a set display.
+- **Verus, set certificates:** recursive spec fns revealed to the witness's depth, and the set-valued spec fns'
+  memberships stated at each constructor literal. search's and insert's twins were unproved before.
+- **Verus, well-definedness lemmas:** structural recursion revealed one level past the default.
+
+**Measured before this registration, stated plainly.**
+- **Dafny:** all five COUNT.
+- **Verus:** search and insert COUNT. zig, zig_zag and zig_zig are unproved, the reason named in SPEC.md and MAPPING.md:
+  `res.val`'s definedness from `view(res) == view(tree)`.
+- **Byte identity:** every lowering of the 101 tasks and the 22 earlier AlgoVeri programs is unchanged, real and twin,
+  all seven kernels, with the witness.
+- **Suite:** the whole suite passes (701).
+
+**Bars**, for the clean-clone matrix of the 101 and the AlgoVeri table of 27:
+(1) No cell of the 101 moves against T26's matrix.
+(2) The five read verified with the twin refuted in Dafny. In Verus, search and insert read verified/refuted, and the
+three rotations do not. Lean, Rocq, F*, SPARK and Frama-C abstain by name on all five.
+(3) The 22 earlier AlgoVeri programs read as in T24's table.
+(4) AlgoVeri Dafny 27 of 27, Verus 9.
