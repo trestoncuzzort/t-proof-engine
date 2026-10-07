@@ -66,8 +66,8 @@ Measured from a clean clone of this repository on 2026-10-07 over the 114 commit
 - **Specification repair** (`python3 t/cli.py repair DIR --kernel dafny --patches PATCHES.md`, PREDICT T61) proposes
   the clauses that kill an audit's survivors and keeps those the real program meets on the whole domain. Loop
   invariants are inferred from observed loop-head states, and everything is proved in the kernel. 25 of the 72
-  benchmark gaps are repaired with a proof ([t/repairs/](t/repairs/)). 21 vericoding solutions that never read their
-  inputs are refused
+  benchmark gaps are repaired with a proof ([t/repairs/](t/repairs/)). 21 vericoding solutions never read their
+  inputs (one returns `'R'` for every input), and the repair refuses to fit a contract to one
   ([t/vericoding/CLASSIFIED.md](t/vericoding/CLASSIFIED.md), PREDICT T56). On t's own suites it found seven specs to strengthen, and all seven were (T55, T60): the task suite's audit now
   kills 1,578 of 1,578 behaviour-changing mutants.
 - [t/AUTONOMY.md](t/AUTONOMY.md): 25 navigation, guidance and control routines (`t/autonomy/`). Verified with the
