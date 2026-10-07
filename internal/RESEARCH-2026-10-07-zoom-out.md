@@ -111,7 +111,7 @@ Each is its own registration, measured before it is claimed.
 The rules: refusal by name, never a weakened spec; a prediction before every run; the twin rule; tables installed
 only from a clean clone. The landscape changes what is claimed and what comes first, not how anything is measured.
 
-## 6. Addendum, 2026-10-07 04:06Z: after G9-G12
+## 6. Addendum, 2026-10-07 04:04Z: after G9-G12
 
 Measured since this note was written (each registered in `t/PREDICT-2026-10-06-t-expansion.md`, read from a clean
 clone):
