@@ -70,6 +70,16 @@ RUN fetch https://github.com/ocaml/opam/releases/download/2.5.2/opam-2.5.2-x86_6
  && why3 config detect \
  && coqc -v && frama-c -version && alt-ergo --version
 
+# Why3's detection cannot read alt-ergo-free's version string (`2.4.3-free`): it registers Alt-Ergo versionless,
+# under drivers that emit Alt-Ergo 2.6 input, and 2.4.3 fails every goal Qed leaves open. This is the stanza every
+# published table was measured with: Alt-Ergo 2.4.3, driver alt_ergo, a step bound.
+RUN printf '%s\n' '[main]' 'magic = 14' 'memlimit = 1000' 'running_provers_max = 2' 'timelimit = 5.000000' '' \
+      '[prover]' 'command = "/home/prover/.opam/default/bin/alt-ergo --timelimit %.t %f"' \
+      'command_steps = "/home/prover/.opam/default/bin/alt-ergo --steps-bound=%S %f"' 'driver = "alt_ergo"' \
+      'in_place = false' 'interactive = false' 'name = "Alt-Ergo"' 'shortcut = "alt-ergo"' 'version = "2.4.3"' \
+      > .why3.conf \
+ && why3 config list-provers
+
 # t itself: standard-library Python 3.12
 COPY --chown=prover:prover . /home/prover/t-proof-engine
 WORKDIR /home/prover/t-proof-engine
