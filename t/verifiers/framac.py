@@ -323,6 +323,14 @@ PROBE_WALL_S = 120
 # the operative budget bound there. Raising it buys no verdict, only
 # ~13s of suite time per extra second, so it stays small and stated.
 GOAL_TIMEOUT_S = 10
+# PREDICT T58's read: at FLOAT_STEPS an honest float goal takes seconds, not milliseconds, and under a clean run's load
+# (three cells, four provers each) rate_limit's and sat_scale's slowest goals reached the 10 s wall before the step
+# budget, though both verify alone. For a program over doubles the wall goes back to being a backstop.
+FLOAT_GOAL_TIMEOUT_S = 120
+
+
+def _goal_timeout(steps: int) -> int:
+    return FLOAT_GOAL_TIMEOUT_S if steps >= FLOAT_STEPS else GOAL_TIMEOUT_S
 SMOKE_TIMEOUT_S = 5
 
 # THE ARITHMETIC MODEL, pinned 2026-09-01 because the default one was
@@ -739,7 +747,7 @@ def _consistency_probe(raw: str, defs: list, budget: int) -> tuple[list, str]:
                 [FRAMAC, "-wp", "-wp-model", MODEL, "-wp-fct", fcts,
                  "-wp-prover", _wp_prover(),
                  "-wp-steps", str(budget), "-wp-cache", "none", "-wp-par",
-                 str(PAR), "-wp-timeout", str(GOAL_TIMEOUT_S),
+                 str(PAR), "-wp-timeout", str(_goal_timeout(budget)),
                  "-wp-smoke-tests", "-wp-smoke-dead-local-init",
                  "-wp-smoke-timeout", str(SMOKE_TIMEOUT_S), str(f)],
                 PROBE_WALL_S)
@@ -755,7 +763,7 @@ def _budget(steps: int) -> str:
     """Every knob that can move a verdict, in the witness. A pin nobody can
     read from the record is not a pin (fstar.py sets the same precedent)."""
     return (f"wp-model={MODEL} wp-steps={steps} "
-            f"wp-timeout={GOAL_TIMEOUT_S}s "
+            f"wp-timeout={_goal_timeout(steps)}s "
             f"wp-smoke-timeout={SMOKE_TIMEOUT_S}s wp-par={PAR}")
 
 
@@ -885,7 +893,7 @@ def verify(path: Path, budget: int | None = None) -> Result:
                 [FRAMAC, "-wp", "-wp-model", MODEL, "-wp-prover", _wp_prover(),
                  "-wp-steps",
                  str(budget), "-wp-cache", "none", "-wp-par", str(PAR),
-                 "-wp-timeout", str(GOAL_TIMEOUT_S), "-wp-smoke-tests",
+                 "-wp-timeout", str(_goal_timeout(budget)), "-wp-smoke-tests",
                  "-wp-smoke-dead-local-init", "-wp-smoke-timeout",
                  str(SMOKE_TIMEOUT_S), "-wp-report-json", str(rj), str(path)],
                 WALL_S)

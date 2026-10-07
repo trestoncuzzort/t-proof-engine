@@ -2600,3 +2600,33 @@ larger budget lets the same sound search run longer; it cannot weaken a proof. L
 (1) The matrix: SPARK 79 (rate_limit) and Frama-C 70 (rate_limit, sat_scale); every other cell unchanged; all seven
 65.
 (2) `t/AUTONOMY.md` unchanged (pid_step stays a timeout in both kernels).
+
+### T58 read (2026-10-07 16:13Z): SPARK's bar held; Frama-C's missed, and the cause is the per-goal wall, not the budget.
+
+Regenerated from a clean clone at 46877a4, and installed.
+(1) **Half held:**
+  - SPARK 79: rate_limit is now verified/refuted.
+  - **Frama-C stays 68:** rate_limit and sat_scale still read timeout. Re-run alone on the same clean clone
+    afterwards, both verify at the new budget (14.6 s and 20.4 s). Under the run's load (three cells in flight, each
+    WP running four provers), their slowest goals reach Frama-C's 10 s per-goal wall before the 2,000,000-step
+    budget. That wall is documented in the adapter as a backstop, sized for goals that finish in milliseconds; at
+    the float budget it became the binding limit.
+  - Every other cell unchanged; all seven 65.
+(2) **Held:** `t/AUTONOMY.md` unchanged.
+
+## T58b registered (2026-10-07 16:21Z, after a probe under load and before the clean-clone run): the per-goal wall as a backstop for floats
+
+**The change.** In Frama-C, a program over doubles (the T58 budget) gets a 120 s per-goal wall instead of 10 s, so
+the 2,000,000-step budget is what ends a goal. Integer programs keep 10 s. The witness string names the wall used.
+
+**Measured before this registration, stated plainly.** The eight float tasks in all seven kernels, at the clean
+run's concurrency (3 jobs, flake 3; 7 min 37 s):
+- rate_limit and sat_scale are verified/refuted in Frama-C;
+- pid_step stays a timeout in SPARK and Frama-C;
+- every other float cell is unchanged.
+
+Suite passes.
+
+**Bars**, for the clean-clone tables at this registration's commit:
+(1) The matrix: Frama-C 70 (rate_limit, sat_scale); SPARK 79; every other cell unchanged; all seven 65.
+(2) `t/AUTONOMY.md` unchanged.
