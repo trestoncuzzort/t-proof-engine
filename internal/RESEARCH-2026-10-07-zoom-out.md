@@ -208,3 +208,25 @@ SPARK and Frama-C, and at the proofs in Lean.
    - D7 (`mvcgen`);
    - D8, the twin audit of public specs, still the most distinctive result. The lifting infrastructure (dawnr's
      `lift_*.py`, `run_par.py`, the DafnyBench and Vericoding coverage reports) is in place.
+
+**D8 scoping, measured at 07:33Z (no kernels).** The twin ladder alone was run over dawnr's 326 lifted DafnyBench and
+Clover tasks (the lab-rescue copy), 20 s each:
+
+| ladder outcome | tasks |
+|---|---|
+| a mutant whose behaviour the spec falsifies at a measured witness | 317 |
+| `requires` unsatisfiable in the bounded domain | 4 |
+| no witness | 1 |
+| no operator | 1 |
+| timeout | 3 |
+
+The one "no witness" case, UpWhileNotEqual (`ensures i == n`), is a strong spec: its mutants either agree or fail to
+terminate, and the ladder does not count non-termination as a witness. So "no witness" is not a weak-spec signal;
+kernel-checked "decorative" cells are the measure. The 785-lift table already shows them where the source's own
+contract is `ensures true` (abs and max in dafny-training's session1).
+
+A D8 result worth publishing therefore needs two things:
+- wider lifting: more of the 785, and Vericoding's Dafny sources;
+- the kernels' verdicts, not the ladder's.
+
+That is a lab-scale run, not a desktop one.

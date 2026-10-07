@@ -2016,3 +2016,19 @@ to 81. every_other keeps verified/refuted.
 (3) AlgoVeri grows to 30 programs. The three LLRB programs are verified/refuted in Dafny (30 of 30), unproved
 otherwise or abstaining as measured above. discrete_log_naive's Frama-C cell stays an abstention, with its new reason.
 No other cell moves.
+
+### T38, T39 and T40 read (2026-10-07 08:06Z): every bar held.
+
+Both tables were regenerated from a clean clone at 7a5f9f8, with no proof run beside it: the matrix of 104 (3 jobs),
+then the AlgoVeri table of 30 (2 jobs), in one unit under 11 GB, with no OOM.
+(1) **Held:** odd_positions reads verified/refuted in Lean, so it is in all seven: all seven went from 57 to 58, and
+Lean from 80 to 81. every_other kept verified/refuted.
+(2) **Held:** some_negative reads verified/refuted in Frama-C (59), so it is in six. Rocq alone keeps it out.
+(3) **Held:** AlgoVeri has 30 programs.
+- The three LLRB programs are verified/refuted in Dafny (30 of 30), unproved/refuted in Lean and unproved/unproved
+  in Verus. Rocq, F*, SPARK and Frama-C abstain, on the set-ranged quantifier.
+- discrete_log_naive's Frama-C cell stayed an abstention, with its new reason.
+- No other cell moved, in either table.
+
+Single-kernel blockers now: Frama-C keeps double_all, grid_row_sums and swap_rows from all seven, and Rocq keeps
+some_negative.

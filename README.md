@@ -34,13 +34,13 @@ Measured from a clean clone of this repository on 2026-10-07 over the 104 commit
 | Dafny | 104 | 0 | 0 |
 | Verus | 96 | 1 | 7 |
 | Rocq | 75 | 1 | 28 |
-| Lean 4 | 80 | 3 | 21 |
+| Lean 4 | 81 | 2 | 21 |
 | F\* | 73 | 2 | 29 |
 | SPARK | 65 | 3 | 36 |
-| Frama-C | 58 | 1 | 45 |
+| Frama-C | 59 | 1 | 44 |
 
 - In every kernel, the twin of every proved program is refuted (100%).
-- 57 of the 104 tasks are proved, with the twin refuted, in all seven kernels.
+- 58 of the 104 tasks are proved, with the twin refuted, in all seven kernels.
 - Datatypes with fields (records and non-recursive sums, PREDICT T23) and recursive datatypes (trees, T25) are proved
   in Dafny, Verus, Lean, Rocq and F* (T34, T35); SPARK and Frama-C carry the non-recursive ones (T36, T37), so
   color_code, shape_area, manhattan and rect_area are verified with the twin refuted in all seven. A quantifier over a seq's elements is stated in
@@ -48,9 +48,10 @@ Measured from a clean clone of this repository on 2026-10-07 over the 104 commit
   extensional tree set (T29). Frama-C gives a seq local its own caller-provided buffer (T31).
 - Most refusals are of constructs added to the language on 2026-10-06, which the other kernels are being taught
   now.
-- [t/ALGOVERI.md](t/ALGOVERI.md): 27 of AlgoVeri's contracts in seven kernels, regenerated from a clean clone for
-  T28, five of them the BST family over recursive datatypes and set-ranged quantifiers. Dafny verifies all 27 with
-  the twin refuted; Verus 9, F* 5, SPARK 4, Frama-C 2, Rocq 1, Lean 1. integer_exponential is the first AlgoVeri
+- [t/ALGOVERI.md](t/ALGOVERI.md): 30 of AlgoVeri's contracts in seven kernels, regenerated from a clean clone for
+  T38: five of the BST family and three of the left-leaning red-black tree's, over recursive datatypes and
+  set-ranged quantifiers. Dafny verifies all 30 with the twin refuted; Verus 9, F* 5, SPARK 4, Frama-C 2, Rocq 1,
+  Lean 1. integer_exponential is the first AlgoVeri
   contract verified with the twin refuted in all seven (T28). T15 and T17 repaired 11 of T13's 13 malformed cells; the
   other two are named in T13's read.
 
