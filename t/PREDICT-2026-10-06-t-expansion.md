@@ -1134,3 +1134,23 @@ The matrix was regenerated from a clean clone of t-proof-engine at 25e3491 (`t/A
 Per kernel: Dafny 88, Verus 80, Rocq 62, Lean 61, F* 59, SPARK 56, Frama-C 49. Every kernel still refutes the twin
 of every real it verifies (100%).
 
+## T22 registered (2026-10-07 01:47Z, before any run): the common-mode audit, SPARK's half (D6)
+
+Four of the seven legs run on Z3: Dafny through Boogie, Verus, F*, and SPARK as this engine pins it
+(`--prover=z3`), although gnatprove's own default is CVC5 (receipt add8ff238c99). A solver-specific false proof
+would then show up in four columns at once. This audit measures how much of SPARK's column depends on Z3. The
+same files are re-run under gnatprove's bundled CVC5 and Alt-Ergo, through a new `T_SPARK_PROVER` switch. Its
+default stays Z3, so the matrix of record is unchanged, and a non-default prover is named in the backend version.
+
+**Bars.** Against SPARK's 56 cells verified with the twin refuted under Z3:
+(1) Under CVC5, at least 50 of the 56 stay verified with the twin refuted.
+(2) Under Alt-Ergo, at least 35 of the 56 do.
+(3) No real program verified under Z3 is REFUTED under another prover. That would be a disagreement in kind, and
+the first thing read. A TIMEOUT or UNPROVED under another prover is a budget or strength difference, since gnatprove's
+`--steps` is prover-specific.
+(4) Every twin refuted under Z3 is refuted under the other two. A certificate is one ground goal, which any of the
+three should discharge.
+
+**What would falsify the design of the audit:** gnatprove refusing a prover for these files (a tool error, not a
+verdict), which would make that column unmeasurable rather than disagreeing.
+
