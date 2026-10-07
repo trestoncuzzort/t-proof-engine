@@ -198,6 +198,20 @@ vocabulary: the APPS- and NumPy-derived specifications never define the function
 refuses a solution that never reads its inputs. 13 of vericoding's 509 Dafny solutions and 8 of its 63 Verus ones are
 such programs, including a recorded Verus solution that returns `'R'` for every input.
 
+**Shipping: the proven lowerings compiled and run** (PREDICT T62; `t/build.py`, `t/BUILD-*.md`). A kernel proves a
+lowering. A backend and a toolchain then make it a program, and neither is verified. Each proven lowering is
+compiled with its kernel's ordinary toolchain (the Frama-C C with gcc, the Dafny with its Python backend), run on
+domain points, and compared with t's interpreter. Over 7,961 compiled runs of the task and autonomy suites:
+- No result betrays a lowering bug, and Dafny's Python builds agree on every point.
+- Every C disagreement is integer width. WP's model, pinned on purpose because t's integers are unbounded, treats
+  `int` as a mathematical integer, and the shipped C uses 32 bits.
+  - 29 routines differ only at inputs beyond int32.
+  - 3 overflow an intermediate inside int32 inputs: `(r + 1) * (r + 1)` in an integer square root,
+    `2 * decel * dist` in a stopping-distance check, `prev + max_step` in a throttle limiter.
+  - All of them agree at 64 bits up to values beyond 2^63.
+
+  A proof of the routine is not a proof of the shipped binary until the proof is done at the width that ships (R4b).
+
 ## 5. What the kernels taught
 
 Each item below was found by a measured disagreement and fixed in a lowering, and each is in SPEC.md with its date.
@@ -218,9 +232,13 @@ Each item below was found by a measured disagreement and fixed in a lowering, an
 
 ## 6. Limitations
 
-- **The lowerings are not verified.** A wrong lowering could prove the wrong theorem. Mitigations: seven independent
-  lowerings must agree, the twin certificate must be refuted in the same lowering, and the matrix's
-  "real verified, twin refuted" pairing makes a vacuous encoding visible. None of this is a proof of the lowerings.
+- **The lowerings are not verified.** A wrong lowering could prove the wrong theorem. Mitigations:
+  - seven independent lowerings must agree;
+  - the twin certificate must be refuted in the same lowering;
+  - the matrix's "real verified, twin refuted" pairing makes a vacuous encoding visible;
+  - the C and Dafny lowerings are compiled and run against the interpreter (T62: 7,961 runs, no lowering bug found).
+
+  None of this is a proof of the lowerings.
 - **The twin's value comes from t's interpreter.** A twin's certificate grounds the interpreter's computed value, and
   the kernel checks only that the contract fails there. The interpreter is a single Python implementation.
 - **Twins are chosen by value difference within a bounded input domain.** A spec weak only outside that domain is not

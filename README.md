@@ -70,6 +70,10 @@ Measured from a clean clone of this repository on 2026-10-07 over the 114 commit
   inputs (one returns `'R'` for every input), and the repair refuses to fit a contract to one
   ([t/vericoding/CLASSIFIED.md](t/vericoding/CLASSIFIED.md), PREDICT T56). On t's own suites it found seven specs to strengthen, and all seven were (T55, T60): the task suite's audit now
   kills 1,578 of 1,578 behaviour-changing mutants.
+- **Shipping** (`python3 t/cli.py build DIR --to c`, PREDICT T62) compiles the proven lowerings (the Frama-C C through
+  gcc, the Dafny through its Python backend) and runs them against the interpreter on domain points. Over 7,961 runs
+  no lowering bug shows. Every C disagreement is integer width: the proof's integers are mathematical, the shipped
+  `int` is 32 bits. Three routines overflow an intermediate even inside int32 inputs ([t/BUILD-TASKS-C.md](t/BUILD-TASKS-C.md)).
 - [t/AUTONOMY.md](t/AUTONOMY.md): 25 navigation, guidance and control routines (`t/autonomy/`). Verified with the
   twin refuted: Frama-C 21, SPARK 20, Dafny 18, F* 18, Lean 15, Verus 15, Rocq 15; 14 in all seven.
 - Most refusals are of constructs added to the language on 2026-10-06, which the other kernels are being taught

@@ -2844,3 +2844,11 @@ toolchain together, on the domain, in several languages.
 (1) The six tables reproduce the hand runs' counts. A count may differ by one per table only from a target's own
 timeouts.
 (2) No table shows a disagreement inside int32 that 64 bits does not resolve.
+
+### T62 read (2026-10-07 18:43Z): both bars held, exactly.
+
+The six tables were regenerated from a clean clone at 8c24ed6 and are installed (`t/BUILD-*.md`); every count
+matches the hand runs.
+- 7,961 compiled runs of proven routines, in C (32 and 64 bits) and Python, against the interpreter.
+- No lowering bug.
+- Every C disagreement is integer width: the proof's integers are mathematical, the shipped C's are 32 bits.
