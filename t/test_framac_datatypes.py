@@ -1,0 +1,88 @@
+#!/usr/bin/env python3
+"""test_framac_datatypes.py: datatypes in Frama-C (SPEC.md "Datatypes (v1)", "(v2): fields", the Frama-C note of
+2026-10-07, PREDICT T37). Text-level checks only, no kernel runs:
+- a datatype is a struct passed by value, a tag and a field per constructor's field, its predicates `ok` and `eq`;
+- a match is a conditional on the tag (`\\let` in ACSL, the field substituted in C), a field read owes its tag;
+- `==` with a constructor expands field by field;
+- the certificate declares the witness as a compound literal and decides each match at the ground tag;
+- a recursive datatype, a datatype return, a seq field refuse by name."""
+from __future__ import annotations
+
+import sys
+from pathlib import Path
+
+HERE = Path(__file__).resolve().parent
+sys.path.insert(0, str(HERE))
+
+import lower_framac  # noqa: E402
+import tasks_io  # noqa: E402
+import tlib  # noqa: E402
+
+CHECKS = 0
+
+
+def ok(cond, what):
+    global CHECKS
+    CHECKS += 1
+    if not cond:
+        print("FAIL:", what)
+        sys.exit(1)
+
+
+def load(name: str) -> dict:
+    return tasks_io.load_task(str(HERE / "tasks" / f"{name}.t"))
+
+
+def framac(name: str, twin: bool = False) -> str:
+    return tlib.lower(load(name), "framac", twin_body=twin)
+
+
+def test_declarations():
+    src = framac("shape_area")
+    ok("enum dt_Shape_tag { dt_Shape_Circle, dt_Shape_Rect, dt_Shape_Dot };" in src, "the tags")
+    ok("struct dt_Shape { int tag; int f_Circle_r; int f_Rect_w; int f_Rect_h; };" in src, "every variant's storage")
+    ok("predicate dt_Shape_ok(struct dt_Shape x)" in src and "requires dt_Shape_ok(s);" in src,
+       "a parameter is built by one of its constructors")
+    ok("int shape_area_t(struct dt_Shape s)" in src, "passed by value")
+    ok("enum dt_" not in framac("clamp"), "nothing for a task without datatypes")
+
+
+def test_match_and_fields():
+    src = framac("shape_area")
+    ok("(\\let r = (s).f_Circle_r; (\\result == ((3 * r) * r)))" in src, "an ACSL match arm binds by \\let")
+    ok("a = ((s).tag == dt_Shape_Circle ? ((3 * (s).f_Circle_r) * (s).f_Circle_r)" in src,
+       "in C the binder is its field")
+    src = framac("rect_area")
+    ok("/*@ assert ((s).tag == dt_Shape_Circle ? \\false : \\true); */" in src, "a field read asserts its tag first")
+    ok("(((c).tag == dt_Color_Red) ==> (\\result == 0))" in framac("color_code"),
+       "== with a constructor is its tag and fields")
+
+
+def test_certificate():
+    src = framac("shape_area", twin=True)
+    cert = src[src.index("void t_certificate(void)"):]
+    ok("struct dt_Shape s = ((struct dt_Shape){.tag = dt_Shape_Circle, .f_Circle_r = 1});" in cert,
+       "the witness as its compound literal")
+    ok("/*@ assert (s).tag == dt_Shape_Circle; */" in cert and "a = ((4 * (s).f_Circle_r) * (s).f_Circle_r);" in cert,
+       "the match decided at the ground tag, only the taken arm")
+    cert = framac("manhattan", twin=True)
+    ok("?" not in cert[cert.index("void t_certificate(void)"):], "a nested abs is decided too, no live ?:")
+
+
+def test_refused_by_name():
+    for name, word in (("tree_sum", "recursive datatype"), ("checked_tail", "datatype field of type 'seq'"),
+                       ("some_negative", "datatype return")):
+        task = load(name)
+        try:
+            lower_framac.lower(task, task["body"])
+            ok(False, f"{name} refuses")
+        except NotImplementedError as e:
+            ok(word in str(e), f"{name} refuses by name: {e}")
+
+
+if __name__ == "__main__":
+    for name, fn in sorted(globals().items()):
+        if name.startswith("test_") and callable(fn):
+            fn()
+            print(f"{name}: ok")
+    print(f"{CHECKS} checks")

@@ -1529,7 +1529,13 @@ so `==` is `=` in a bool and `==` in a Prop; `case` is F*'s `match`, whose
 exhaustiveness F* checks. SPARK since 2026-10-07 (PREDICT T36): an Ada
 discriminated record whose discriminant (with a default, so the type is
 definite) is an enumeration of the constructors, `Dt_<D>_Tag`; `case` is an
-Ada case expression on the tag and `==` the record's predefined equality. The
+Ada case expression on the tag and `==` the record's predefined equality.
+Frama-C since 2026-10-07 (PREDICT T37): a C struct passed by value, the
+encoding its pairs already use, with `int tag` (an enum constant per
+constructor) and every variant's fields; a match is a conditional on the
+tag; ACSL needs no struct literal, since `x == C(a, b)` is `x.tag == C` and
+the fields, and other equality the predicate `dt_<D>_eq`; each datatype
+parameter `requires dt_<D>_ok(p)`, its tag one of its constructors'. The
 lifter's own mapping (source-side admission of Dafny `datatype`/`match`
 into this shape) is LIFTER-DECISIONS.md row 53, which this landing leaves
 open: `lift_classify`/`lift_parse` still refuse every method and file the
@@ -1620,7 +1626,12 @@ mutation site, so every existing rung reaches it. `swap-ctor` is unchanged.
 
 In all three, the certificate reads a datatype witness back through the parser, and a value witness may be a
 datatype. A field or a match binder named like a kernel's keyword is renamed with its uses (`names.py`), as every
-other identifier is. Frama-C refuses every datatype by name, as in v1. SPARK since 2026-10-07 (PREDICT T36): a
+other identifier is. Frama-C since 2026-10-07 (PREDICT T37): a field is the struct field `f_<C>_<f>`; a match arm's
+binder is bound by ACSL's `\let` and, in C, replaced by its field; a field read owes its constructor, which `defs()`
+states in a specification and an assert states before the statement in code. That landing takes datatype
+PARAMETERS: a datatype return or local, `==` on datatypes in executable position and a recursive datatype refuse by
+name. The certificate declares a datatype witness as its compound literal and decides each match at the ground tag,
+asserted, as it decides a branch. SPARK since 2026-10-07 (PREDICT T36): a
 field is the component `F_<C>_<f>` of its constructor's variant (Ada forbids a component name twice in one record),
 and `e.f` is the component selection, whose discriminant check gnatprove proves: that check is the read's
 definedness; a field several constructors declare is a function over the tag whose `Pre` names them. A certificate
@@ -1717,8 +1728,8 @@ The kernels check this, each by its own order. The interpreter's opt-in measure 
     with the function equations.
   - A measure that is not a parameter, and a structurally recursive task with a `requires`, are refused by name.
 
-Frama-C refuses every datatype by name, as in v1, and SPARK a recursive one: an Ada record cannot hold itself
-without access types, which that lowering does not build. F* since 2026-10-07 (PREDICT T35): recursion on a
+SPARK and Frama-C refuse a recursive datatype by name: an Ada record cannot hold itself without access types, and a
+C struct cannot hold itself by value; neither lowering builds the pointer encoding. F* since 2026-10-07 (PREDICT T35): recursion on a
 datatype parameter is `(decreases q)`, F*'s subterm ordering, and the contract is the SMT proof F* already runs; a loop
 over a datatype state is proved too (some_negative). Rocq since 2026-10-07 (PREDICT T34): a spec fun or a
 task whose measure is a datatype parameter is Rocq's own structural `Fixpoint`, whose guard checker is the

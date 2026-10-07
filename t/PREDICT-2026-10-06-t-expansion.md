@@ -1881,3 +1881,43 @@ this change). The same run reads T35:
 some_negative is in five: all but Rocq and Frama-C.
 (3) AlgoVeri's discrete_log_naive reads verified/refuted in SPARK (AlgoVeri SPARK 3 to 4). No other cell moves for
 this change.
+
+## T37 registered (2026-10-07 06:32Z, after hand probes and before the clean-clone run that reads T35-T37): datatypes in Frama-C
+
+Frama-C was the last kernel refusing every datatype, and for color_code, shape_area, manhattan and rect_area it was
+the only kernel left once T34-T36 landed. Receipt 030f8d5520b2: the ACSL language source, on `\let` and on struct
+terms. SPEC.md "Datatypes" v1 and v2 carry the Frama-C notes.
+
+**Design.**
+- **Values.** A t datatype is a C struct passed by value, the encoding the pairs already use: `int tag` (an enum
+  constant per constructor) and every variant's fields `f_<C>_<f>`. A constructor is a C99 compound literal.
+- **Equality.** ACSL needs no struct literal: `x == C(a, b)` is `x.tag == C` and the fields. Other equality is the
+  tag-aware predicate `dt_<D>_eq`.
+- **Matches.** A match is a conditional on the tag. Its binders are bound by `\let` in ACSL and replaced by their
+  field in C.
+- **Definedness.** A field read owes its constructor: `defs()` states it in a specification, and an assert states
+  it before the statement in code.
+- **Parameters.** Each datatype parameter `requires dt_<D>_ok(p)`, its tag one of its constructors'.
+- **Certificates.** A certificate declares a datatype witness as its compound literal. It decides each match, and
+  each nested min, max or abs, at the ground state, asserted. manhattan's twin carried a live `?:` for a nested abs
+  before that last step.
+- **This landing takes datatype parameters.** A datatype return or local, `==` on datatypes in executable position,
+  a recursive datatype and a seq, set or pair field refuse by name.
+
+**Measured before this registration, stated plainly.**
+- **Frama-C, `cli verify`:** color_code, shape_area, manhattan and rect_area COUNT. some_negative and
+  discrete_log_naive (a datatype return), the five trees (recursive), and bag_size and checked_tail (seq fields)
+  refuse by name.
+- **Byte identity:** of the 104 tasks and 27 AlgoVeri programs, exactly 26 lowerings change: the Frama-C pairs of
+  the 12 datatype tasks and of discrete_log_naive. No other task's certificate changed for the nested-conditional
+  step.
+- **Suite:** the whole suite passes (732). The fields test that pinned "Frama-C refuses" now checks that all seven
+  lower shape_area.
+
+**Bars**, for the clean-clone matrix and AlgoVeri table at this registration's commit, which read T35, T36 and T37
+together, with no proof run beside them:
+(1) The four read verified/refuted in Frama-C; Frama-C gains 4.
+(2) With T34-T36, color_code, shape_area, manhattan and rect_area are verified/refuted in all seven, so all seven
+gains 4 (53 to 57). The fifth reaches 58 only if sum_tail's Lean twin is no longer the unrelated timeout T33's read
+recorded, and sum_tail is not all-seven anyway: SPARK and Frama-C keep it out.
+(3) No other cell moves for T35-T37 beyond their own bars. sum_tail's Lean twin reads refuted again, unloaded.

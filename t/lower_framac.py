@@ -3730,6 +3730,141 @@ def _has_partial_op(x) -> bool:
 SEQOPS = ("update", "fill")
 
 
+# DATATYPES in Frama-C (PREDICT T37, 2026-10-07; SPEC.md "Datatypes (v1)", "(v2): fields"). A t datatype is a C
+# struct passed BY VALUE, the encoding this file's pairs already use (the PAIRS section above `_pair_field_c`): `int
+# tag`, an enum constant `dt_<D>_<C>` per constructor, and one field `f_<C>_<f>` per constructor's field, int for an
+# int or bool, so every variant's storage is present and a constructor is a C99 compound literal with the others zero.
+# ACSL needs no struct literal: `x == C(a, b)` is `x.tag == dt_D_C && x.f_C_1 == a && ...`, and equality between two
+# non-literal values is the predicate `dt_D_eq`, by tag and then that constructor's fields. A match is a conditional
+# on the tag, each binder bound by ACSL's `\let` (in C, substituted by its field). A field read owes its constructor:
+# in a specification `defs()` states it, in code `code_ats` asserts it before the statement (its guard included).
+# Each datatype parameter `requires dt_D_ok(p)`, the tag one of its constructors' (a t value is always built by one).
+# This landing: datatype PARAMETERS. A datatype return or local, `==` on datatypes in executable position, a recursive
+# datatype (a C struct cannot hold itself by value) and a seq, set or pair field refuse by name.
+_DTS: dict = {}
+
+
+def _dt_of(t) -> str | None:
+    return t["datatype"] if isinstance(t, dict) and "datatype" in t else None
+
+
+def _ctag(d: str, c: str) -> str:
+    return f"dt_{d}_{c}"
+
+
+def _cfield(c: str, f: str) -> str:
+    return f"f_{c}_{f}"
+
+
+def _dt_fields(d: str, c: str) -> list:
+    return next(k for k in _DTS[d]["ctors"] if k["name"] == c).get("fields", [])
+
+
+def _dt_field_type(d: str, f: str):
+    for k in _DTS[d]["ctors"]:
+        for fd in k.get("fields", []):
+            if fd["name"] == f:
+                return fd["type"]
+    raise NotImplementedError(f"framac: {d} has no field {f!r}")
+
+
+def _dt_field_ctors(d: str, f: str) -> list:
+    return [k["name"] for k in _DTS[d]["ctors"] if any(fd["name"] == f for fd in k.get("fields", []))]
+
+
+def _dt_check(task: dict, body: list) -> None:
+    names = {d["name"] for d in task.get("datatypes", [])}
+    for d in task.get("datatypes", []):
+        for k in d["ctors"]:
+            for fd in k.get("fields", []):
+                t = fd["type"]
+                if _dt_of(t) == d["name"]:
+                    raise NotImplementedError(
+                        "framac: a recursive datatype (SPEC.md 'Datatypes (v3): recursion'): a C struct cannot hold "
+                        "itself by value, and the pointer encoding is not built")
+                if t not in ("int", "bool") and _dt_of(t) not in names:
+                    raise NotImplementedError(
+                        f"framac: a datatype field of type {t!r} (SPEC.md 'Datatypes (v2): fields'): only int, bool "
+                        "and datatype fields are lowered yet")
+    if _dt_of(task["returns"][0]["type"]) is not None:
+        raise NotImplementedError("framac: a datatype return (SPEC.md 'Datatypes (v2): fields') is not lowered yet: "
+                                  "this landing passes datatypes as parameters only")
+
+    def locals_(stmts):
+        for st in stmts:
+            if "var" in st and _dt_of(st["var"]["type"]) is not None:
+                raise NotImplementedError("framac: a datatype local (SPEC.md 'Datatypes (v2): fields') is not "
+                                          "lowered yet: this landing passes datatypes as parameters only")
+            for k in ("then", "else"):
+                if "if" in st:
+                    locals_(st["if"][k])
+            if "while" in st:
+                locals_(st["while"]["body"])
+    locals_(body)
+
+
+def _dt_decls(task: dict) -> list:
+    """The C declarations and ACSL predicates of every datatype, in declaration order."""
+    out = []
+    for d in task.get("datatypes", []):
+        name = d["name"]
+        tags = ", ".join(_ctag(name, k["name"]) for k in d["ctors"])
+        out.append(f"enum dt_{name}_tag {{ {tags} }};")
+        fields = []
+        for k in d["ctors"]:
+            for fd in k.get("fields", []):
+                ft = fd["type"]
+                cty = f"struct dt_{_dt_of(ft)}" if _dt_of(ft) else "int"
+                fields.append(f"{cty} {_cfield(k['name'], fd['name'])};")
+        out.append(f"struct dt_{name} {{ int tag; {' '.join(fields)} }};")
+        oks, eqs = [], []
+        for k in d["ctors"]:
+            c = _ctag(name, k["name"])
+            oks.append(f"x.tag == {c}" + "".join(
+                f" && dt_{_dt_of(fd['type'])}_ok(x.{_cfield(k['name'], fd['name'])})"
+                for fd in k.get("fields", []) if _dt_of(fd["type"])))
+            parts = []
+            for fd in k.get("fields", []):
+                fn = _cfield(k["name"], fd["name"])
+                fd_d = _dt_of(fd["type"])
+                parts.append(f"dt_{fd_d}_eq(a.{fn}, b.{fn})" if fd_d else f"a.{fn} == b.{fn}")
+            if parts:
+                eqs.append(f"(a.tag == {c} ==> ({' && '.join(parts)}))")
+        out.append(f"/*@ predicate dt_{name}_ok(struct dt_{name} x) = " + " || ".join(f"({o})" for o in oks) + "; */")
+        out.append(f"/*@ predicate dt_{name}_eq(struct dt_{name} a, struct dt_{name} b) = a.tag == b.tag"
+                   + "".join(f" && {e}" for e in eqs) + "; */")
+    return out
+
+
+def _dt_arm_binds(d: str, arm: dict) -> list:
+    """(binder, field name, field type) for a match arm."""
+    return [(b, fd["name"], fd["type"]) for b, fd in zip(arm["binders"], _dt_fields(d, arm["ctor"]), strict=True)]
+
+
+def _dt_subst(e, sub: dict):
+    """`e` with each variable in `sub` replaced by its expression (a match binder by its field read, in C)."""
+    if isinstance(e, list):
+        return [_dt_subst(x, sub) for x in e]
+    if not isinstance(e, dict):
+        return e
+    if "var" in e and isinstance(e["var"], str):
+        return sub.get(e["var"], e)
+    if "match" in e:
+        m = e["match"]
+        inner = [{**a, "body": _dt_subst(a["body"], {k: v for k, v in sub.items() if k not in a["binders"]})}
+                 for a in m["arms"]]
+        return {"match": {"scrutinee": _dt_subst(m["scrutinee"], sub), "arms": inner}}
+    return {k: _dt_subst(v, sub) for k, v in e.items()}
+
+
+def _dt_is(scr: dict, d: str, ctors) -> dict:
+    """The t expression "`scr` was built by one of `ctors`", a match returning a bool, for a guard or an
+    obligation."""
+    return {"match": {"scrutinee": scr, "arms": [
+        {"ctor": k["name"], "binders": [f"t_dq{i}" for i in range(len(k.get("fields", [])))],
+         "body": {"bool": k["name"] in ctors}} for k in _DTS[d]["ctors"]]}}
+
+
 def typ(e: dict, env: dict, funs: dict):
     """Type of an expression: 'int' | 'bool' | 'seq' | {'pair': [T1, T2]}.
 
@@ -3742,6 +3877,17 @@ def typ(e: dict, env: dict, funs: dict):
     (`typ`'s only two callers that must now expect a dict back are
     `pred()`'s `==`/`!=` dispatch, which gains a pair branch below it, and
     this function's own recursion)."""
+    if "ctor" in e:
+        return {"datatype": e["ctor"]["dtype"]}          # PREDICT T37
+    if "_dtf" in e:
+        return e["_dtf"]["type"]
+    if "field" in e:
+        return _dt_field_type(_dt_of(typ(e["field"]["of"], env, funs)), e["field"]["name"])
+    if "match" in e:
+        m = e["match"]
+        arm = m["arms"][0]
+        d = _dt_of(typ(m["scrutinee"], env, funs))
+        return typ(arm["body"], {**env, **{b: t for b, _, t in _dt_arm_binds(d, arm)}}, funs)
     if "int" in e:
         return "int"
     if "bool" in e:
@@ -4240,6 +4386,24 @@ def term(e: dict, ctx: Ctx) -> str:
                 f": ({term(i['else'], ctx)}))")
     if "call" in e:
         return acsl_call(e["call"], ctx)
+    if "_dtf" in e:
+        txt = f"({term(e['_dtf']['of'], ctx)}).{e['_dtf']['field']}"      # PREDICT T37: a match binder
+        return f"({txt} != 0)" if e["_dtf"]["type"] == "bool" else txt
+    if "field" in e:
+        # PREDICT T37: the constructor's own field (a field several constructors declare: chosen by the tag)
+        f = e["field"]
+        d = _dt_of(typ(f["of"], ctx.env, ctx.funs))
+        of = term(f["of"], ctx)
+        cs = _dt_field_ctors(d, f["name"])
+        txt = f"({of}).{_cfield(cs[-1], f['name'])}"
+        for c in reversed(cs[:-1]):
+            txt = f"(({of}).tag == {_ctag(d, c)} ? ({of}).{_cfield(c, f['name'])} : {txt})"
+        return f"({txt} != 0)" if typ(e, ctx.env, ctx.funs) == "bool" else txt
+    if "match" in e:
+        return _dt_match_acsl(e, ctx, term)
+    if "ctor" in e:
+        raise NotImplementedError("framac: a constructor in ACSL term position other than one side of `==` "
+                                  "(PREDICT T37) is not lowered yet")
     if "forall" in e or "exists" in e:
         raise NotImplementedError("quantifier in ACSL term position")
     op, args = e["op"], e.get("args", [])
@@ -4417,6 +4581,32 @@ def defs(e: dict, ctx: Ctx):
                       f"(\\forall integer {fresh}; ({rng}) ==> {db})"])
     if "call" in e:
         return _conj([defs(a, ctx) for a in e["call"].get("args", [])])
+    if "ctor" in e:
+        return _conj([defs(a, ctx) for a in e["ctor"]["args"]])   # PREDICT T37
+    if "field" in e:
+        # PREDICT T37: `e.f` owes a constructor that declares f
+        f = e["field"]
+        d = _dt_of(typ(f["of"], ctx.env, ctx.funs))
+        cs = _dt_field_ctors(d, f["name"])
+        tag = None if len(cs) == len(_DTS[d]["ctors"]) else (
+            "(" + " || ".join(f"({term(f['of'], ctx)}).tag == {_ctag(d, c)}" for c in cs) + ")")
+        return _conj([defs(f["of"], ctx), tag])
+    if "match" in e:
+        # PREDICT T37: each arm's body defined on its own constructor, its binders bound
+        m = e["match"]
+        d = _dt_of(typ(m["scrutinee"], ctx.env, ctx.funs))
+        scr = term(m["scrutinee"], ctx)
+        parts = [defs(m["scrutinee"], ctx)]
+        for arm in m["arms"]:
+            c2 = ctx
+            lets = ""
+            for b, fname, t in _dt_arm_binds(d, arm):
+                c2 = c2.bind(b, t)
+                lets += f"\\let {b} = ({scr}).{_cfield(arm['ctor'], fname)}; "
+            db = defs(arm["body"], c2)
+            if db is not None:
+                parts.append(f"(({scr}).tag == {_ctag(d, arm['ctor'])} ==> ({lets}{db}))")
+        return _conj(parts)
     op, args = e["op"], e.get("args", [])
     if op == "at":
         i = term(args[1], ctx)
@@ -4510,8 +4700,50 @@ def defs(e: dict, ctx: Ctx):
     return _conj([defs(a, ctx) for a in args])
 
 
+def _dt_match_acsl(e: dict, ctx, render) -> str:
+    """PREDICT T37: a match as a conditional on the tag, each arm's binders bound by ACSL's `\\let`."""
+    m = e["match"]
+    d = _dt_of(typ(m["scrutinee"], ctx.env, ctx.funs))
+    scr = term(m["scrutinee"], ctx)
+    arms = []
+    for arm in m["arms"]:
+        c2 = ctx
+        lets = ""
+        for b, f, t in _dt_arm_binds(d, arm):
+            c2 = c2.bind(b, t)
+            if b in _t_vars(arm["body"], set()):
+                lets += f"\\let {b} = ({scr}).{_cfield(arm['ctor'], f)}; "
+        arms.append((arm["ctor"], f"({lets}{render(arm['body'], c2)})" if lets else render(arm["body"], c2)))
+    txt = arms[-1][1]
+    for c, body in reversed(arms[:-1]):
+        txt = f"(({scr}).tag == {_ctag(d, c)} ? {body} : {txt})"
+    return txt
+
+
+def _dt_eq_acsl(x: str, e: dict, d: str, ctx) -> str:
+    """PREDICT T37: the ACSL predicate "the struct value `x` equals the t value `e`" -- a constructor expanded field
+    by field, anything else through `dt_D_eq`."""
+    if "ctor" in e:
+        c = e["ctor"]
+        parts = [f"({x}).tag == {_ctag(d, c['name'])}"]
+        for a, fd in zip(c["args"], _dt_fields(d, c["name"]), strict=True):
+            fx = f"({x}).{_cfield(c['name'], fd['name'])}"
+            if fd["type"] == "bool":
+                parts.append(f"(({fx} != 0) <==> {pred(a, ctx)})")
+            elif _dt_of(fd["type"]):
+                parts.append(_dt_eq_acsl(fx, a, _dt_of(fd["type"]), ctx))
+            else:
+                parts.append(f"{fx} == ({term(a, ctx)})")
+        return "(" + " && ".join(parts) + ")"
+    return f"dt_{d}_eq({x}, {term(e, ctx)})"
+
+
 def pred(e: dict, ctx: Ctx) -> str:
     """ACSL predicate (for requires/ensures/invariants/asserts/lemmas)."""
+    if "field" in e or "_dtf" in e:
+        return term(e, ctx)                              # PREDICT T37: a bool field, `!= 0`
+    if "match" in e:
+        return _dt_match_acsl(e, ctx, pred)              # PREDICT T37
     if "bool" in e:
         return "\\true" if e["bool"] else "\\false"
     if "var" in e:
@@ -4550,6 +4782,15 @@ def pred(e: dict, ctx: Ctx) -> str:
         return "(" + glue.join(pred(a, ctx) for a in args) + ")"
     if op in ("==", "!="):
         t0 = typ(args[0], ctx.env, ctx.funs)
+        if _dt_of(t0) is not None:
+            # PREDICT T37: by constructor and fields; a constructor operand expanded, never a struct literal
+            a, b = args
+            if "ctor" in a and "ctor" not in b:
+                a, b = b, a
+            if "ctor" in a:
+                raise NotImplementedError("framac: `==` between two constructors (PREDICT T37) is not lowered yet")
+            eq = _dt_eq_acsl(term(a, ctx), b, _dt_of(t0), ctx)
+            return eq if op == "==" else f"(!{eq})"
         if t0 == "bool":
             eq = f"({pred(args[0], ctx)} <==> {pred(args[1], ctx)})"
             return eq if op == "==" else f"(!{eq})"
@@ -4964,6 +5205,40 @@ def cexpr(e: dict, env: dict, funs: dict, task_name: str,
         return (f"(({cexpr(i['cond'], env, funs, task_name, _div_style)}) "
                 f"? ({cexpr(i['then'], env, funs, task_name, _div_style)}) "
                 f": ({cexpr(i['else'], env, funs, task_name, _div_style)}))")
+    if "ctor" in e:
+        # PREDICT T37: a C99 compound literal, the other variants' fields zero
+        c = e["ctor"]
+        d = c["dtype"]
+        inits = [f".tag = {_ctag(d, c['name'])}"] + [
+            f".{_cfield(c['name'], fd['name'])} = {cexpr(a, env, funs, task_name, _div_style)}"
+            for a, fd in zip(c["args"], _dt_fields(d, c["name"]), strict=True)]
+        return f"((struct dt_{d}){{{', '.join(inits)}}})"
+    if "field" in e:
+        f = e["field"]
+        d = _dt_of(typ(f["of"], env, funs))
+        of = cexpr(f["of"], env, funs, task_name, _div_style)
+        cs = _dt_field_ctors(d, f["name"])
+        txt = f"({of}).{_cfield(cs[-1], f['name'])}"
+        for c in reversed(cs[:-1]):
+            txt = f"(({of}).tag == {_ctag(d, c)} ? ({of}).{_cfield(c, f['name'])} : {txt})"
+        return txt
+    if "match" in e:
+        # PREDICT T37: a conditional on the tag, each binder replaced by its constructor's field
+        m = e["match"]
+        d = _dt_of(typ(m["scrutinee"], env, funs))
+        scr = cexpr(m["scrutinee"], env, funs, task_name, _div_style)
+        arms = []
+        for arm in m["arms"]:
+            sub = {b: {"_dtf": {"of": m["scrutinee"], "field": _cfield(arm["ctor"], fname), "type": t}}
+                   for b, fname, t in _dt_arm_binds(d, arm)}
+            env2 = {k: v for k, v in env.items() if k not in sub}
+            arms.append((arm["ctor"], cexpr(_dt_subst(arm["body"], sub), env2, funs, task_name, _div_style)))
+        txt = arms[-1][1]
+        for c, body in reversed(arms[:-1]):
+            txt = f"(({scr}).tag == {_ctag(d, c)} ? {body} : {txt})"
+        return txt
+    if "_dtf" in e:
+        return f"({cexpr(e['_dtf']['of'], env, funs, task_name, _div_style)}).{e['_dtf']['field']}"
     if "call" in e:
         c = e["call"]
         _m = funs.get(c["fun"])
@@ -5279,6 +5554,8 @@ def cexpr(e: dict, env: dict, funs: dict, task_name: str,
         y_pos = f"(({yc}) > 0)"       # 0 or 1
         sign_y = f"({y_pos} - {y_neg})"          # 1 or -1 (y != 0)
         return f"({quo} - {neg} * {sign_y})"
+    if op in ("==", "!=") and _dt_of(typ(args[0], env, funs)) is not None:
+        raise NotImplementedError("framac: `==` on datatypes in executable position (PREDICT T37) is not lowered yet")
     if op in ("==", "!="):
         t0 = typ(args[0], env, funs)
         if t0 == "seq" or is_nested_seq_type(t0):
@@ -5448,6 +5725,30 @@ def code_ats(e: dict, env: dict, guard: tuple = ()) -> list:
         for a in e["call"]["args"]:
             out += code_ats(a, env, guard)
         return out
+    if "ctor" in e:
+        for a in e["ctor"]["args"]:
+            out += code_ats(a, env, guard)               # PREDICT T37
+        return out
+    if "field" in e:
+        # PREDICT T37: the read owes its constructor, asserted under the guard that reaches it
+        f = e["field"]
+        out += code_ats(f["of"], env, guard)
+        d = _dt_of(typ(f["of"], env, {}))
+        cs = _dt_field_ctors(d, f["name"])
+        if len(cs) < len(_DTS[d]["ctors"]):
+            out.append(("dtf", _dt_is(f["of"], d, cs), guard))
+        return out
+    if "match" in e:
+        # PREDICT T37: each arm's obligations under the guard that its constructor was matched, its binders read as
+        # the constructor's fields
+        m = e["match"]
+        out += code_ats(m["scrutinee"], env, guard)
+        d = _dt_of(typ(m["scrutinee"], env, {}))
+        for arm in m["arms"]:
+            sub = {b: {"_dtf": {"of": m["scrutinee"], "field": _cfield(arm["ctor"], fname), "type": t}}
+                   for b, fname, t in _dt_arm_binds(d, arm)}
+            out += code_ats(_dt_subst(arm["body"], sub), env, guard + (_dt_is(m["scrutinee"], d, [arm["ctor"]]),))
+        return out
     if "op" not in e:
         return out
     op, args = e["op"], e.get("args", [])
@@ -5555,6 +5856,9 @@ def at_asserts(e: dict, ctx: Ctx, indent: str, funs=None,
         elif tag == "pos":
             (sv,) = rest
             body = f"{sv}_n > 0"
+        elif tag == "dtf":
+            (cond,) = rest
+            body = pred(cond, ctx)                       # PREDICT T37: a field read's constructor
         else:                                      # "dm": bridging assert
             (node,) = rest
             if funs is not None and task_name is not None:
@@ -8737,6 +9041,60 @@ def _flush_trace(out: list, ind: str) -> None:
     _CEV_TRACE.clear()
 
 
+def _cev_dt(e: dict, st: dict):
+    """PREDICT T37: a datatype expression's ground value, interp's own `Ctor`."""
+    import interp
+    if "ctor" in e:
+        c = e["ctor"]
+        return interp.Ctor(c["dtype"], c["name"], tuple(_cev(a, st) for a in c["args"]))
+    if "field" in e or "_dtf" in e:
+        of = e["field"]["of"] if "field" in e else e["_dtf"]["of"]
+        v = _cev(of, st)
+        for i, fd in enumerate(_dt_fields(v.dtype, v.ctor)):
+            if (fd["name"] == e["field"]["name"] if "field" in e else _cfield(v.ctor, fd["name"]) == e["_dtf"]["field"]):
+                return v.args[i]
+        raise _CertSkip("a field read on a constructor without it")
+    m = e["match"]
+    v = _cev(m["scrutinee"], st)
+    arm = next(a for a in m["arms"] if a["ctor"] == v.ctor)
+    return _cev(arm["body"], {**st, **dict(zip(arm["binders"], v.args))})
+
+
+def _cert_dt_resolve(e, ctx, st: dict, asserts: list, ind: str):
+    """PREDICT T37: `e` with every match and every read of a field several constructors share resolved at the
+    ground state, each decision asserted as a kernel goal (`(s).tag == dt_D_C`), the way an `if` is: no live `?:`
+    reaches the certificate, whose audit has no exemption for a dead arm."""
+    if isinstance(e, list):
+        return [_cert_dt_resolve(x, ctx, st, asserts, ind) for x in e]
+    if not isinstance(e, dict) or "_dtf" in e:
+        return e
+    if "match" in e:
+        m = e["match"]
+        v = _cev(m["scrutinee"], st)
+        asserts.append(f"{ind}/*@ assert ({term(m['scrutinee'], ctx)}).tag == {_ctag(v.dtype, v.ctor)}; */")
+        arm = next(a for a in m["arms"] if a["ctor"] == v.ctor)
+        sub = {b: {"_dtf": {"of": m["scrutinee"], "field": _cfield(v.ctor, fname), "type": t}}
+               for b, fname, t in _dt_arm_binds(v.dtype, arm)}
+        return _cert_dt_resolve(_dt_subst(arm["body"], sub), ctx, st, asserts, ind)
+    if "field" in e:
+        f = e["field"]
+        v = _cev(f["of"], st)
+        if len(_dt_field_ctors(v.dtype, f["name"])) > 1:
+            asserts.append(f"{ind}/*@ assert ({term(f['of'], ctx)}).tag == {_ctag(v.dtype, v.ctor)}; */")
+            return {"_dtf": {"of": f["of"], "field": _cfield(v.ctor, f["name"]),
+                             "type": _dt_field_type(v.dtype, f["name"])}}
+        return e
+    return {k: _cert_dt_resolve(x, ctx, st, asserts, ind) for k, x in e.items()}
+
+
+def _dt_has_choice(e) -> bool:
+    if isinstance(e, list):
+        return any(_dt_has_choice(x) for x in e)
+    if not isinstance(e, dict) or "_dtf" in e:
+        return False
+    return "match" in e or "field" in e or any(_dt_has_choice(x) for x in e.values())
+
+
 def _cev(e: dict, st: dict):
     """Ground evaluation of an EXECUTABLE t expression at concrete state,
     used only to pick branches and count loop iterations. Every decision it
@@ -8755,6 +9113,8 @@ def _cev(e: dict, st: dict):
         return _cev(i["then"] if _cev(i["cond"], st) else i["else"], st)
     if "call" in e:
         return _cev_call(e["call"], st)
+    if "ctor" in e or "field" in e or "_dtf" in e or "match" in e:
+        return _cev_dt(e, st)                            # PREDICT T37
     if "forall" in e or "exists" in e:
         raise _CertSkip("quantifier in executable position")
     op, args = e["op"], e.get("args", [])
@@ -8872,6 +9232,23 @@ def _has_ite(x) -> bool:
     return False
 
 
+def _has_libcond(x) -> bool:
+    """True iff a `min`/`max` of two arguments or an `abs` occurs strictly INSIDE `x` (PREDICT T37): each is a C
+    conditional, so nested under an operator it reached `cexpr` as a live `?:` whose dead arm the certificate's own
+    audit rejects (measured on manhattan's twin, `abs(..) + abs(..)`); routed through the recursive arms below, the
+    top-level rule decides each one at the ground state. False for a lone top-level one, which that rule already
+    takes."""
+    def inner(y) -> bool:
+        if isinstance(y, dict):
+            if y.get("op") in ("min", "max", "abs") and (y["op"] == "abs" or len(y.get("args", [])) == 2):
+                return True
+            return any(inner(v) for v in y.values())
+        if isinstance(y, list):
+            return any(inner(v) for v in y)
+        return False
+    return isinstance(x, dict) and any(inner(v) for v in x.values())
+
+
 def _cert_cexpr(e: dict, ctx: Ctx, st: dict, funs: dict, name: str,
                 asserts: list, ind: str) -> str:
     """cexpr(), specialized for the certificate replay: every `div`/`mod`
@@ -8917,6 +9294,8 @@ def _cert_cexpr(e: dict, ctx: Ctx, st: dict, funs: dict, name: str,
     measured lifted task loses its short-circuit here, since one
     containing a partial operator anywhere falls through to the ordinary
     path below unchanged."""
+    if _DTS and _dt_has_choice(e):
+        e = _cert_dt_resolve(e, ctx, st, asserts, ind)   # PREDICT T37: matches decided at the ground tag
     if e.get("op") in ("min", "max", "abs") and (e["op"] == "abs" or len(e.get("args", [])) == 2):
         # SPEC.md "The library (v1)" (PREDICT T11): min/max/abs are C conditionals, so in the replay they are their
         # `ite`, resolved branch-free below (measured: clamp's twin read UNPROVED on a live `?:` arm at ground values)
@@ -8933,7 +9312,7 @@ def _cert_cexpr(e: dict, ctx: Ctx, st: dict, funs: dict, name: str,
         a_c = _cert_cexpr(e["args"][0], ctx, st, funs, name, asserts, ind)
         b_c = _cert_cexpr(e["args"][1], ctx, st, funs, name, asserts, ind)
         return f"(({a_c}) {'&' if e['op'] == 'and' else '|'} ({b_c}))"
-    if not _has_divmod(e) and not _has_ite(e):
+    if not _has_divmod(e) and not _has_ite(e) and not _has_libcond(e):
         return cexpr(e, ctx.env, funs, name)
     if "ite" in e:
         # BRANCH-FREE ITE (framac track, 2026-09-26; acsl clamp's
@@ -9558,6 +9937,14 @@ def _value_certificate(task: dict, twin_body: list, w: dict,
                 decls.append(f"  struct {psname} {p['name']} = "
                              f"(struct {psname}){{{a0}, {b0}}};")
                 st[p["name"]] = v
+            elif _dt_of(p["type"]) is not None:
+                # PREDICT T37: a datatype witness, the t text parsed, declared as its ground compound literal
+                import interp
+                import surface
+                ast = surface.parse_expr(v)
+                decls.append(f"  struct dt_{_dt_of(p['type'])} {p['name']} = "
+                             f"{cexpr(ast, env, funs, task['name'])};")
+                st[p["name"]] = interp.ev(ast, {}, {}, interp.St())
             else:
                 decls.append(f"  int {p['name']} = {_int_lit(int(v))};")
                 st[p["name"]] = v
@@ -10631,28 +11018,28 @@ def _comp_refusal(task: dict, body: list) -> None:
 
 def lower(task: dict, body: list, witness: dict | None = None,
           _unit: dict | None = None) -> str:
+    # PREDICT T37: the task's datatype declarations, for the module-level helpers, for exactly this call
+    if _unit is not None:
+        return _lower(task, body, witness, _unit)
+    prev = dict(_DTS)
+    _DTS.clear()
+    _DTS.update({d["name"]: d for d in task.get("datatypes", [])})
+    try:
+        return _lower(task, body, witness, _unit)
+    finally:
+        _DTS.clear()
+        _DTS.update(prev)
+
+
+def _lower(task: dict, body: list, witness: dict | None = None,
+           _unit: dict | None = None) -> str:
     import tshape
     task, body = tshape.desugar_seq_quants(task, body)   # SPEC.md "Quantifiers over a collection": seq ranges as indices
     import framac_lib
     tshape.abstain_unless_carried(task, body, "framac", carried={"comp"},
                                   lib=framac_lib.FRAMAC_LIB)   # PREDICT T11: the library in Frama-C
     _comp_refusal(task, body)                              # PREDICT T19: maps assigned to a buffer, the rest by name
-    if task.get("datatypes"):
-        # DATATYPES (2026-09-27, SPEC.md "Datatypes (v1)"): FEATURES-TRACK.md
-        # names "Frama-C ... through records with discriminants" as the
-        # eventual encoding -- a C struct with an int tag field plus an
-        # ACSL predicate enumerating its legal values, since C's `enum` is
-        # an unchecked int with no ACSL exhaustiveness or WP support for a
-        # `match`-shaped case split the way a tagged struct's own
-        # discriminant would get one. That encoding, its equality
-        # predicate and a ground refutation certificate for it are not
-        # built or measured against frama-c/WP here. Until they are, the
-        # honest verdict is an abstention by name (SPEC.md's own rule),
-        # the same posture this column already takes for finite sets below.
-        raise NotImplementedError(
-            "framac lowering: datatypes (SPEC.md 'Datatypes (v1)'): the "
-            "tagged-struct encoding and its ACSL predicates/certificate are "
-            "not built or measured yet")
+    _dt_check(task, body)                                  # PREDICT T37: datatype parameters; the rest by name
     if _uses_sets(task) or _uses_sets(body):
         # FINITE SETS (2026-09-27, SPEC.md "Finite sets (v1)"): C has no
         # set value. ACSL's logic sets (`\union`, `\inter`, `\subset`)
@@ -11015,6 +11402,8 @@ def lower(task: dict, body: list, witness: dict | None = None,
                         if pt not in declared_pairs]
 
     header = []
+    if task.get("datatypes"):
+        header += _dt_decls(task)                         # PREDICT T37
     if pair_ty is not None:
         header.append(f"struct {struct_name} {{ int a; int b; }};")
     for pt in extra_pair_types:
@@ -11203,6 +11592,10 @@ def lower(task: dict, body: list, witness: dict | None = None,
                    label="Here",
                    seq_len=({ret: "\\result"} if capacity_mode else {}))
     clauses = []
+    for p in task["params"]:
+        if _dt_of(p["type"]) is not None:
+            # PREDICT T37: a t value is always built by one of its constructors
+            clauses.append(f"  requires dt_{_dt_of(p['type'])}_ok({p['name']});")
     all_seqs = list(seqs)
     for s in seqs:
         clauses.append(f"  requires {s}_n >= 0;")
@@ -11437,6 +11830,8 @@ def lower(task: dict, body: list, witness: dict | None = None,
                 continue
             sname = _pair_struct_name(*p["type"]["pair"])
             cparams.append(f"struct {sname} {p['name']}")
+        elif _dt_of(p["type"]) is not None:
+            cparams.append(f"struct dt_{_dt_of(p['type'])} {p['name']}")   # PREDICT T37: by value
         else:
             cparams.append(f"int {p['name']}")
     if rett == "seq":
