@@ -2536,3 +2536,28 @@ The D8 picture across four corpora and three kernels:
 | vericoding, Verus track | Verus | 63 | 96.8% | 20 | 55 | 14 | 13 |
 | vericoding, Lean track | Lean | 16 | 100% | 0 | 12 | 0 | 0 |
 | ACSL by Example | Frama-C | 16 | 100% | 0 | 13 | 0 | 0 |
+
+## T57 registered (2026-10-07 14:52Z, after hand probes and before the clean-clone run): certificates for heap twins
+
+**The change.** A heap twin that differs from the real program only in the array had no value certificate in Verus,
+F* or Rocq. The copy-in/copy-out rewrite (T53) grounds its result as `pair(value, array)`. Two pieces were missing:
+- **Verus and F\*** (F* reuses Verus's grounding): `_gint` could not read a bound like `len(snd(t_out))`. It now
+  reduces `fst`/`snd` of a literal pair first; anything else still refuses.
+- **Rocq:** had no literal for a sequence inside a pair. The value is the same two slots the rewrite's default uses.
+  Its certificate also asserted the computed value equal to that literal by `reflexivity`, which fails: the twin's
+  array is an update over the input, equal to the literal only extensionally. For this shape Rocq now normalizes the
+  computed value itself (`remember`, `cbv`, `subst`).
+
+**Measured before this registration, stated plainly** (hand probes, `cli.py verify --kernels verus,fstar,rocq`):
+- scale_all and relu_all: verified/refuted in all three, where they read verified/unproved.
+- zero_fill (autonomy): verified/refuted in all three.
+- sample_push and saturate_all (autonomy): their twins are now refuted in all three. The real bodies are still
+  unproved there, so neither counts.
+- Rocq's certificate prints "Closed under the global context".
+- **Byte identity:** only scale_all's and relu_all's twin lowerings change, in Verus, F* and Rocq. AlgoVeri does not
+  move. Suite passes; Python 3.10 compiles.
+
+**Bars**, for the clean-clone tables at this registration's commit:
+(1) The matrix: Verus 104, F* 84, Rocq 84 (+2 each); every other kernel unchanged; all seven 65 (scale_all enters;
+relu_all's SPARK twin is still a timeout).
+(2) `t/AUTONOMY.md`: Verus 15, F* 18, Rocq 15 (+1 each, zero_fill); all seven 14 of 25.
