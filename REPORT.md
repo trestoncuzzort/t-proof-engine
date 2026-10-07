@@ -4,8 +4,8 @@
 Frama-C, and checking every specification with a refutation twin.**
 
 Draft of 2026-10-07. Every number here is from a table regenerated from a clean clone of this repository
-(`t/AGREEMENT.md`, `t/ALGOVERI.md`, `t/AUTONOMY.md`); the registration that predicted each one, before it ran, is in
-`t/PREDICT-2026-10-06-t-expansion.md`.
+(`t/AGREEMENT.md`, `t/ALGOVERI.md`, `t/AUTONOMY.md` and the `t/AUDIT-*.md` tables). The registration that predicted
+each one, before it ran, is in `t/PREDICT-2026-10-06-t-expansion.md`.
 
 ## Abstract
 
@@ -18,8 +18,8 @@ chosen by a search for an input where the mutant breaks the contract, by accepti
 mutant by execution and has the kernel prove the ones the spec cannot tell apart. Over 316 Dafny-verified DafnyBench
 programs, Dafny also proves a different, one-edit program against the same contract in 44; read by hand, 23 of those
 are gaps in the specification. Across five public benchmark corpora in Dafny, Verus and Lean, 72 such gaps are found,
-each with a kernel proof of the wrong program. Each kernel refuses by name what it cannot
-express, rather than weakening it. The language now carries the constructs embedded control code needs: in-place
+each with a kernel proof of the wrong program. Each kernel refuses by name what it cannot express, rather than
+weakening it. The language now carries the constructs embedded control code needs: in-place
 arrays, parallel loops whose race freedom is checked by rule, and IEEE-754 doubles. A suite of 25 autonomy routines
 is checked the same way.
 
@@ -89,11 +89,11 @@ invariants, early exits, recursion, methods and lemmas. Since 2026-10-07 it also
 **AlgoVeri** (30 contracts lifted from the public benchmark; `t/ALGOVERI.md`): Dafny 30, Verus 9, F\* 5, SPARK 4,
 Frama-C 2, Lean 1, Rocq 1. One contract is proved in all seven.
 
-**The autonomy suite** (25 routines; `t/autonomy/`, `t/AUTONOMY.md`, clean clone at 156d798), verified with the
+**The autonomy suite** (25 routines; `t/autonomy/`, `t/AUTONOMY.md`, clean clone at f4d5570), verified with the
 twin refuted: Frama-C 21, SPARK 20, Dafny 18, F\* 18, Lean 15, Verus 15, Rocq 15. 14 of the 25 are in all seven.
 What keeps the others out is measured, not guessed:
 - nonlinear integer division (grid_cell, low_pass_step), which F\* alone proves;
-- float rounding under a step budget (pid_step);
+- pid_step's two rounded products and a sum, a timeout in SPARK and Frama-C at every step budget tried;
 - floats, which five kernels refuse by name;
 - the heap routines sample_push (ring-buffer `mod`) and saturate_all, proved in Dafny and Frama-C and not yet
   elsewhere.
@@ -138,7 +138,7 @@ sample by hand: 157 of 284 alive mutants were equivalent to the original. The au
 
 The cost is the bounded domain: a difference outside it is not seen.
 
-The same audit, in the kernel each source was verified in (PREDICT T56; clean clone at 5e3abec):
+The same audit, in the kernel each source was verified in (PREDICT T56 and T59; clean clones at 5e3abec and 9c7b147):
 
 | corpus | kernel | audited | mutants killed | specs with a survivor | real verified | survivor proved too | gaps by hand |
 |---|---|---|---|---|---|---|---|
@@ -149,8 +149,8 @@ The same audit, in the kernel each source was verified in (PREDICT T56; clean cl
 | HumanEval-Dafny | Dafny | 45 | 93.5% | 6 | 39 | 5 | 5 |
 | ACSL by Example | Frama-C | 16 | 100% | 0 | 13 | 0 | 0 |
 
-Across the five benchmark corpora, 102 tasks have a kernel-proved one-edit wrong program, and 72 of them are gaps in
-the specification by hand reading (PREDICT T59, clean clone at 9c7b147).
+Across the five benchmark corpora, 102 tasks have a kernel-proved one-edit wrong program. By hand reading, 72 of them
+are gaps in the specification.
 
 Specification quality tracks the source:
 - ACSL by Example, an expert-written library, kills every mutant, including on ties: `max_element` names the
@@ -202,6 +202,13 @@ Each item below was found by a measured disagreement and fixed in a lowering, an
 - **Twins are chosen by value difference within a bounded input domain.** A spec weak only outside that domain is not
   caught.
 - **One machine, pinned versions.** Kernel versions are recorded in every table, and nothing is claimed beyond them.
+  The `Dockerfile` pins the same versions by sha256, and CI builds it on a fresh machine.
+- **The audit's limits.**
+  - A difference outside the bounded domain is not seen.
+  - Telling a gap from intended latitude is a reading of the routine's purpose. Every reading is published beside
+    its proof (`CLASSIFIED*.md`) so it can be disputed.
+  - The lifted corpora are the programs t can state, a selection biased toward integers, sequences and loops, so
+    the counts describe those programs, not each benchmark whole.
 
 ## 7. Related work
 
@@ -231,6 +238,9 @@ survivor at a witness input and confirms it with a kernel proof.
 python3 t/cli.py verify t/tasks --jobs 3 --table AGREEMENT.md
 python3 t/cli.py verify t/algoveri --jobs 2 --table ALGOVERI.md
 python3 t/cli.py verify t/autonomy --jobs 3 --table AUTONOMY.md
+python3 t/cli.py audit  t/dafnybench --kernel dafny --jobs 4 --table AUDIT-DAFNYBENCH.md
 ```
+
+Or, with nothing installed but Docker: `docker build -t t-proof-engine .` and see `QUICKSTART.md`.
 
 The whole suite (`python3 -m pytest t`) runs without any kernel.
