@@ -37,11 +37,11 @@ Measured from a clean clone of this repository on 2026-10-07 over the 114 commit
 | Rocq | 83 | 3 | 28 |
 | F\* | 84 | 4 | 26 |
 | SPARK | 79 | 5 | 30 |
-| Frama-C | 70 | 2 | 42 |
+| Frama-C | 71 | 1 | 42 |
 
 - In six kernels the twin of every proved program is refuted. SPARK's one exception is relu_all, whose twin times
   out.
-- 65 of the 114 tasks are proved, with the twin refuted, in all seven kernels.
+- 66 of the 114 tasks are proved, with the twin refuted, in all seven kernels.
 - Datatypes with fields (records and non-recursive sums, PREDICT T23) and recursive datatypes (trees, T25) are proved
   in Dafny, Verus, Lean, Rocq and F* (T34, T35); SPARK and Frama-C carry the non-recursive ones (T36, T37), so
   color_code, shape_area, manhattan and rect_area are verified with the twin refuted in all seven. A quantifier over a seq's elements is stated in

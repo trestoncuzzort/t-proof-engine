@@ -14,7 +14,7 @@ from a wrong one proves nothing. t is a small language in which a routine and it
 lowered mechanically into seven independently built proof systems. A cell of the resulting table counts only if two
 things hold. First, the kernel proves the real program. Second, it refutes the routine's **twin**, a one-edit mutant
 chosen by a search for an input where the mutant breaks the contract, by accepting a certificate at that input. Over
-114 tasks, 65 are proved with their twins refuted in all seven kernels. A specification audit runs every one-edit
+114 tasks, 66 are proved with their twins refuted in all seven kernels. A specification audit runs every one-edit
 mutant by execution and has the kernel prove the ones the spec cannot tell apart. Over 316 Dafny-verified DafnyBench
 programs, Dafny also proves a different, one-edit program against the same contract in 44; read by hand, 23 of those
 are gaps in the specification. Across five public benchmark corpora in Dafny, Verus and Lean, 72 such gaps are found,
@@ -69,7 +69,7 @@ invariants, early exits, recursion, methods and lemmas. Since 2026-10-07 it also
 
 ## 4. Results
 
-**The matrix** (114 tasks; `t/AGREEMENT.md`, clean clone at 07311fa):
+**The matrix** (114 tasks; `t/AGREEMENT.md`, clean clone at 8d3a3a5):
 
 | kernel | proved, twin refuted | carried, not proved | refused by name |
 |---|---|---|---|
@@ -79,9 +79,9 @@ invariants, early exits, recursion, methods and lemmas. Since 2026-10-07 it also
 | Rocq | 83 | 3 | 28 |
 | F\* | 84 | 4 | 26 |
 | SPARK | 79 | 5 | 30 |
-| Frama-C | 70 | 2 | 42 |
+| Frama-C | 71 | 1 | 42 |
 
-- 65 of the 114 tasks are proved with the twin refuted in **all seven**.
+- 66 of the 114 tasks are proved with the twin refuted in **all seven**.
 - In six kernels every proved program's twin is refuted. The one exception is SPARK's relu_all, whose twin times
   out.
 - The heap reaches the five kernels without native arrays by copy-in/copy-out (PREDICT T53). With no aliasing,
@@ -171,8 +171,9 @@ Run on t's own suites, the audit found seven of its own specs too weak, each of 
 - tree_insert, where the search-tree order is unstated.
 
 All seven were rewritten to pin their results down (PREDICT T55, T60; tree_insert now states the bounded search-tree
-order). Each kills every behaviour-changing mutant, and the suite's audit reads 1,578 of 1,578 killed. The stronger filter_pos costs Frama-C one cell: WP has no frame fact for a
-recursive logic function over memory, and the loop invariant steps out. The stronger tree_insert costs Rocq and Lean
+order). Each kills every behaviour-changing mutant, and the suite's audit reads 1,578 of 1,578 killed. The stronger filter_pos first cost Frama-C one cell: WP has no frame fact
+for a recursive logic function over memory, and the loop invariant stepped out. Reading such a function at the entry
+state when its memory is never written removes the need for that fact (T65), and the cell is back. The stronger tree_insert costs Rocq and Lean
 one cell each. A stronger contract is harder to prove, and the matrix now counts the harder one.
 
 **Repair: from a measured gap to a proved contract** (PREDICT T61; `t/contract_repair.py`, `t/REPAIR-*.md`, `t/repairs/`).
@@ -237,6 +238,8 @@ Each item below was found by a measured disagreement and fixed in a lowering, an
 - **Verus's** recursive comprehension over the whole source needs subrange extensionality at every step. A loop over
   a prefix gets two broadcast lemmas: one step of the prefix, and the full-length prefix equals the whole.
 - **Frama-C's** smoke test flags the dead code after a `while (1)` left only by `return`, so the rewrite drops it.
+- **Frama-C's** WP derives no frame fact for a recursive logic function, so a loop invariant over one steps out after
+  any write. Read at `Pre`, where its inputs are unchanged by construction, it needs none.
 - **Dafny's** array axioms trigger on `a[i]` and `a.Length`, not on the sequence view `a[..][i]`. In-place reverse
   timed out until elements were read on the array itself.
 - **Float goals need a larger step budget, and one needs more than budget.** A rate limiter timed out at the

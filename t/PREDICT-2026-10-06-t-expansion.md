@@ -2967,3 +2967,10 @@ themselves.
 **Bars**, for the clean-clone table at this registration's commit:
 (1) Frama-C 71; every other kernel unchanged; all seven 66 of 114 (filter_pos returns).
 (2) The autonomy table does not move.
+
+### T65 read (2026-10-07 20:12Z): both bars held.
+
+Regenerated from a clean clone at 8d3a3a5, and installed.
+(1) **Held:** Frama-C 71 (filter_pos verified/refuted); every other kernel unchanged; all seven 66 of 114. The stronger
+filter_pos T55 wrote now costs nothing.
+(2) **Held:** `t/AUTONOMY.md` unchanged.
