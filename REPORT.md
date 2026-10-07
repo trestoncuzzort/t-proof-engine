@@ -175,7 +175,7 @@ order). Each kills every behaviour-changing mutant, and the suite's audit reads 
 recursive logic function over memory, and the loop invariant steps out. The stronger tree_insert costs Rocq and Lean
 one cell each. A stronger contract is harder to prove, and the matrix now counts the harder one.
 
-**Repair: from a measured gap to a proved contract** (PREDICT T61; `t/repair.py`, `t/REPAIR-*.md`, `t/repairs/`).
+**Repair: from a measured gap to a proved contract** (PREDICT T61; `t/contract_repair.py`, `t/REPAIR-*.md`, `t/repairs/`).
 A gap the audit measures can be repaired mechanically:
 - **Candidates:** clauses from a grammar over the task's own vocabulary (result-to-parameter relations, membership,
   extremes and their attainment, bounds, the converse of a subset-only postcondition), plus Daikon-style fits read off

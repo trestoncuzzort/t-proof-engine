@@ -1,6 +1,6 @@
 # Specification repair
 
-For each task whose spec admits a survivor (`t/audit.py`), the clauses `t/repair.py` adds: each holds for the real program at every domain point, and together they kill every survivor they can. **after** is the repaired task's own audit, from scratch.
+For each task whose spec admits a survivor (`t/audit.py`), the clauses `t/contract_repair.py` adds: each holds for the real program at every domain point, and together they kill every survivor they can. **after** is the repaired task's own audit, from scratch.
 
 - tasks with survivors: 53; repaired to zero survivors: 24
 - refused because the real body never reads its parameters: 0

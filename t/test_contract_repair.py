@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""test_repair.py: t/repair.py (programme R1), proved specification repair. A weak max gains the clause that names
+"""test_repair.py: t/contract_repair.py (programme R1), proved specification repair. A weak max gains the clause that names
 its result; a subset-only filter gains its converse and, for its loop, the invariant that carries it; every chosen
 clause holds for the real program on the whole domain; a strong spec gets nothing. Standard library only, no
 kernel runs."""
@@ -19,7 +19,7 @@ import audit  # noqa: E402
 import cli  # noqa: E402
 import harness  # noqa: E402
 import interp  # noqa: E402
-import repair  # noqa: E402
+import contract_repair as repair  # noqa: E402
 import surface  # noqa: E402
 
 MAX = """t 1

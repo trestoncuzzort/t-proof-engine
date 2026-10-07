@@ -13,7 +13,7 @@ tlib.py, harness.py, names.py and run_par.py already require):
     verify FILE.t|DIR [--kernels a,b] [--flake N] [--jobs N] [--table PATH] [--json]
     twin FILE.t [--json]                the ladder's chosen operator + witness
     audit FILE.t|DIR [--kernel K]       the one-edit mutants the spec lets through (t/audit.py)
-    repair FILE.t|DIR [--kernel K]      the clauses that kill those mutants, proved (t/repair.py)
+    repair FILE.t|DIR [--kernel K]      the clauses that kill those mutants, proved (t/contract_repair.py)
     build FILE.t|DIR [--to c|c64|dafny-py]  the proven lowerings compiled and run (t/build.py)
     ship FILE.t|DIR                     the C proved at machine width, with its envelope (t/ship.py)
     explain WORD [--kernel K]           one sentence per kernel for an outcome word
@@ -466,7 +466,7 @@ def cmd_audit(args) -> int:
 
 
 def cmd_repair(args) -> int:
-    import repair   # programme R1: proved specification repair
+    import contract_repair as repair   # programme R1: proved specification repair
     argv = [str(args.target), "--jobs", str(args.jobs)]
     for flag in ("kernel", "table", "write"):
         if getattr(args, flag):
@@ -553,7 +553,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--json", action="store_true")
     p.set_defaults(func=cmd_audit)
 
-    p = sub.add_parser("repair", help="add the clauses that kill an audit's survivors, then prove them (t/repair.py)")
+    p = sub.add_parser("repair", help="add the clauses that kill an audit's survivors, then prove them (t/contract_repair.py)")
     p.add_argument("target", metavar="FILE.t|DIR")
     p.add_argument("--kernel", help="prove each repaired task in this kernel")
     p.add_argument("--jobs", type=int, default=1)

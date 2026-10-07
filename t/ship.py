@@ -83,7 +83,7 @@ def _bound_candidates(task: dict) -> dict:
     a sequence's length, 0) that holds at every loop-head state the interpreter observes (repair.py's R1b states)."""
     import harness
     import interp
-    import repair
+    import contract_repair as repair
     harness._set_ctx(task)
     ref = interp.Reference(task)
     states = repair._loop_states(task, ref)

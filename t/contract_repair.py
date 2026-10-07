@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""t/repair.py: proved specification repair (programme R1, internal/RESEARCH-2026-10-07-zoom-out.md section 8).
+"""t/contract_repair.py: proved specification repair (programme R1, internal/RESEARCH-2026-10-07-zoom-out.md section 8).
 
 `t/audit.py` finds survivors: one-edit mutants that compute something different from the real program while meeting
 its `ensures` everywhere on the bounded domain. This module proposes the missing clauses, picks a set that kills every
@@ -27,7 +27,7 @@ Prior art (receipt dc2c168fbaca): SpecFuzzer (arXiv 2201.10874) fuzzes assertion
 test suite with Daikon and ranks them by mutation analysis; nothing is proved. Here the filter is the whole bounded
 domain, the target is the measured survivors, and soundness for every input is the kernel's proof.
 
-  python3 t/repair.py t/dafnybench --jobs 4 --kernel dafny --table REPAIR.md --write repaired/
+  python3 t/contract_repair.py t/dafnybench --jobs 4 --kernel dafny --table REPAIR.md --write repaired/
 """
 from __future__ import annotations
 
@@ -638,7 +638,7 @@ def table(results: list[dict], kernel: str | None) -> str:
     blind = [r for r in tried if "never reads" in r.get("status", "")]
     full = [r for r in tried if r.get("clauses") and r.get("after") == 0]
     lines = ["# Specification repair", "",
-             "For each task whose spec admits a survivor (`t/audit.py`), the clauses `t/repair.py` adds: each holds for "
+             "For each task whose spec admits a survivor (`t/audit.py`), the clauses `t/contract_repair.py` adds: each holds for "
              "the real program at every domain point, and together they kill every survivor they can. **after** is "
              "the repaired task's own audit, from scratch.", "",
              f"- tasks with survivors: {len(tried)}; repaired to zero survivors: {len(full)}",
@@ -656,7 +656,7 @@ def table(results: list[dict], kernel: str | None) -> str:
 
 
 def main(argv=None) -> int:
-    ap = argparse.ArgumentParser(prog="repair.py", description=__doc__.split("\n\n")[0])
+    ap = argparse.ArgumentParser(prog="contract_repair.py", description=__doc__.split("\n\n")[0])
     ap.add_argument("target", metavar="FILE|DIR")
     ap.add_argument("--kernel", help="verify each repaired task in this kernel")
     ap.add_argument("--jobs", type=int, default=1)

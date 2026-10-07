@@ -2939,3 +2939,8 @@ The matrix's proofs are unchanged; the invariants exist only in the width proof'
 Regenerated from a clean clone at 2517d84, and installed.
 (1) **Held:** tasks 47, 7, 17; autonomy 16, 5, 2.
 (2) **Held:** each listed invariant is a Houdini survivor of a run in which every goal closed.
+
+**Note (2026-10-07 19:20Z):** T61's `t/repair.py` is renamed `t/contract_repair.py` (and its test
+`t/test_contract_repair.py`). dawnr, which carries this engine under its own `t/`, already has a `t/repair.py`: a
+model-driven proof-repair loop that five of its modules import. The engine sync overwrote it, and the overwrite was
+caught before any commit. `cli.py repair` is unchanged. The entries above keep the old name as written.
