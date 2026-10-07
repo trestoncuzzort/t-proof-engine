@@ -305,3 +305,11 @@ dc2c168fbaca):
 
 Next, in order: the Rocq and Lean recursion items of R5, which restore tree_insert in both; the ring-buffer `mod`;
 then R3's lifters.
+
+**R5 notes, 2026-10-07 20:20Z.** T65 closed Frama-C's frame gap by reading read-only inputs at `Pre`, and T66 made
+structural recursion with `requires` work in Rocq and Lean. The ring-buffer `mod` (ring_push, sample_push) in Lean
+traces to the div/mod hint generator. Its `have` lines name the heap rewrite's working copy and result (`t_cur_buf`,
+`t_out`), which the spec theorem does not bind, so every hinted branch fails to typecheck. A correct hint needs the
+divisor in its unfolded form (`(buf.set head.toNat x).length`). A name filter alone would drop the hints the
+definedness theorems need, where `t_out` is bound, so it was not committed.
+
