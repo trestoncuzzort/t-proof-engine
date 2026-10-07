@@ -969,3 +969,21 @@ its two.
 (3) No F* cell over the 88 moves except, possibly, `has_elem`, and that one stays verified with the twin refuted. The
 whole F* column is re-run.
 
+### T17 read (2026-10-07 00:24Z): T13's SPARK and F* repairs. 7 of the 8 cells leave MALFORMED; F* on AlgoVeri goes from 3 to 5.
+
+The SPARK and F* columns were re-run over the 21 AlgoVeri tasks at a93accd, and the F* column over the 88.
+
+(1) **Bar 1 held:** of the eight cells, only `longest_palindromic_substring` in F* stays MALFORMED, as registered.
+SPARK's two read timeout with the twin refuted. F*'s `bubble_sort` and `insertion_sort` read timeout, and `kmp`
+unproved, each with the twin refuted.
+(2) **The prediction held:** F* verifies `binary_search` and `linear_search` with the twin refuted, and SPARK verifies
+neither of its two. F* also now carries `merge_sort` (unproved, twin refuted), which its set detector had refused
+for seq membership.
+(3) **Bar 3 held:** in the whole F* column over the 88, no cell moved beyond T16's five, and `has_elem` stays verified
+with its twin refuted.
+
+On AlgoVeri, F* goes from 3 to 5 verified with the twin refuted (carried 16 -> 17), SPARK stays at 3, and Verus is
+at 6 after T15. MALFORMED cells across AlgoVeri go from T13's 13 to 2: Verus's `poly_multiply_naive`, an index into an
+update expression, and F*'s `longest_palindromic_substring`, an index that is a function of a computational
+quantifier's own bound variable. Both are named and queued.
+
