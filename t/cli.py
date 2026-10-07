@@ -14,6 +14,7 @@ tlib.py, harness.py, names.py and run_par.py already require):
     twin FILE.t [--json]                the ladder's chosen operator + witness
     audit FILE.t|DIR [--kernel K]       the one-edit mutants the spec lets through (t/audit.py)
     repair FILE.t|DIR [--kernel K]      the clauses that kill those mutants, proved (t/repair.py)
+    build FILE.t|DIR [--to c|c64|dafny-py]  the proven lowerings compiled and run (t/build.py)
     explain WORD [--kernel K]           one sentence per kernel for an outcome word
 
 Every flag also accepts `--flag=value` (argparse's own long-option form;
@@ -473,6 +474,14 @@ def cmd_repair(args) -> int:
     return repair.main(argv)
 
 
+def cmd_build(args) -> int:
+    import build   # programme R4: ship what was proved
+    argv = [str(args.target), "--target", args.to, "--jobs", str(args.jobs)]
+    argv += ["--table", args.table] if args.table else []
+    argv += ["--json"] if args.json else []
+    return build.main(argv)
+
+
 # ===========================================================================
 # argparse wiring
 # ===========================================================================
@@ -543,6 +552,14 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--write", metavar="DIR", help="where each repaired task is written as JSON")
     p.add_argument("--json", action="store_true")
     p.set_defaults(func=cmd_repair)
+
+    p = sub.add_parser("build", help="compile the proven lowerings and run them against the interpreter (t/build.py)")
+    p.add_argument("target", metavar="FILE.t|DIR")
+    p.add_argument("--to", default="c", help="c, c64 or dafny-py")
+    p.add_argument("--jobs", type=int, default=1)
+    p.add_argument("--table", metavar="PATH")
+    p.add_argument("--json", action="store_true")
+    p.set_defaults(func=cmd_build)
 
     p = sub.add_parser("explain", help="what a verdict means, per kernel")
     p.add_argument("verdict", metavar="WORD",

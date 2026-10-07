@@ -2799,3 +2799,48 @@ All four tables were regenerated from a clean clone at b2a51bf and are installed
 repairs as source lines in `t/repairs/*.md`. Every count matches the hand runs, kernel verdicts included:
 DafnyBench 24 repaired and 19 proved; vericoding Dafny 12 and 9; HumanEval-Dafny 2 and 2; vericoding Verus 4 and 3.
 25 of the 72 hand-read gaps are repaired with a kernel proof.
+
+## T62 registered (2026-10-07 18:42Z, after hand runs and before the clean-clone run): R4, ship what was proved
+
+**The change.** `t/build.py` (`cli.py build`) compiles each task's proven lowering with that kernel's ordinary
+toolchain, runs the executable on up to 40 domain points, and compares every result with t's interpreter:
+- **`c`:** the Frama-C lowering, whose ACSL is comments, with a generated `main`, built by gcc with
+  `-ffp-contract=off` (every float operation rounds once). The call is read from the C signature: data, lengths, the
+  result's buffer, a scratch buffer per sequence local, renamed keywords mapped back. Each buffer is sized by the
+  function's own `requires`.
+- **`c64`:** the same with C's `int` at 64 bits.
+- **`dafny-py`:** the Dafny lowering with a generated `Main`, through Dafny's Python backend.
+
+Prior art (receipt cdec03946087): Dafny's backends and target toolchains are in its trusted base, and a verified
+CakeML backend is being built in HOL4. This is not a verified compiler. It is a cheap test of lowering, backend and
+toolchain together, on the domain, in several languages.
+
+**Measured before this registration, stated plainly** (hand runs, 114 tasks and 25 autonomy routines):
+
+| suite | target | built and run | agree everywhere | agree inside int32, differ beyond | disagree | points |
+|---|---|---|---|---|---|---|
+| tasks | c | 56 | 32 | 23 | 1 | 2,189 |
+| tasks | c64 | 56 | 54 | 2 | 0 | 2,189 |
+| tasks | dafny-py | 74 | 74 | 0 | 0 | 2,881 |
+| autonomy | c | 24 | 16 | 6 | 2 | 954 |
+| autonomy | c64 | 24 | 23 | 1 | 0 | 954 |
+| autonomy | dafny-py | 20 | 20 | 0 | 0 | 794 |
+
+- **No disagreement is a lowering bug.** Every C disagreement is integer width:
+  - **The finding:** the Frama-C proof uses WP's Typed+nat model, mathematical integers pinned on purpose because
+    t's integers are unbounded, and the shipped C uses 32-bit `int`.
+  - **At inputs beyond int32:** the 23 and 6 "agree inside int32" tasks differ only there.
+  - **Inside int32 inputs:** three routines overflow an intermediate (`(r + 1) * (r + 1)` in root_floor,
+    `2 * decel * dist` in stop_distance_ok, `prev + max_step` in throttle_limit). All three agree at 64 bits.
+  - **At 64 bits:** the remaining cases are values beyond 2^63 (a cube of -2^31 - 1, factorial(21)).
+- **The fix is not a wider type.** It is a proof at the width that ships: WP's machine-integer model with runtime
+  error guards, under stated input ranges. This is the named next item (R4b).
+- **Dafny's Python build agrees on every point it runs.** root_floor's compiled recursion exceeds Python's recursion
+  limit at large n, which is reported as a target limit.
+- **Not built:** datatypes, sets, maps, strings, pairs and reals in C, and floats in Dafny (refused by the lowering).
+- **Suite:** passes (`t/test_build.py`).
+
+**Bars**, for the clean-clone tables at this registration's commit:
+(1) The six tables reproduce the hand runs' counts. A count may differ by one per table only from a target's own
+timeouts.
+(2) No table shows a disagreement inside int32 that 64 bits does not resolve.
