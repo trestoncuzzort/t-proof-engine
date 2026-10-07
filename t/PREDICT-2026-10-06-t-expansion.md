@@ -2730,3 +2730,65 @@ nearest_index's tie, intended.
 - **What it cost:** two cells, the same trade as T55. Rocq's structural induction needs its hypothesis generalized
   over the parameters a recursive call changes. Lean needs structurally recursive tasks with `requires`. Both are
   named open items.
+
+## T61 registered (2026-10-07 18:30Z, after hand runs and before the clean-clone run): R1 and R2, proved specification repair
+
+**The change.** `t/repair.py` (`cli.py repair`), programme R1 of the zoom-out's section 8:
+- **Clause grammar** over each task's own vocabulary: result-to-parameter equalities and disjunctions; membership,
+  extremal bounds and attainment; bounds against 0, ±1, parameters and lengths; the converse of a subset-only
+  postcondition (each element predicate, and all of them conjoined); a boolean result equal to a comparison; equality
+  with the task's own spec functions.
+- **Daikon-style fitted clauses**, read numerically off the real program's values on the whole domain: affine in at
+  most two int atoms, `(p op q) % r` and `/ r`, and a finite output set.
+- **Selection:** a clause is kept only if it holds for the real program at every domain point, and a greedy cover
+  picks the fewest that kill every survivor.
+- **Checks:** the repaired task is audited again from scratch, then proved in the kernel.
+- **R1b:** where the old loop invariants cannot carry the stronger contract, each repair clause is moved onto the
+  loop's accumulators and prefix index, along with "the running value is attained in the scanned prefix". Candidates
+  are kept if they hold at every loop-head state the interpreter observes and mention a variable the loop assigns,
+  and the kernel proves them.
+- **Refusal:** a task whose real body never reads its parameters is refused by name, since a constant answer is no
+  evidence of the intended one.
+- **R2:** `--patches` prints each proved repair as source lines in the kernel's own language (its lowering's
+  expression printer).
+
+**Prior art, read** (receipt dc2c168fbaca):
+- SpecFuzzer: grammar fuzzing, a Daikon filter over a test suite, mutation ranking; nothing is proved.
+- NL2Contract: LLM-inferred contracts.
+
+Here the filter is the whole bounded domain, the target is the measured survivors, and soundness for every input is
+the kernel's proof, so a fitted clause true only on the domain reads unproved.
+
+**Measured before this registration, stated plainly** (hand runs, `t/repair.py --kernel K --jobs 4`):
+
+| corpus | kernel | specs with survivors | repaired to zero survivors | proved, twin refuted | refused: input-blind |
+|---|---|---|---|---|---|
+| DafnyBench | Dafny | 53 | 24 | 19 | 0 |
+| vericoding, Dafny track | Dafny | 54 | 12 | 9 | 5 |
+| HumanEval-Dafny | Dafny | 6 | 2 | 2 | 0 |
+| vericoding, Verus track | Verus | 20 | 4 | 3 | 6 |
+
+- **Against the hand classification:** 25 of the 72 gaps are repaired with a kernel proof (DafnyBench 14 of 23,
+  vericoding Dafny 6 of 31, Verus 3 of 13, HumanEval-Dafny 2 of 5). Three intended-latitude specs are pinned
+  harder than their authors chose: reconstructFromMaxSum twice, and a "not found" sentinel.
+- **Examples of repairs:**
+  - `c == a or c == b` for the `max` routines;
+  - `0 <= r.1 and r.1 < b` for Euclidean division;
+  - `z == (x == y)` for the precedence slip;
+  - for MutDafny's three subset-only specs, the converse (their authors' own suggested fix) with the loop invariant
+    that carries it.
+  - For maxDifference, attainment with `exists k in [0, i) . a[k] == maxVal` (and minVal) as invariants.
+- **The unrepaired gaps are mostly unrepairable from their own vocabulary.** The APPS- and NumPy-derived specs do not
+  define the function the task computes, so no clause over their terms can pin the answer. Writing that function is
+  writing the specification.
+- **Input-blind solutions:**
+  - 13 of vericoding's 509 Dafny solutions and 8 of its 63 Verus solutions never read a parameter; none in its Lean
+    track, HumanEval-Dafny, ACSL by Example, or DafnyBench beyond a paramless example.
+  - Checked against vericoding's own repository: `vericoded/verus/VA0216_vericoded.rs` returns `'R'` for every
+    input. Its spec defines a `winner` function its `ensures` never uses.
+- **Suite:** passes (`t/test_repair.py`, 6 tests).
+
+**Bars**, for the clean-clone tables at this registration's commit:
+(1) Each corpus's table reproduces the hand run's counts exactly. A kernel verdict may differ by one task per corpus.
+(2) No repaired contract is installed whose real body the kernel did not prove. The patches list only proved
+repairs.
