@@ -17,7 +17,8 @@ chosen by a search for an input where the mutant breaks the contract, by accepti
 114 tasks, 65 are proved with their twins refuted in all seven kernels. A specification audit runs every one-edit
 mutant by execution and has the kernel prove the ones the spec cannot tell apart. Over 316 Dafny-verified DafnyBench
 programs, Dafny also proves a different, one-edit program against the same contract in 44; read by hand, 23 of those
-are gaps in the specification. Each kernel refuses by name what it cannot
+are gaps in the specification. Across five public benchmark corpora in Dafny, Verus and Lean, 72 such gaps are found,
+each with a kernel proof of the wrong program. Each kernel refuses by name what it cannot
 express, rather than weakening it. The language now carries the constructs embedded control code needs: in-place
 arrays, parallel loops whose race freedom is checked by rule, and IEEE-754 doubles. A suite of 25 autonomy routines
 is checked the same way.
@@ -142,15 +143,21 @@ The same audit, in the kernel each source was verified in (PREDICT T56; clean cl
 | corpus | kernel | audited | mutants killed | specs with a survivor | real verified | survivor proved too | gaps by hand |
 |---|---|---|---|---|---|---|---|
 | DafnyBench (what t states) | Dafny | 320 | 94.2% | 53 | 316 | 44 | 23, and 3 `ensures true` |
+| vericoding, Dafny track | Dafny | 488 | 94.8% | 54 | 425 | 39 | 31, and 1 tautology |
 | vericoding, Verus track | Verus | 63 | 96.8% | 20 | 55 | 14 | 13 |
 | vericoding, Lean track | Lean | 16 | 100% | 0 | 12 | 0 | 0 |
+| HumanEval-Dafny | Dafny | 45 | 93.5% | 6 | 39 | 5 | 5 |
 | ACSL by Example | Frama-C | 16 | 100% | 0 | 13 | 0 | 0 |
+
+Across the five benchmark corpora, 102 tasks have a kernel-proved one-edit wrong program, and 72 of them are gaps in
+the specification by hand reading (PREDICT T59, clean clone at 9c7b147).
 
 Specification quality tracks the source:
 - ACSL by Example, an expert-written library, kills every mutant, including on ties: `max_element` names the
   first maximum.
 - In vericoding's Verus track, a task counts as solved when the kernel verifies a program against its specification.
-  13 of the 55 verified tasks are also solved by a one-edit wrong program (`t/vericoding/CLASSIFIED.md`).
+  13 of the 55 verified tasks are also solved by a one-edit wrong program (`t/vericoding/CLASSIFIED.md`). In its
+  Dafny track, 31 of 425 are (`t/vericoding/CLASSIFIED-DAFNY.md`).
   - The APPS-derived specifications state only that the output is well formed, and two are met by a constant.
   - The NumPy-derived ones state mostly the output's length.
 - The vericoding paper estimates by hand that about 9% of its specifications are too weak. The audit gives a

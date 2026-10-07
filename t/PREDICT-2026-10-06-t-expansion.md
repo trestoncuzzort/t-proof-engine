@@ -2665,3 +2665,20 @@ Both were screened against dawnr's held-out problems before lifting.
 (1) The interpreter's columns reproduce exactly in both corpora.
 (2) The kernel columns reproduce within two tasks in the larger corpus (Dafny 425 and 39) and within one in the
 smaller (39 and 5).
+
+### T59 read (2026-10-07 17:07Z): both bars held, exactly.
+
+Both tables were regenerated from a clean clone at 9c7b147, and are installed (`t/AUDIT-VERICODING-DAFNY.md`,
+`t/AUDIT-HUMANEVAL-DAFNY.md`); every row matches the hand runs. The D8 picture, six corpora in four kernels:
+
+| corpus | kernel | audited | killed | with a survivor | real verified | survivor proved too | gaps by hand |
+|---|---|---|---|---|---|---|---|
+| DafnyBench (what t states) | Dafny | 320 | 94.2% | 53 | 316 | 44 | 23 (+3 `ensures true`) |
+| vericoding, Dafny track | Dafny | 488 | 94.8% | 54 | 425 | 39 | 31 (+1 tautology) |
+| vericoding, Verus track | Verus | 63 | 96.8% | 20 | 55 | 14 | 13 |
+| vericoding, Lean track | Lean | 16 | 100% | 0 | 12 | 0 | 0 |
+| HumanEval-Dafny | Dafny | 45 | 93.5% | 6 | 39 | 5 | 5 |
+| ACSL by Example | Frama-C | 16 | 100% | 0 | 13 | 0 | 0 |
+
+Across the five benchmark corpora (all but ACSL by Example), 102 tasks have a kernel-proved one-edit wrong program,
+and 72 of them are specification gaps by hand reading.
