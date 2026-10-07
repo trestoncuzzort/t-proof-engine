@@ -33,17 +33,19 @@ Measured from a clean clone of this repository on 2026-10-07 over the 104 commit
 |---|---|---|---|
 | Dafny | 104 | 0 | 0 |
 | Verus | 96 | 1 | 7 |
-| Rocq | 65 | 1 | 38 |
-| Lean 4 | 80 | 3 | 21 |
+| Rocq | 75 | 1 | 28 |
+| Lean 4 | 79 | 4 | 21 |
 | F\* | 63 | 2 | 39 |
 | SPARK | 60 | 3 | 41 |
 | Frama-C | 54 | 1 | 49 |
 
 - In every kernel, the twin of every proved program is refuted (100%).
-- 52 of the 104 tasks are proved, with the twin refuted, in all seven kernels.
+- 53 of the 104 tasks are proved, with the twin refuted, in all seven kernels. One Lean twin read timeout in this
+  run under load I put beside it; alone it is refuted (PREDICT T33's read).
 - Datatypes with fields (records and non-recursive sums, PREDICT T23) and recursive datatypes (trees, T25) are proved
-  in Dafny, Verus and Lean; the other four refuse them by name. A quantifier over a seq's elements is stated in all
-  seven, over a set's in Dafny, Verus and Lean (T26, T30). Finite sets are carried in Lean too, on core Std's
+  in Dafny, Verus, Lean and, since T34, Rocq (an `Inductive`, structural recursion by induction); F* and SPARK
+  carry them since T35 and T36, read in the next clean-clone run. A quantifier over a seq's elements is stated in
+  all seven, over a set's in Dafny, Verus and Lean (T26, T30). Finite sets are carried in Lean too, on core Std's
   extensional tree set (T29). Frama-C gives a seq local its own caller-provided buffer (T31).
 - Most refusals are of constructs added to the language on 2026-10-06, which the other kernels are being taught
   now.

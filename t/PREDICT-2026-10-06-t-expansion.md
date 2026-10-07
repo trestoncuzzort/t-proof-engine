@@ -1769,6 +1769,41 @@ and v3 carry the Rocq notes.
 (3) bag_size and checked_tail abstain in Rocq. some_negative reads unproved in Rocq, and AlgoVeri's
 discrete_log_naive reads unproved there. No other cell moves for this change.
 
+### T33 and T34 read (2026-10-07 06:29Z): every predicted cell held; one unrelated cell moved under load I caused.
+
+Both tables were regenerated from a clean clone at 1da07b8, which carries T33 and T34 and not T35 or later: the
+matrix of 104 and the AlgoVeri table of 27.
+
+**T33**, one orientation for a seq equality in Rocq:
+(1) **Held:** rev_equal reads verified with the twin refuted in Rocq, so it is in all seven. All seven: 53.
+(2) **Held:** double_all, palindrome and swap_rows kept their Rocq verdicts.
+(3) **Did not hold as measured.** sum_tail's Lean twin read timeout, where it was refuted.
+- Nothing in T33 or T34 touches Lean. The cause is mine: I was running SPARK and F* proofs beside the clean-clone
+  run.
+- Rerun alone at 06:15Z, sum_tail's Lean twin is refuted, as before.
+- The table is installed as measured, and the next clean-clone run, with nothing beside it, re-measures the cell.
+- In the AlgoVeri table, F*'s insertion_sort, the known flaky cell, read timeout/refuted, marked FLAKED.
+
+**T34**, datatypes in Rocq:
+(1) **Held:** the nine read verified/refuted in Rocq. Rocq went from 65 to 75: those nine, plus T33's rev_equal.
+(2) **Held:** each of the nine is verified/refuted in four kernels: Dafny, Verus, Lean and Rocq.
+(3) **Held for this change:** bag_size and checked_tail abstain in Rocq. some_negative and AlgoVeri's
+discrete_log_naive read unproved/unproved there. The cells that moved besides are not Rocq's, as T33's (3) records.
+
+**The matrix of 104, by kernel (verified with the twin refuted):**
+
+| kernel | count |
+|---|---|
+| Dafny | 104 |
+| Verus | 96 |
+| Lean | 79 (80 with sum_tail's re-measured twin) |
+| Rocq | 75 |
+| F* | 63 |
+| SPARK | 60 |
+| Frama-C | 54 |
+
+All seven: 53.
+
 ## T35 registered (2026-10-07 06:04Z, after hand probes and before the clean-clone run that follows clean26): datatypes in F*
 
 The zoom-out's decision 5, second half. F* refused every datatype. Receipt fc51eb6283ec: the F* book's chapter
