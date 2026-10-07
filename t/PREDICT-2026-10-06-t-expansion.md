@@ -2638,3 +2638,30 @@ Regenerated from a clean clone at f4d5570, and installed.
 seven 65.
 (2) **Held:** `t/AUTONOMY.md` unchanged. pid_step is the one float routine still a timeout in both kernels, and it is
 named so: two rounded products and a sum, the case the SPARK User's Guide calls a prover limitation, not a budget.
+
+## T59 registered (2026-10-07 17:03Z, after hand probes and before the clean-clone run): D8 v3, vericoding's Dafny track and HumanEval-Dafny
+
+**The change.** Two more lifted corpora are committed with their licenses and provenance, both audited in Dafny:
+- `t/vericoding/dafny/`: 511 solutions from vericoding's Dafny track, the union of dawnr's six lift passes (no task
+  in two, no task differing between passes);
+- `t/humanevaldafny/`: 45 from HumanEval-Dafny (JetBrains Research, Apache-2.0).
+
+Both were screened against dawnr's held-out problems before lifting.
+
+**Measured before this registration, stated plainly** (hand runs, `t/audit.py --kernel dafny --jobs 4`, 2 min 46 s):
+- **vericoding, Dafny track:**
+  - 488 of 511 audited (21 have no input in the domain; 2 real bodies break their own spec in it);
+  - 14,357 of 15,148 behaviour-changing mutants killed (94.8%); 54 tasks admit a survivor;
+  - Dafny verifies 425 real bodies and **proves a survivor in 39**;
+  - by hand (`t/vericoding/CLASSIFIED-DAFNY.md`): 31 gaps, 1 tautology (`len(result) >= 0`), 7 latitude (ties, a
+    "not found" sentinel or index).
+- **HumanEval-Dafny:**
+  - 45 audited; 1,287 of 1,377 killed (93.5%); 6 admit a survivor;
+  - Dafny verifies 39 real bodies and **proves a survivor in 5**, all gaps by hand (`t/humanevaldafny/CLASSIFIED.md`);
+  - can_arrange states nothing for a result below -1, so a constant -2 meets its spec on every input.
+- With T56, vericoding's three tracks read: Dafny 31 gaps in 425 verified, Verus 13 in 55, Lean 0 in 12.
+
+**Bars**, for the clean-clone tables at this registration's commit:
+(1) The interpreter's columns reproduce exactly in both corpora.
+(2) The kernel columns reproduce within two tasks in the larger corpus (Dafny 425 and 39) and within one in the
+smaller (39 and 5).
