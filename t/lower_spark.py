@@ -6147,7 +6147,15 @@ def certificate(task: dict, body: list, w: dict | None, L: Lower,
             ob_t = defined(expr_node, lambda x: L._ty(x, types) == "real")
             if ob_t == TRUE:
                 return ""
-            parts.append(f"(not {L.expr(ob_t, sub, types)})")
+            # The obligation usually names the return (`r[k]` with k past the twin's shorter result), unbound at an
+            # ensures-level witness: bind it to F at the witness's inputs, exactly as the "value" kind does, when the
+            # witness values every parameter (PREDICT T18: squares' and diffs' twins built no certificate and read
+            # TIMEOUT; their F is an expression function whose value comes through the helper's own proved Post)
+            sub_e = dict(sub)
+            if set(vals) == {p["name"] for p in task["params"]}:
+                args = ", ".join(sub[p["name"]] for p in task["params"])
+                sub_e[ret] = f"F ({args})" if args else "F"
+            parts.append(f"(not {L.expr(ob_t, sub_e, types)})")
         elif kind == "undefined":
             ob = _undef_obligation(task, body, sub, vals, L)
             if ob is None:
