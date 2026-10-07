@@ -7664,6 +7664,33 @@ theorem t_str_join_split_roundtrip (s : List Int) (c : Int) :
     # handed to grind. Only a proved theorem is ever added, so this can
     # make no wrong program verify; a lemma grind cannot prove fails the
     # file (unproved), and `#print axioms` audits it like every theorem.
+    def _definition_signs(self, l: dict, ptypes: dict) -> list:
+        """`try have` sign facts for the products inside each spec_fun a lemma's ensures calls, instantiated at the
+        call's arguments; only a product whose factors mention the function's own parameters alone (none bound
+        inside it), and at most eight."""
+        out = []
+        for e in l["ensures"]:
+            for c in _lemma_call_nodes(e, []):
+                f = self.sfuns.get(c["call"]["fun"])
+                if f is None:
+                    continue
+                params = [p["name"] for p in f["params"]]
+                env = {p: self.term(a, {}, dict(ptypes)) for p, a in zip(params, c["call"]["args"])}
+                ftypes = {p["name"]: p["type"] for p in f["params"]}
+                for m in _lemma_mul_nodes(f["body"], []):
+                    a, b = m["args"]
+                    if not (_lemma_vars(m, set()) <= set(params)) or ("int" in a and "int" in b):
+                        continue
+                    try:
+                        ta, tb = self.term(a, env, ftypes), self.term(b, env, ftypes)
+                    except (KeyError, NotImplementedError):
+                        continue
+                    fact = (f"try have _mpd{len(out)} : (0:Int) ≤ ({ta}) * ({tb}) := "
+                            f"Int.mul_nonneg (by omega) (by omega)")
+                    if all(fact.split(":", 1)[1] != o.split(":", 1)[1] for o in out):
+                        out.append(fact)
+        return out[:8]
+
     def emit_lemmas(self) -> tuple[str, list]:
         lemmas = self.task.get("lemmas", [])
         if not lemmas:
@@ -7691,6 +7718,10 @@ theorem t_str_join_split_roundtrip (s : List Int) (c : Int) :
                      f"Int.mul_nonneg (by omega) (by omega)"
                      for i, a in enumerate(ints[:4]) for b in ints[i:4]
                      if self._has(l["ensures"], "op", "*")]
+            # the same bridge for a product inside a definition the ensures calls, instantiated at the call's own
+            # arguments, stated right before each closer so that omega sees the inductive hypotheses `have`d above
+            # (2026-10-07, AlgoVeri integer_exponential: `0 <= b * spec_pow(b, e - 1)` was all grind lacked)
+            dsigns = self._definition_signs(l, ptypes)
             k = [0]
 
             def tac(stmts, ind):
@@ -7725,6 +7756,7 @@ theorem t_str_join_split_roundtrip (s : List Int) (c : Int) :
                         sub[0] = f"{ind}· " + sub[0].lstrip()
                         lines += sub
                     return lines
+                lines += [f"{ind}{x}" for x in dsigns]
                 lines.append(f"{ind}{base}")
                 return lines
 

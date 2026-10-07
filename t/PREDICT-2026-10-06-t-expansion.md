@@ -1461,3 +1461,30 @@ F*, SPARK and Frama-C.
 (3) **Held:** no other cell moved.
 (4) **Held:** Dafny 101, Verus 93, Lean 74, Rocq 63, F* 60, SPARK 57, Frama-C 50. Every kernel still refutes the twin of
 every real it verifies (100%).
+
+## T28 registered (2026-10-07 04:09Z, after hand probes and before the clean-clone runs): the sign bridge for a product inside a lemma's definitions (Lean)
+
+AlgoVeri's `integer_exponential` verifies with the twin refuted in six kernels. Lean alone kept it from all seven,
+and not for its loop: the helper lemma `pow_nonneg` failed. From `spec_pow(b, e - 1) >= 0` and `b >= 0`, grind's
+linear arithmetic does not derive `b * spec_pow(b, e - 1) >= 0`. That product sits inside the definition the lemma's
+ensures calls. The lemma closer's existing sign bridge covers only products of int parameters in the ensures.
+
+**Design.** `Lower._definition_signs`: for each spec_fun call in a lemma's ensures, every product in that function's
+body whose factors mention only its own parameters is instantiated at the call's arguments. Its sign is stated as
+`try have _mpd<k> : (0:Int) <= A * B := Int.mul_nonneg (by omega) (by omega)` before each closer, after the inductive
+hypothesis, so omega sees it. There are at most eight such facts, and `try` keeps a fact that does not hold out of the
+proof.
+
+**Measured before this registration, stated plainly.**
+- **Hand probe:** with the one fact added to the emitted file, pow_nonneg_l, the loop lemma and the contract verify.
+- **Lean, `cli verify`:** integer_exponential COUNTS. fast_exponential is still unproved: its loop's preservation needs
+  `pow_square`'s fact, which Lean's loop helper does not receive. That is named and not part of this registration.
+- **Byte identity:** of the 101 tasks and 27 AlgoVeri programs, exactly four lowerings change: Lean's real and twin of
+  fast_exponential and integer_exponential.
+- **Suite:** the whole suite passes (703).
+
+**Bars**, for the clean-clone matrix of the 101 and the AlgoVeri table of 27, after T27's:
+(1) No cell of the 101 moves against T27's matrix.
+(2) AlgoVeri integer_exponential reads verified with the twin refuted in Lean, so it is verified/refuted in all seven:
+AlgoVeri's first all-seven contract.
+(3) fast_exponential's Lean cell keeps T27's verdict. No other AlgoVeri cell moves.
