@@ -1921,3 +1921,47 @@ together, with no proof run beside them:
 gains 4 (53 to 57). The fifth reaches 58 only if sum_tail's Lean twin is no longer the unrelated timeout T33's read
 recorded, and sum_tail is not all-seven anyway: SPARK and Frama-C keep it out.
 (3) No other cell moves for T35-T37 beyond their own bars. sum_tail's Lean twin reads refuted again, unloaded.
+
+### T35, T36 and T37 read (2026-10-07 07:23Z): every bar held. Datatypes are verified/refuted in all seven kernels.
+
+Both tables were regenerated from a clean clone at 3e67882, which carries T35, T36 and T37, with no proof run
+beside it: the matrix of 104 (`t/AGREEMENT.md`) and the AlgoVeri table of 27 (`t/ALGOVERI.md`).
+- The AlgoVeri half was OOM-killed at the unit's 8 GB cap (peak 8 GB plus 5.3 GB swap), near the end of its Lean
+  column. It was re-run alone at the same commit with 2 jobs under 11 GB.
+- With less load, two F* twins of AlgoVeri moved from timeout to refuted: bubble_sort and max_subarray_sum. Neither
+  touches a datatype, and both reals still time out, so no count of verified-with-twin-refuted moves.
+- insertion_sort's F* cell kept its verdict, and is no longer marked FLAKED.
+
+**T35**, datatypes in F*:
+(1) **Held:** the ten read verified/refuted in F*. F* went from 63 to 73.
+(2) **Held:** the nine Rocq carries are verified/refuted in five kernels. some_negative is in four: Dafny, Verus,
+Lean and F*.
+(3) **Held:** bag_size and checked_tail abstain in F*. AlgoVeri's discrete_log_naive reads timeout/refuted in F*.
+
+**T36**, datatypes in SPARK:
+(1) **Held:** color_code, shape_area, manhattan, rect_area and some_negative read verified/refuted in SPARK. SPARK
+went from 60 to 65.
+(2) **Held:** the four are in six kernels, all but Frama-C. some_negative is in five, all but Rocq and Frama-C.
+(3) **Held:** AlgoVeri's discrete_log_naive reads verified/refuted in SPARK, so AlgoVeri SPARK went from 3 to 4.
+
+**T37**, datatypes in Frama-C:
+(1) **Held:** the four read verified/refuted in Frama-C. Frama-C went from 54 to 58.
+(2) **Held:** color_code, shape_area, manhattan and rect_area are verified/refuted in all seven. All seven went from
+53 to 57.
+(3) **Held:** no other cell moved for T35-T37. sum_tail's Lean twin, unloaded, is refuted again, as T33's read said
+it would be. Lean is back at 80.
+
+**The matrix of 104, by kernel (verified with the twin refuted):**
+
+| kernel | count |
+|---|---|
+| Dafny | 104 |
+| Verus | 96 |
+| Lean | 80 |
+| Rocq | 75 |
+| F* | 73 |
+| SPARK | 65 |
+| Frama-C | 58 |
+
+All seven: 57. Frama-C alone keeps double_all, grid_row_sums and swap_rows out of all seven; Lean alone keeps
+odd_positions out.

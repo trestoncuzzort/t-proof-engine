@@ -151,3 +151,60 @@ sets. Core Lean has no finite-set type without Mathlib, which this column does n
 5. **Datatypes in Rocq and F*:** 13 committed datatype tasks move two columns, and F* has a set library.
 6. **D8**, the twin audit of public benchmark specs, stays the most distinctive result. It needs the lifter pointed
    at Vericoding's Dafny sources.
+
+## 7. Addendum, 2026-10-07 07:05Z: datatypes in all seven, and what it leaves
+
+**Measured since section 6:**
+
+| | section 6 (T27) | now |
+|---|---|---|
+| matrix tasks | 101 | 104 |
+| proved with the twin refuted in all seven | 49 | 57 (clean27's matrix; its AlgoVeri half re-run) |
+| kernels carrying datatypes | 3 (Dafny, Verus, Lean) | 7 (Rocq, F*, SPARK, Frama-C since T34-T37) |
+| AlgoVeri all seven | 0 | 1 (integer_exponential, T28) |
+
+**What landed:**
+- **Lean:**
+  - finite sets on core Std's `ExtTreeSet` (T29) and set-ranged quantifiers (T30);
+  - the sign bridge for a product inside a lemma's definitions (T28);
+  - a map's element at a Nat index (T32).
+- **Frama-C:** seq locals as caller-provided buffers, and `rev` (T31).
+- **Rocq:** one orientation for a seq equality (T33).
+- **Datatypes:**
+  - Rocq: `Inductive`, structural `Fixpoint`s proved by induction (T34);
+  - F*: inductive types, refined field reads, `decreases` by subterm (T35);
+  - SPARK: discriminated records (T36);
+  - Frama-C: tagged structs by value (T37).
+- **Three tasks:** rev_equal, doubled_head and set_first.
+
+**What the landscape says now.** Decision 5 of section 6 is done and went further. Every kernel now carries
+non-recursive datatypes, and four of the 12 datatype tasks are verified/refuted in all seven. The rest are short of
+all seven on two named shapes:
+- **Recursive datatypes** in SPARK and Frama-C (pointers);
+- **Seq fields** (bag_size, checked_tail) everywhere but Dafny, Verus and Lean.
+
+The largest outside gap is unchanged in kind. AlgoVeri's BST family stops at the set-ranged quantifier in Rocq, F*,
+SPARK and Frama-C, and at the proofs in Lean.
+
+**Decisions, in order:**
+1. **Read T35-T38 from clean-clone runs with nothing beside them.**
+   - clean26 showed a kernel timeout under concurrent load.
+   - clean27's AlgoVeri half was OOM-killed at 8 GB, so that half now runs alone at 2 jobs under 11 GB.
+2. **More of AlgoVeri, now that every kernel carries datatypes** (T38 begins it: the left-leaning red-black tree's
+   rotations and colour flip).
+   - Next: `llrbt_insert` and `llrbt_delete`, then the BST rest. `bst_delete` needs a `remove_min` method, since the
+     contract's `v >= 0` does not hold of a subtree's minimum. Then `lca`.
+   - Segment trees need a map view.
+   - Tries need a sequence of datatypes, which t's sequences do not hold yet: a named language gap.
+3. **The four single-kernel near misses:**
+   - odd_positions in Lean (T39, flat slice reads in comprehension bodies);
+   - swap_rows, grid_row_sums and double_all in Frama-C.
+4. **Set-ranged quantifiers in Rocq and F*.** Both carry sets and now datatypes, so all_pos_set and the
+   BST/red-black statements could lower there.
+5. **Seq fields in datatypes:** bag_size and checked_tail, everywhere but Dafny, Verus and Lean. Datatype returns
+   and locals in Frama-C.
+6. **The standing items:**
+   - Verus's `res.val` hint;
+   - D7 (`mvcgen`);
+   - D8, the twin audit of public specs, still the most distinctive result. The lifting infrastructure (dawnr's
+     `lift_*.py`, `run_par.py`, the DafnyBench and Vericoding coverage reports) is in place.

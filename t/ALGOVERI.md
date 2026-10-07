@@ -1,4 +1,4 @@
-# t cross-kernel agreement, 2026-10-07 06:29Z
+# t cross-kernel agreement, 2026-10-07 07:22Z
 
 Cell = real outcome / twin outcome. Agreement means `verified / refuted` in every present column. A real-VERIFIED, twin-VERIFIED cell reads `verified / decorative` (the spec cannot tell real and twin apart) or `verified / unsound` (the twin's own measured witness says a sound kernel must refute it, and this one did not); neither counts as agreement.
 
@@ -12,17 +12,17 @@ Cell = real outcome / twin outcome. Agreement means `verified / refuted` in ever
 | zig | verified / refuted | unproved / unproved | abstain / abstain | abstain / abstain | unproved / refuted | abstain / abstain | abstain / abstain |
 | zig_zag | verified / refuted | unproved / unproved | abstain / abstain | abstain / abstain | unproved / refuted | abstain / abstain | abstain / abstain |
 | zig_zig | verified / refuted | unproved / unproved | abstain / abstain | abstain / abstain | unproved / refuted | abstain / abstain | abstain / abstain |
-| bubble_sort | verified / refuted | unproved / refuted | abstain / abstain | abstain / abstain | unproved / unproved | abstain / abstain | timeout / timeout |
-| discrete_log_naive | verified / refuted | verified / refuted | abstain / abstain | abstain / abstain | verified / unproved | unproved / unproved | abstain / abstain |
+| bubble_sort | verified / refuted | unproved / refuted | abstain / abstain | abstain / abstain | unproved / unproved | abstain / abstain | timeout / refuted |
+| discrete_log_naive | verified / refuted | verified / refuted | verified / refuted | abstain / abstain | verified / unproved | unproved / unproved | timeout / refuted |
 | fast_exponential | verified / refuted | unproved / refuted | timeout / refuted | verified / refuted | unproved / refuted | unproved / refuted | unproved / refuted |
-| insertion_sort | verified / refuted | unproved / refuted | abstain / abstain | abstain / abstain | unproved / unproved | abstain / abstain | timeout / refuted (FLAKED) |
+| insertion_sort | verified / refuted | unproved / refuted | abstain / abstain | abstain / abstain | unproved / unproved | abstain / abstain | timeout / refuted |
 | integer_exponential | verified / refuted | verified / refuted | verified / refuted | verified / refuted | verified / refuted | verified / refuted | verified / refuted |
 | kmp | verified / refuted | unproved / refuted | abstain / abstain | abstain / abstain | abstain / abstain | abstain / abstain | unproved / refuted |
 | linear_search | verified / refuted | verified / refuted | verified / refuted | abstain / abstain | abstain / abstain | abstain / abstain | verified / refuted |
 | solve_longest_common_subsequence | verified / refuted | unproved / refuted | timeout / refuted | abstain / abstain | unproved / unproved | unproved / unproved | unproved / refuted |
 | longest_palindromic_substring | verified / refuted | unproved / unproved | timeout / timeout | abstain / abstain | abstain / abstain | abstain / abstain | malformed / malformed |
 | matrix_multiply | verified / refuted | unproved / unproved | abstain / abstain | abstain / abstain | timeout / timeout | abstain / abstain | abstain / abstain |
-| max_subarray_sum | verified / refuted | verified / refuted | timeout / refuted | abstain / abstain | abstain / abstain | abstain / abstain | timeout / timeout |
+| max_subarray_sum | verified / refuted | verified / refuted | timeout / refuted | abstain / abstain | abstain / abstain | abstain / abstain | timeout / refuted |
 | merge_sort | verified / refuted | unproved / refuted | timeout / refuted | abstain / abstain | abstain / abstain | abstain / abstain | unproved / refuted |
 | poly_multiply_karatsuba | verified / refuted | unproved / refuted | timeout / timeout | abstain / abstain | abstain / abstain | abstain / abstain | timeout / timeout |
 | poly_multiply_naive | verified / refuted | malformed / malformed | timeout / refuted | abstain / abstain | abstain / abstain | abstain / abstain | timeout / timeout |
@@ -51,7 +51,7 @@ Verdict basis: every source file hashed; e.g. `ac_automata_search.dfy` fd9ce0518
 |---|---|---|---|
 | dafny | 0 | 0 | (none) |
 | verus | 0 | 18 | (none) |
-| spark | 0 | 24 | (none) |
+| spark | 0 | 23 | (none) |
 | framac | 0 | 25 | (none) |
 | lean | 0 | 26 | (none) |
 | rocq | 0 | 26 | (none) |
@@ -65,10 +65,10 @@ Of the 0 tasks in six, none are blocked alone.
 |---|---|---|---|---|
 | dafny | 27 | 27 | 27 of 27 (100%) | 0 |
 | verus | 27 | 10 | 9 of 10 (90%) | 0 |
-| spark | 14 | 3 | 3 of 3 (100%) | 13 |
+| spark | 15 | 4 | 4 of 4 (100%) | 12 |
 | framac | 2 | 2 | 2 of 2 (100%) | 25 |
 | lean | 14 | 2 | 1 of 2 (50%) | 13 |
 | rocq | 4 | 1 | 1 of 1 (100%) | 23 |
-| fstar | 17 | 5 | 5 of 5 (100%) | 10 |
+| fstar | 18 | 5 | 5 of 5 (100%) | 9 |
 
 Verified with the twin refuted in all seven columns: 1 of 27 tasks.
