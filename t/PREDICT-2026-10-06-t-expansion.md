@@ -2682,3 +2682,38 @@ Both tables were regenerated from a clean clone at 9c7b147, and are installed (`
 
 Across the five benchmark corpora (all but ACSL by Example), 102 tasks have a kernel-proved one-edit wrong program,
 and 72 of them are specification gaps by hand reading.
+
+## T60 registered (2026-10-07 17:23Z, after hand probes and before the clean-clone run): tree_insert states the search-tree order
+
+**The change.** The last of the seven weak specs T54 found in t's own suite. tree_insert's contract said only that
+`x` is in the result and the size grew by one, so inserting on either side, or on the wrong side, passed. It now
+states the classic bounded form:
+- `requires bst(tr, lo, hi)` and `lo <= x < hi`;
+- `ensures bst(m, lo, hi)`, where `bst(Node(v, l, r), lo, hi)` is `lo <= v < hi`, `bst(l, lo, v)` and
+  `bst(r, v, hi)`;
+- each recursive call passes its child's interval, so its own postcondition is exactly what the parent needs.
+
+Verus's lowering gives a structurally recursive task's proof one more level of fuel for each structurally recursive
+spec fn its ensures calls. This is the reveal a lemma's induction step already gets; it adds no assumption.
+`bst(Node(x, Leaf, Leaf), lo, hi)` reads `bst` at the leaves too.
+
+**Measured before this registration, stated plainly.**
+- **The audit:** 0 survivors (14 of 14 behaviour-changing mutants killed). The twin, a tie sent left, breaks
+  `bst(m, lo, hi)` at a stated input.
+- **The kernels, hand probes:**
+  - Dafny, Verus and F* read verified/refuted.
+  - Rocq reads unproved: its structural induction fixes every other parameter, and the recursive calls change `lo`
+    and `hi`. Generalizing the hypothesis is the named open item.
+  - Lean refuses by name: a structurally recursive task with `requires` is not lowered yet.
+  - SPARK and Frama-C refuse recursive datatypes, as before.
+- **Byte identity:**
+  - tree_insert moves in every kernel.
+  - The fuel rule also moves the Verus lowerings of tree_count, tree_height, tree_mirror and tree_sum, and AlgoVeri's
+    bst insert and search. Each was re-proved in Verus with the twin refuted, unchanged.
+- **Suite:** passes. The Dafny text test now expects the bounded recursive call.
+
+**Bars**, for the clean-clone tables at this registration's commit:
+(1) The matrix: Lean 88 and Rocq 83 (tree_insert leaves both); Dafny 111, Verus 104, F* 84 unchanged; SPARK 79,
+Frama-C 70 unchanged; all seven 65.
+(2) The AlgoVeri table does not move.
+(3) `t/AUDIT-TASKS.md`: 0 of 114 tasks admit a survivor.
