@@ -9,7 +9,14 @@ a kernel. The seven are independent front ends over four distinct proof engines,
 - the Lean kernel;
 - the Rocq kernel, whose compiled proofs `coqchk` re-checks independently.
 
-`internal/RESEARCH-2026-10-07-zoom-out.md` (D6) says how solver independence is being measured.
+**Solver change, measured** (PREDICT T22's read, 2026-10-07): the SMT-backed legs were re-run under a second solver.
+SPARK ran under CVC5 and Alt-Ergo, Frama-C under Z3 and CVC5, and Dafny under CVC5 through Boogie.
+- Over 298 cells that verify under the default solver, no second solver refuted a verified program.
+- A second solver re-verifies all 56 of SPARK's counted programs, 86 of Dafny's 88 and 33 of Frama-C's 49. The
+  other 16 in Frama-C rest on Alt-Ergo alone.
+- Proof strength is solver-specific: under Z3, 31 of the 49 Frama-C programs that Alt-Ergo proves time out.
+- Dafny's twin side cannot be measured under CVC5: Boogie's model converter crashes on CVC5's real-valued models.
+- Verus and F\* run on Z3 alone.
 
 Each task is also paired with a deliberately broken **twin**, one edit away from the real program, and a concrete
 input at which the twin breaks the specification. A kernel's cell counts only when the kernel proves the real

@@ -42,6 +42,13 @@ and it found six defect classes that none of the 88 tasks reach.
    - Alt-Ergo behind Frama-C;
    - the Lean kernel;
    - the Rocq kernel, re-checked by `coqchk` in the adapter already.
+
+   **Measured 02:12Z (PREDICT T22's read).** The SMT-backed legs were re-run under a second solver: SPARK under
+   CVC5 and Alt-Ergo, Frama-C under Z3 and CVC5, and Dafny under CVC5.
+   - Over 298 cells that verify under the default, no second solver refuted a verified real.
+   - A second solver re-verifies SPARK 56 of 56, Dafny 86 of 88 and Frama-C 33 of 49.
+   - Proof strength is solver-specific: Frama-C under Z3 keeps 18 of 49.
+   - Dafny's twin side under CVC5 is unmeasurable: Boogie's model converter crashes on a Real value.
 4. **Lean is no longer the weak leg for agents.** CLEVER went from 1/161 to 98.1%, and Aristotle resolves 96.8% of
    VERINA. It is still the weak leg for one-shot writing and on AlgoVeri (7.8% direct). In t, Lean carries 10 of
    the 21 AlgoVeri contracts and verifies none, and it co-blocks 20 of them.
@@ -68,7 +75,7 @@ is corrected by item 3.
 
 Each is its own registration, measured before it is claimed.
 
-1. **D6, a common-mode audit (low effort).** Re-run the SMT-backed legs under a second solver: SPARK under its
+1. **D6, a common-mode audit (low effort). DONE for SPARK, Frama-C and Dafny (T22's read); Lean's independent re-check is still owed.** Re-run the SMT-backed legs under a second solver: SPARK under its
    bundled CVC5 and Alt-Ergo (the adapter pins Z3), Dafny through Boogie's CVC5, and Frama-C's WP under Z3 or
    CVC5 through Why3. Replay the Lean cells through an independent checker. Rocq's cells are already re-checked
    by `coqchk`. The table this produces is agreement under solver change, which answers item 3 with a measurement

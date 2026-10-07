@@ -1178,3 +1178,64 @@ predicted.
 
 Verus and F* run on Z3 alone and have no second solver here.
 
+
+### T22 read (2026-10-07 02:12Z): the common-mode audit. No verified real is refuted under a second solver; three of the five count bars are missed.
+
+Five alternate-solver columns ran over the 88 tasks (`/home/t/scratch/t-matrix/AGREEMENT-{spark-cvc5,spark-altergo,
+framac-z3,framac-cvc5,dafny-cvc5}.md`). Each cell was compared with the installed table (clean18).
+
+| leg | default | second solver | counted under default | still counted | real re-verified | real REFUTED |
+|---|---|---|---|---|---|---|
+| SPARK | Z3 | CVC5 1.3.2 | 56 | 48 | 48 | 0 |
+| SPARK | Z3 | Alt-Ergo | 56 | 53 | 53 | 0 |
+| Frama-C | Alt-Ergo | Z3 4.16.0 | 49 | 18 | 18 | 0 |
+| Frama-C | Alt-Ergo | CVC5 1.3.2 | 49 | 33 | 33 | 0 |
+| Dafny | Z3 | CVC5 1.3.2 | 88 | 0 (twin side unmeasurable, below) | 86 | 0 |
+
+(1) **Missed:** under CVC5, 48 of SPARK's 56 stay counted (bar: 50). The eight lost reals are 6 UNPROVED and 2
+TIMEOUT: diffs, every_other, has_duplicate, odd_positions, palindrome, reverse, squares, tail.
+(2) **Held:** under Alt-Ergo, 53 of 56 (bar: 35). The three lost are UNPROVED: average, half_way, safe_ratio, the
+tasks with reals and division.
+(3) **Held:** no real verified under Z3 is REFUTED under CVC5 or Alt-Ergo.
+(4) **Missed by one cell:** under Alt-Ergo, every twin is refuted. Under CVC5, `diffs`'s twin certificate times
+out. That certificate unfolds the comprehension's recursive expression function at the witness, which is not one
+flat ground goal.
+(5) **Missed in both:** Frama-C under Z3 keeps 18 of 49 and under CVC5 33 of 49 (bar: 40 each).
+   - The Z3 losses are 31 genuine timeouts. Rerun by hand with WP's cache off, `all_nonneg`'s loop-invariant and
+     ensures goals are still open at 60 s, where Alt-Ergo proves them.
+   - Under Z3, 8 twin certificates are also UNPROVED: count_matches, digit_sum, double_all, gcd_of, largest,
+     min_max, row_max_len, seq_max. Each needs an ACSL recursive logic function evaluated at the witness.
+   - Under CVC5, 9 reals are UNPROVED and 7 TIMEOUT, and every twin is refuted.
+(6) **Held:** no real verified under Alt-Ergo is REFUTED under Z3 or CVC5.
+(7) **Held:** under CVC5, 86 of Dafny's 88 reals verify (bar: 75). `first_sorted` and `sort_it` time out.
+(8) **Held:** no real verified under Z3 is REFUTED under CVC5.
+
+**Dafny's twin side under CVC5 is unmeasurable.** This is the registered falsifier, a tool error rather than a
+verdict (receipt 04b99488c420).
+- Every twin's main run is a failing proof, so Boogie asks the solver for a counterexample model.
+- Boogie's model converter has no case for a Real value, and CVC5's model carries `0.0`, so Boogie throws
+  `BadExprFromProver` before reporting any verdict.
+- The certificates themselves verify under CVC5 when run alone. The adapter still refuses every one, correctly,
+  because the main run printed no result.
+- Dafny 4.11 sets `EnhancedErrorMessages = 1` whenever its counterexample option binding runs, so
+  `/enhancedErrorMessages:0` is overridden. CVC5 refuses `produce-models=false` after initialization.
+- No engine code changed. Accepting a crashed main run would weaken the certificate door.
+
+**What it measures.** Over five columns and 298 cells that verify under the default solver, no second solver refuted
+a verified real: a solver-specific false proof would have shown here, and none did. Re-verification by a second
+solver:
+- **SPARK:** all 56 of its counted reals are re-verified by CVC5 or Alt-Ergo, and their losses do not overlap.
+- **Dafny:** 86 of 88.
+- **Frama-C:** 33 of 49. The other 16 rest on Alt-Ergo alone: all_nonneg, any_neg_for, contains, diffs, every_other,
+  first_even, has_duplicate, has_elem, largest, linear_search, min_max, remainder, reverse, root_floor,
+  row_max_len, seq_max.
+
+**Proof strength.** It is solver-specific, and much more so in Frama-C than registered. WP's encoding suits
+Alt-Ergo, and Z3 loses 31 of 49 there.
+
+**Twin certificates.** They are solver-robust when the certificate is one flat ground goal. They depend on the
+solver when they must unfold a recursive function at the witness (1 cell in SPARK under CVC5, 8 in Frama-C under
+Z3).
+
+**Still open.** Verus and F* run on Z3 alone. Lean's cells have no independent re-check here (lean4checker is not
+installed). Rocq's are re-checked by `coqchk`.
