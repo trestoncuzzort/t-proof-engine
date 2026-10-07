@@ -20,18 +20,16 @@ Measured from a clean clone of this repository on 2026-10-06 over the 88 committ
 |---|---|---|---|
 | Dafny | 88 | 0 | 0 |
 | Verus | 80 | 1 | 7 |
+| Rocq | 62 | 0 | 26 |
 | Lean 4 | 61 | 3 | 24 |
-| Rocq | 57 | 0 | 31 |
-| F\* | 53 | 2 | 33 |
-| SPARK | 50 | 3 | 35 |
-| Frama-C | 44 | 1 | 43 |
+| F\* | 58 | 2 | 28 |
+| SPARK | 55 | 3 | 30 |
+| Frama-C | 49 | 1 | 38 |
 
 - In every kernel, the twin of every proved program is refuted (100%).
-- 43 of the 88 tasks are proved, with the twin refuted, in all seven kernels.
+- 47 of the 88 tasks are proved, with the twin refuted, in all seven kernels.
 - Most refusals are of constructs added to the language on 2026-10-06, which the other kernels are being taught
   now.
-- Rocq's and F*'s own columns, re-run after comprehensions landed in each (PREDICT T14, T16), read 62 and 58. The
-  next clean-clone matrix installs them.
 - [t/ALGOVERI.md](t/ALGOVERI.md): 21 of AlgoVeri's contracts in seven kernels. Dafny verifies all 21 with the twin
   refuted, and the other kernels far fewer. PREDICT T13's read names every failure, and T15 and T17 repaired 11 of
   its 13 malformed cells. Re-run after them, Verus reads 6 and F* 5.

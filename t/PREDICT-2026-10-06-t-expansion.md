@@ -1068,3 +1068,34 @@ passes (695).
 **What would falsify the design:** a twin whose certificate does not reach the buffer's written value (counted
 against bar 1), or a verdict that differs between the probe and the adapter's run.
 
+### T19 read (2026-10-07 01:16Z): comprehensions in Frama-C, 5 of 5. All seven goes from 43 to 47, measured from a clean clone.
+
+(1) **Bar 1 held, at 5 of 5:** Frama-C verifies the real program and refutes its twin on all five maps.
+(2) **Bar 2 held:** `evens` refuses as a filter, and `count_evens_skip` for its early exit.
+(3) **Bar 3 held:** in the whole Frama-C column, only those five cells moved. Frama-C goes from 44 to 49.
+(4) **Bar 4 held:** the matrix was regenerated from a clean clone of t-proof-engine at 1da32b3 (`t/AGREEMENT.md`).
+All seven goes from 43 to 47: `doubled`, `squares`, `diffs` and `every_other` are verified with the twin refuted in
+every kernel. `odd_positions` is held out by Lean's UNPROVED, as registered.
+
+Against the previous installed table, exactly 20 cells moved: the five maps in Rocq (T14), F* (T16), SPARK (T18) and
+Frama-C (T19). No other cell moved, and every kernel still refutes the twin of every real it verifies (100%).
+
+| kernel | verified with the twin refuted |
+|---|---|
+| Dafny | 88 |
+| Verus | 80 |
+| Rocq | 62 |
+| Lean | 61 |
+| F* | 58 |
+| SPARK | 55 |
+| Frama-C | 49 |
+
+**Next by all-seven gain.** Four tasks are one kernel short of all seven:
+- `palindrome` (Frama-C: `rev` in a seq local needs a buffer);
+- `swap_rows` (Frama-C: a nested-seq return);
+- `double_all` (Frama-C: a timeout);
+- `odd_positions` (Lean: UNPROVED).
+
+Three tasks are two kernels short: `largest` (SPARK, F*: max of one argument, T21 next), `sum_tail` and
+`grid_row_sums`.
+
