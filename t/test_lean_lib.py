@@ -77,8 +77,8 @@ def test_grind_hints_and_patterns():
 
 
 def test_refusals_by_name():
-    ok("finite sets" in refusal("members_upto") or "toset" in refusal("members_upto"),
-       "toset stays refused: %r" % refusal("members_upto"))
+    # since PREDICT T29 (2026-10-07) Lean carries finite sets of ints, toset included (ExtTreeSet.ofList)
+    ok(refusal("members_upto") == "", "toset is lowered since T29: %r" % refusal("members_upto"))
     ok("second wave" in refusal("pad_right_len") or "not lowered yet" in refusal("pad_right_len"),
        "the second string wave stays refused: %r" % refusal("pad_right_len"))
     task = surface.parse("t 1\ntask f(s: seq) returns (r: seq)\n  ensures len(r) == len(s)\n{ r := sort_by(s, x => x); }\n")

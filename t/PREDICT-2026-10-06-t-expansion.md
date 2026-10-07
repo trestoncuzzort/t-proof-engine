@@ -1488,3 +1488,34 @@ proof.
 (2) AlgoVeri integer_exponential reads verified with the twin refuted in Lean, so it is verified/refuted in all seven:
 AlgoVeri's first all-seven contract.
 (3) fast_exponential's Lean cell keeps T27's verdict. No other AlgoVeri cell moves.
+
+## T29 registered (2026-10-07 04:21Z, after hand probes and before the clean-clone runs): finite sets in Lean (G13)
+
+SPEC.md "Finite sets", the Lean note of 2026-10-07. Lean refused every set, on the ground that core Lean has no
+finite-set type. Lean 4.33's own Std ships `Std.ExtTreeSet`, extensional and decidable. A set of ints is
+`Std.ExtTreeSet Int compare`:
+- the operations are `∪`, `∩` and `\`, with `insert`/`erase` for a singleton second operand;
+- `card` is size, membership is `∈`/`contains`, `toset` is `ofList`, and `==` is Lean's `=`;
+- grind gets the membership and size lemmas core leaves untagged, plus one proved fact, `t_set_size_pos`;
+- certificates close by `decide`.
+
+**The Lean adapter's ban list allows exactly one import line**, `import Std.Data.ExtTreeSet`, a toolchain module.
+Every other import stays banned, and the axiom audit is unchanged. Receipt 76156bbbd011 (the ExtTreeSet API page,
+and the lemma file of the toolchain itself).
+
+**Measured before this registration, stated plainly.**
+- **Lean, `cli verify`:**
+  - set_toggle and set_collect COUNT.
+  - members_upto is unproved: membership in a slice, `s[i] ∈ s[0..n]`, is not derived.
+  - all_pos_set (a set-ranged quantifier) and words_seen (`set<seq>`) are refused by name.
+- **Byte identity:** of the 101 tasks and 27 AlgoVeri programs, exactly six lowerings change, all from a refusal to
+  a lowering: Lean's real and twin of members_upto, set_collect and set_toggle.
+- **Suite:** the whole suite passes (707). `test_lean_lib`'s "toset stays refused" became "toset is lowered", as this
+  registration intends.
+
+**Bars**, read from the clean-clone matrix of the 101 that follows T27's. The same run reads T28, whose cells are
+disjoint from these:
+(1) set_toggle and set_collect read verified with the twin refuted in Lean. With Dafny and Verus, and Rocq and F*,
+which already verify both, each is then verified/refuted in five kernels.
+(2) members_upto's Lean cell moves from abstain to unproved. all_pos_set and words_seen keep their Lean refusals.
+(3) No other cell of the 101 moves against T27's matrix. Lean gains 2.

@@ -1228,6 +1228,25 @@ any document about to be written that does not parse with the current
 surface, rather than writing it and letting a downstream reader (`t_tool`,
 `locallm/chat_data.py`) drop it silently.
 
+**Lean states finite sets of ints (2026-10-07, PREDICT T29).** The note above calls core Lean's lack of a finite set a
+named refusal. Lean 4.33's own Std now ships `Std.ExtTreeSet`, whose `=` is extensional (`ExtTreeSet.ext_mem`) and
+decidable, so a set is `Std.ExtTreeSet Int compare` and t's `==` is Lean's own equality.
+- **Operations:** a display is an insert chain from `∅`. union, inter and setminus are `∪`, `∩` and `\`; with a
+  singleton display as the second operand they are `insert` and `erase`, the same set extensionally, which the size
+  lemmas speak about. `card` is the size as an Int, membership is `∈` (`contains` as a Bool), and `toset` is
+  `ofList`.
+- **Proof:** grind gets the union, inter and diff membership lemmas and the insert size bounds; the core lemmas
+  already tagged for grind are not named again. One fact their lemmas leave grind to chain, a member making the size
+  positive (`size_erase` subtracts in Nat), is proved once in the file as `t_set_size_pos`.
+- **Certificates:** a ground set is its insert chain, closed by `decide`, using only propext, Classical.choice and
+  Quot.sound.
+- **The adapter's ban list** allows exactly one import line, `import Std.Data.ExtTreeSet`, a module of the toolchain's
+  own Std, trusted as the prelude is. Every other import is still banned, and the axiom audit still covers every
+  theorem.
+- **Measured:** set_toggle and set_collect COUNT in Lean. members_upto is unproved: its contract needs `s[i] ∈ s[0..n]`,
+  membership in a slice, which grind does not derive. Still refused by name: a set of a compound element type
+  (words_seen's `set<seq>`) and a set-ranged quantifier (all_pos_set).
+
 ### Seq-valued spec_funs (v1)
 
 Stated 2026-09-27 (t/FEATURES-TRACK.md "The order from here": the binding
