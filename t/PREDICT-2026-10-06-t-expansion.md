@@ -987,3 +987,35 @@ at 6 after T15. MALFORMED cells across AlgoVeri go from T13's 13 to 2: Verus's `
 update expression, and F*'s `longest_palindromic_substring`, an index that is a function of a computational
 quantifier's own bound variable. Both are named and queued.
 
+## T18 registered (2026-10-07 00:41Z, after hand probes and before the column run): comprehensions in SPARK
+
+D1's seventh landing. After T16, only SPARK and Frama-C stand between the five map tasks and all seven.
+
+**Design** (receipt a749e5e14241). Each map shape is one recursive expression function `T_CompK`, in the shape of
+the file's own `T_Slice`:
+- the Pre states the source's bound, a nonnegative count, and the body's definedness, split as in Dafny and F*;
+- the Post states the length and every element over `T_Range`;
+- a `Subprogram_Variant` on the count;
+- the body is `Seqs.Add` of the last element onto the function at `T_N - 1`.
+
+Two measured adaptations, both from the hand probes:
+- Over a range, the count is clamped at the call site, because the variant on a possibly negative count failed its
+  range check (`squares`). The index is written through an identity `T_Ix`.
+- The recursion is guarded by `R_Has (T_Range'(0, T_N), T_N - 1)` instead of `T_N = 0`. A quantifier over T_Range
+  is instantiated through its Has_Element term, and without that guard `diffs`' Pre was out of reach at `T_N - 1`
+  even at five times the step budget.
+
+A filter, and a comprehension inside a spec_fun, method or lemma, refuse by name.
+
+**Measured before this registration.** All five maps' real files verify under the adapter's own `verify`. The SPARK
+lowerings of the other 81 committed tasks are byte-identical, and the whole suite passes (691).
+
+**Bars.**
+(1) SPARK verifies the real program and refutes the twin on at least 4 of the 5 maps.
+(2) `evens` and `count_evens_skip` refuse by name.
+(3) No SPARK cell that agreed before changes; the whole SPARK column is re-run.
+(4) All seven stays 43, because Frama-C still refuses every comprehension task.
+
+**What would falsify the design:** a twin certificate that does not reach the comprehension's value (counted
+against bar 1), or a verdict that depends on the step budget (a TIMEOUT where the probe verified).
+

@@ -15,7 +15,6 @@ sys.path.insert(0, str(HERE))
 
 import lower_framac  # noqa: E402
 import lower_rocq  # noqa: E402
-import lower_spark  # noqa: E402
 import surface  # noqa: E402
 import tasks_io  # noqa: E402
 
@@ -88,7 +87,7 @@ spec fun dbl(q: seq): int
 
 
 def test_other_kernels_unchanged():
-    for mod in (lower_spark, lower_framac):   # F* carries maps since PREDICT T16 (test_fstar_comp.py)
+    for mod in (lower_framac,):   # F* and SPARK carry maps since PREDICT T16, T18 (test_fstar_comp.py, test_spark_comp.py)
         e = refusal(load("doubled"), mod)
         ok("comprehensions are not lowered yet" in e, f"{mod.__name__} still refuses doubled by name: {e}")
 
