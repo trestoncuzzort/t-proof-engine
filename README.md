@@ -86,14 +86,17 @@ the count that would falsify it.
   lemmas, comprehensions and higher-order calls (`fold`, `sort_by`, `max_by`, `min_by`).
 - **Library:** `min`, `max`, `abs`, `gcd`, `pow`, `isqrt`, `sum`, `sort` and `rev`, with membership and
   `any`/`all` reductions.
-- **Not in the language:** heap, floats and concurrency.
+- **Since 2026-10-07:** arrays written in place (`array`, `modifies`, `old`), `parallel for` with race freedom
+  checked by rule, and IEEE-754 doubles (`float`).
 
 [t/SYNTAX.md](t/SYNTAX.md) gives the grammar with one example per construct. [t/SPEC.md](t/SPEC.md) gives the
 semantics and the decisions behind them, and [t/TUTORIAL.md](t/TUTORIAL.md) teaches the language from zero.
 
 ## Quick start
 
-The engine is standard-library Python (3.10 or later). Each kernel is installed separately:
+[QUICKSTART.md](QUICKSTART.md) is the two-minute version: one routine, seven proofs, and an audit of its spec.
+The `Dockerfile` builds all seven kernels at the versions the tables were measured on. The engine itself is
+standard-library Python (3.10 or later). Each kernel can also be installed separately:
 [t/RUN-ON-LINUX.md](t/RUN-ON-LINUX.md), [t/RUN-ON-MACOS.md](t/RUN-ON-MACOS.md),
 [t/RUN-ON-WINDOWS.md](t/RUN-ON-WINDOWS.md).
 
@@ -102,6 +105,7 @@ The engine is standard-library Python (3.10 or later). Each kernel is installed 
     python3 t/cli.py twin   t/tasks/clamp.t                  # the twin's operator and witness
     python3 t/cli.py verify t/tasks/clamp.t                  # every kernel that is installed
     python3 t/cli.py verify t/tasks --jobs 3 --table AGREEMENT.md   # the whole matrix
+    python3 t/cli.py audit  t/tasks/clamp.t --kernel dafny   # the one-edit mutants the spec lets through
 
 A kernel that is not installed is reported absent, not passed. With fewer than two kernels present, `verify`
 refuses to give a verdict (`T_MIN_KERNELS` sets the floor).
