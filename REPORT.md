@@ -22,10 +22,10 @@ each with a kernel proof of the wrong program, and 25 of them are repaired mecha
 kernel-proved for the program as written. Each kernel refuses by name what it cannot express, rather than
 weakening it. The language now carries the constructs embedded control code needs: in-place
 arrays, parallel loops whose race freedom is checked by rule, and IEEE-754 doubles. A suite of 25 autonomy routines
-is checked the same way. So are eighteen functions from PX4-Autopilot's flight code,
-restated statement by statement. Twelve are proved in all seven kernels. PX4's own compiled C++ computes what the
-proved programs compute on all 5,145 points compared. For one filter this holds once PX4's single-precision
-coefficient is applied.
+is checked the same way. So are 24 functions from PX4-Autopilot's flight code, restated
+statement by statement. Fifteen are proved in all seven kernels. PX4's own compiled C++ computes what the proved
+programs compute on every point compared; for one filter this holds once PX4's single-precision coefficient is
+applied. The method found a defect in PX4: a bin index that the collision-prevention code can drive negative.
 
 ## 1. The problem
 
@@ -102,33 +102,53 @@ What keeps the others out is measured, not guessed:
 - the heap routines sample_push (ring-buffer `mod`) and saturate_all, proved in Dafny and Frama-C and not yet
   elsewhere.
 
-**Real flight code** (PREDICT T67; `t/flight/`, `t/FLIGHT.md`, `t/PX4-DIFF.md`, `t/SHIP-FLIGHT.md`, clean clone
-at ebc9340). The routines above were written for this repository. To test the method on code nobody wrote for it,
-eighteen functions from PX4-Autopilot (BSD-3, commit dd804e4b) are restated in t statement by statement:
+**Real flight code** (PREDICT T67, T68; `t/flight/`, `t/FLIGHT.md`, `t/PX4-DIFF.md`, `t/SHIP-FLIGHT.md`,
+`t/FLIGHT-FINDINGS.md`, clean clone at 2295304). The routines above were written for this repository. To test the
+method on code nobody wrote for it, 24 functions from PX4-Autopilot (BSD-3, commit dd804e4b) are restated in t
+statement by statement:
 - mathlib's clamps, signs, minima and maxima, `sq` and `negate<int16_t>`;
 - matrix's integer `wrap`;
 - the index search of `interpolateNXY`;
-- at double: `constrain`, `lerp`, `interpolate`, `SlewRate::update` and `AlphaFilter`'s update.
+- at double: `constrain`, `lerp`, `interpolate`, `SlewRate::update` and `AlphaFilter`'s update;
+- `systemlib::Hysteresis`, the time hysteresis commander and the land detector use: its two methods, and two
+  properties of any run of samples;
+- collision prevention's `ObstacleMath::wrap_bin`.
 
 PX4 ships no contracts, so they are this repository's, each audited to zero survivors. The question a
 transcription raises is whether t's program is PX4's program. `t/flight/px4_diff.py` answers it by running PX4: it
-compiles PX4's own headers at the pinned commit and calls each function on every domain point of its task, compared
-with t's interpreter. 16 functions agree on all 4,745 points. `AlphaFilter<double>` differs in the last bits until
-the interpreter rounds `alpha` to binary32: PX4 stores the filter's coefficient as a `float` even when the filter is
-`double`, and with that applied all 400 points agree.
+compiles PX4's own sources at the pinned commit and calls each function, or drives each class through its public
+methods, on every domain point of its task. Each result is compared with t's interpreter. 22 of 23 functions agree
+on every point. `AlphaFilter<double>` differs in the last bits until the interpreter rounds `alpha` to binary32: PX4
+stores the filter's coefficient as a `float` even when the filter is `double`, and with that applied all 400 points
+agree.
 
 | measure | count |
 |---|---|
-| functions verified, twin refuted, in all seven kernels | 12 |
-| integer `wrap` (non-linear) | F\* only |
+| functions verified, twin refuted, in all seven kernels | 15 of 24 |
+| hysteresis run properties (never switches inside the window; switches once the request has held) | six kernels, Rocq open |
+| integer `wrap`, `wrap_bin` with a symbolic count (non-linear) | F\* only |
 | float functions, verified in SPARK and Frama-C | constrain, the alpha update |
 | float functions, verified in one | lerp (SPARK) |
-| float functions, a timeout in both | interpolate, the slew update |
-| shipping for every int32 input / within an envelope | 13 / `sq` within ±2^15 |
+| float functions, a timeout in both | interpolate, the slew update (Frama-C borderline) |
+| at machine width: every int32 input / within an envelope / none found / contract open | 15 / 4 / 1 / 4 |
+
+**A defect, found by the method.** PX4's unit test for `wrap_bin` says a negative bin is "wrapped back to the end".
+That is the contract a proof needs: the result is a bin index congruent to the input. The kernels prove it only
+under `bin >= -bin_count`. Without that bound all seven refute it, and PX4's compiled code returns -1 at their
+certificate's input and at `(-73, 72)`. Collision prevention wraps every bin across a distance sensor's field of
+view, starting from `round((yaw - fov/2) / 5)`. The field of view reaches that line without a range check, so a
+value above about 12.65 rad (for example a value in degrees where radians are expected) indexes the 72-bin
+obstacle map negatively. The report to PX4 is drafted, not filed.
 
 The envelope for `sq` is a fact about PX4's `int` instantiation: squaring a 32-bit `int` above 46,340 overflows.
 The interpolation contract needs a minimum gap between its breakpoints, which PX4 does not state: a small
 `x_high - x_low` overflows the slope.
+
+Two lowering faults surfaced on PX4's code and were fixed (T68):
+- Frama-C carried t's bools in C ints and compiled bool `!=` as integer `!=`, so WP considered a bool holding 2.
+  Bool comparisons now compare negations.
+- Lean's `grind` derived `i = 0` but did not carry it through an array index. A `simp_all` fallback, tried only
+  after every earlier alternative, closes it.
 
 **Solver change** (PREDICT T22): over 298 cells verified under the default solver, no second solver refuted a verified
 program. Proof strength is solver-specific: under Z3, 31 of the 49 programs Alt-Ergo proves in Frama-C time out.

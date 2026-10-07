@@ -1,4 +1,4 @@
-# t cross-kernel agreement, 2026-10-07 21:32Z
+# t cross-kernel agreement, 2026-10-07 22:20Z
 
 Cell = real outcome / twin outcome. Agreement means `verified / refuted` in every present column. A real-VERIFIED, twin-VERIFIED cell reads `verified / decorative` (the spec cannot tell real and twin apart) or `verified / unsound` (the twin's own measured witness says a sound kernel must refute it, and this one did not); neither counts as agreement.
 
@@ -7,6 +7,10 @@ Cell = real outcome / twin outcome. Agreement means `verified / refuted` in ever
 | px4_alpha_update | abstain / abstain | abstain / abstain | verified / refuted | verified / refuted | abstain / abstain | abstain / abstain | abstain / abstain |
 | px4_constrain | verified / refuted | verified / refuted | verified / refuted | verified / refuted | verified / refuted | verified / refuted | verified / refuted |
 | px4_constrain_f | abstain / abstain | abstain / abstain | verified / refuted | verified / refuted | abstain / abstain | abstain / abstain | abstain / abstain |
+| px4_hysteresis_holds | verified / refuted | verified / refuted | verified / refuted | verified / refuted | verified / refuted | timeout / refuted | verified / refuted |
+| px4_hysteresis_set | verified / refuted | verified / refuted | verified / refuted | verified / refuted | verified / refuted | verified / refuted | verified / refuted |
+| px4_hysteresis_switches | verified / refuted | verified / refuted | verified / refuted | verified / refuted | verified / refuted | timeout / refuted | verified / refuted |
+| px4_hysteresis_update | verified / refuted | verified / refuted | verified / refuted | verified / refuted | verified / refuted | verified / refuted | verified / refuted |
 | px4_interp_index | verified / refuted | verified / refuted | verified / refuted | verified / refuted | verified / refuted | verified / refuted | verified / refuted |
 | px4_interpolate | abstain / abstain | abstain / abstain | timeout / refuted | timeout / refuted | abstain / abstain | abstain / abstain | abstain / abstain |
 | px4_is_in_range | verified / refuted | verified / refuted | verified / refuted | verified / refuted | verified / refuted | verified / refuted | verified / refuted |
@@ -19,8 +23,10 @@ Cell = real outcome / twin outcome. Agreement means `verified / refuted` in ever
 | px4_sign | verified / refuted | verified / refuted | verified / refuted | verified / refuted | verified / refuted | verified / refuted | verified / refuted |
 | px4_sign_from_bool | verified / refuted | verified / refuted | verified / refuted | verified / refuted | verified / refuted | verified / refuted | verified / refuted |
 | px4_sign_no_zero | verified / refuted | verified / refuted | verified / refuted | verified / refuted | verified / refuted | verified / refuted | verified / refuted |
-| px4_slew_update | abstain / abstain | abstain / abstain | timeout / refuted | timeout / refuted | abstain / abstain | abstain / abstain | abstain / abstain |
+| px4_slew_update | abstain / abstain | abstain / abstain | timeout / refuted | verified / refuted (FLAKED) | abstain / abstain | abstain / abstain | abstain / abstain |
 | px4_sq | verified / refuted | verified / refuted | verified / refuted | verified / refuted | verified / refuted | verified / refuted | verified / refuted |
+| px4_wrap_bin | timeout / refuted | unproved / refuted | timeout / refuted | timeout / refuted | unproved / refuted | unproved / refuted | verified / refuted |
+| px4_wrap_bin_72 | verified / refuted | verified / refuted | verified / refuted | verified / refuted | verified / refuted | verified / refuted | verified / refuted |
 | px4_wrap_int | timeout / refuted | unproved / refuted | timeout / refuted | timeout / refuted | unproved / refuted | unproved / refuted | verified / refuted |
 
 Kernels present: 7 of 7 (dafny, verus, spark, framac, lean, rocq, fstar)
@@ -40,26 +46,26 @@ Verdict basis: every source file hashed; e.g. `px4_constrain.dfy` bcade8d84b47b4
 
 | kernel | sole blocker of | co-blocker of | tasks it alone keeps out of all seven |
 |---|---|---|---|
-| dafny | 0 | 4 | (none) |
-| verus | 0 | 4 | (none) |
-| spark | 0 | 1 | (none) |
-| framac | 0 | 2 | (none) |
-| lean | 0 | 4 | (none) |
-| rocq | 0 | 4 | (none) |
+| rocq | 2 | 5 | px4_hysteresis_holds, px4_hysteresis_switches |
+| dafny | 0 | 5 | (none) |
+| verus | 0 | 5 | (none) |
+| spark | 0 | 2 | (none) |
+| framac | 0 | 3 | (none) |
+| lean | 0 | 5 | (none) |
 | fstar | 0 | 3 | (none) |
 
-Of the 0 tasks in six, none are blocked alone.
+Of the 2 tasks in six, 2 are rocq alone.
 
 ## Per kernel
 
 | kernel | carried | real verified | twin refuted where the real is verified | abstains by name |
 |---|---|---|---|---|
-| dafny | 13 | 12 | 12 of 12 (100%) | 5 |
-| verus | 13 | 12 | 12 of 12 (100%) | 5 |
-| spark | 18 | 15 | 15 of 15 (100%) | 0 |
-| framac | 18 | 14 | 14 of 14 (100%) | 0 |
-| lean | 13 | 12 | 12 of 12 (100%) | 5 |
-| rocq | 13 | 12 | 12 of 12 (100%) | 5 |
-| fstar | 13 | 13 | 13 of 13 (100%) | 5 |
+| dafny | 19 | 17 | 17 of 17 (100%) | 5 |
+| verus | 19 | 17 | 17 of 17 (100%) | 5 |
+| spark | 24 | 20 | 20 of 20 (100%) | 0 |
+| framac | 24 | 20 | 20 of 20 (100%) | 0 |
+| lean | 19 | 17 | 17 of 17 (100%) | 5 |
+| rocq | 19 | 15 | 15 of 15 (100%) | 5 |
+| fstar | 19 | 19 | 19 of 19 (100%) | 5 |
 
-Verified with the twin refuted in all seven columns: 12 of 18 tasks.
+Verified with the twin refuted in all seven columns: 15 of 24 tasks.

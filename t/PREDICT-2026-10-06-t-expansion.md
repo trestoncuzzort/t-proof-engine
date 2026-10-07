@@ -3148,3 +3148,28 @@ applied, and the finding reads "PX4 breaks the contract here, as t's body does".
 (4) `t/SHIP-FLIGHT.md` over all 24: 15 for every int32 input, 4 within an envelope, 1 with no envelope, 4 open.
 (5) The Lean column over `t/tasks/`, `t/autonomy/` and `t/algoveri/` reads 89, 15 and 1 verified with the twin
 refuted, as installed. The bar is that no verified cell is lost to the closer change.
+
+### T68 read (2026-10-07 22:31Z): all five bars held
+
+Clean clone at 2295304, unit tup-t-clean43b. Tables installed: `t/FLIGHT.md`, `t/FLIGHT-FINDINGS.md`,
+`t/PX4-DIFF.md`, `t/SHIP-FLIGHT.md`.
+
+- **(1) held.** "Verified with the twin refuted in all seven columns: 15 of 24 tasks": the 12 of T67, plus
+  `Hysteresis::update`, `set_state_and_update` and `wrap_bin` at 72 bins. Rocq times out on `holds` and
+  `switches`, and the other six kernels verify both. `wrap_bin` with a symbolic count is verified in F* only.
+  - One float cell is marked FLAKED: Frama-C's slew update verified on one of its flake runs, where T67's clean
+    run timed out. It is borderline under load, and the slew update is in no all-seven count.
+- **(2) held.** `px4_wrap_bin_any` is refuted in all seven kernels.
+- **(3) held.**
+  - "routines compared: 23; agree on every point: 22; points: 6677". AlphaFilter agrees once narrowing is applied.
+  - PX4's own `wrap_bin` returns -1 at both the certificate input `(-2147483648, 2147483647)` and `(-73, 72)`,
+    as t's body does.
+- **(4) held.** 15 ship for every int32 input, 4 within an envelope, 1 with no envelope found, 4 open.
+- **(5) held.** Lean verifies, with the twin refuted, 89 of `t/tasks/`, 15 of `t/autonomy/` and 1 of
+  `t/algoveri/`, as installed. The closer change cost no cell.
+
+What this establishes: a defect in PX4's shipping code was found by the method and not by reading. The contract a
+proof needs for `wrap_bin` (the one PX4's own unit test states) holds only for `bin >= -bin_count`. A kernel refutes
+the function without that bound, and PX4's compiled code fails at the kernel's own input. Tracing the callers shows
+the collision-prevention sensor path does not establish the bound. Two lowering faults were also found and fixed on
+the way: Frama-C compared bools as ints, and Lean's `grind` dropped a derived equality.
