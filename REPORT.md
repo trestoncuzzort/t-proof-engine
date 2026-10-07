@@ -216,13 +216,16 @@ domain points, and compared with t's interpreter. Over 9,961 compiled runs of th
 WP's machine-integer model with runtime-error guards, so every signed operation owes a no-overflow proof. Where an
 overflow is reachable at full width, the largest ±2^k input bound under which everything proves is the routine's
 proved operating envelope:
-- 61 routines ship for every 32-bit input.
+- 63 routines ship for every 32-bit input. Two of them are held by loop bounds (`0 <= c <= i <= len(s)`). The bounds
+  were inferred from observed loop states, pruned by Houdini, and proved (T64).
 - 12 ship within an envelope:
   - abs within ±2^30, its `-x` overflowing at INT_MIN;
   - a throttle limiter within ±2^29;
   - a cross-track sign test and a stopping-distance check within ±2^14.
-- 21 have no envelope found. That is not proof of unsafety: they are mostly loop counters that WP cannot bound
-  without an invariant relating them to the index, the next item.
+- 19 have no envelope found. That is not proof of unsafety:
+  - an overflow inside a library helper outside the task's loops;
+  - a contract already open (the frame gap);
+  - non-linear division the prover does not decide.
 
 ## 5. What the kernels taught
 

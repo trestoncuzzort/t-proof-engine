@@ -2933,3 +2933,9 @@ The matrix's proofs are unchanged; the invariants exist only in the width proof'
 **Bars**, for the clean-clone tables at this registration's commit:
 (1) Both tables reproduce: tasks 47, 7, 17; autonomy 16, 5, 2.
 (2) Every invariant a table lists was proved in that run (Houdini's survivors, with every goal closed).
+
+### T64 read (2026-10-07 19:16Z): both bars held.
+
+Regenerated from a clean clone at 2517d84, and installed.
+(1) **Held:** tasks 47, 7, 17; autonomy 16, 5, 2.
+(2) **Held:** each listed invariant is a Houdini survivor of a run in which every goal closed.
