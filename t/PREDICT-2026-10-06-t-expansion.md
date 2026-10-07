@@ -1163,3 +1163,18 @@ Alt-Ergo. One-task check: `clamp` verifies with its twin refuted under all three
 (5) Under Z3, at least 40 stay verified with the twin refuted; under CVC5, at least 40.
 (6) No real program verified under Alt-Ergo is REFUTED under Z3 or CVC5.
 
+T22's Dafny half, registered 2026-10-07 01:50Z before its run. Boogie's CVC5 route (`--solver-path` to gnatprove's bundled CVC5
+1.3.2, `/proverOpt:SOLVER=CVC5`, which Boogie marks experimental), selected by a new `T_DAFNY_SOLVER` switch whose
+default stays Z3.
+
+**One-task check, stated plainly:** `clamp`'s real verifies under CVC5, but its twin's certificate, a ground goal Z3
+discharges, is UNPROVED: CVC5 gave up without exhausting its budget. So certificate acceptance itself can depend on
+the solver, and the run measures how often.
+
+**Bars**, against Dafny's 88:
+(7) Under CVC5, at least 75 reals stay verified; the count with the twin also refuted is read as measured, not
+predicted.
+(8) No real verified under Z3 is REFUTED under CVC5.
+
+Verus and F* run on Z3 alone and have no second solver here.
+

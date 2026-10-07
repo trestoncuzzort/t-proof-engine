@@ -297,11 +297,35 @@ _RP_CLAUSE = re.compile(r"^  ([a-z]+)\b")
 _CERT_HEAD = re.compile(r"^lemma t_refutation_certificate\(\)\s*$")
 
 
+def _solver() -> str:
+    """Boogie's SMT solver: the bundled Z3 unless T_DAFNY_SOLVER=cvc5. Set only for the common-mode audit (PREDICT
+    T22's Dafny half, internal/RESEARCH-2026-10-07-zoom-out.md D6), never for the matrix of record; a non-default
+    solver is named in version(), so a table built under it says so."""
+    s = os.environ.get("T_DAFNY_SOLVER", "z3")
+    if s not in ("z3", "cvc5"):
+        raise SystemExit(f"T_DAFNY_SOLVER={s!r}: one of z3, cvc5")
+    return s
+
+
+def _solver_args() -> list:
+    """Boogie's CVC5 route (its SOLVER option, marked experimental by Boogie): `--solver-path` to a CVC5 binary, from
+    T_CVC5 or gnatprove's bundled one, and `/proverOpt:SOLVER=CVC5`. The resource limit is passed unchanged; its
+    units are the solver's own, so a TIMEOUT under CVC5 is a budget difference, never a disagreement."""
+    if _solver() == "z3":
+        return []
+    cvc5 = os.environ.get("T_CVC5") or str(next(Path.home().glob(
+        ".local/gnatprove/*/libexec/spark/bin/cvc5"), ""))
+    if not cvc5 or not Path(cvc5).exists():
+        raise SystemExit("T_DAFNY_SOLVER=cvc5: no CVC5 binary (set T_CVC5)")
+    return ["--solver-path", cvc5, "--boogie", "/proverOpt:SOLVER=CVC5"]
+
+
 def version() -> str:
     if not DAFNY:
         raise SystemExit(_DAFNY_WHY)
     p = subprocess.run([DAFNY, "--version"], capture_output=True, text=True)
-    return f"dafny {p.stdout.strip()}"
+    v = f"dafny {p.stdout.strip()}"
+    return v if _solver() == "z3" else f"{v} / solver {_solver()}"
 
 
 def _mask_inert(s: str) -> str:
@@ -534,7 +558,7 @@ def _check_certificate(path: Path, budget: int, banned: list,
     t0 = time.monotonic()
     try:
         p = run_tree(
-            [DAFNY, "verify", f"--filter-symbol={CERT_NAME}.",
+            [DAFNY, "verify", *_solver_args(), f"--filter-symbol={CERT_NAME}.",
              "--log-format", "text",
              "--resource-limit", str(budget),
              "--warn-contradictory-assumptions", str(path)],
@@ -602,7 +626,7 @@ def verify(path: Path, budget: int = DEFAULT_RLIMIT) -> Result:
     t0 = time.monotonic()
     try:
         p = run_tree(
-            [DAFNY, "verify", "--resource-limit", str(budget),
+            [DAFNY, "verify", *_solver_args(), "--resource-limit", str(budget),
              "--warn-contradictory-assumptions",
              "--rprint", rp_name, "--log-format", "text", str(path)],
             capture_output=True, text=True, timeout=WALL_S)
