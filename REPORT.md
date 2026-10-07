@@ -181,6 +181,14 @@ The closest, Federated Formal Verification (arXiv 2606.02019), discharges one TL
 heterogeneous backends behind kernel-agreement gates. It has no mutant, witness or refutation certificate, and
 it cites obligations across kernels rather than lowering one program whole to each.
 
+Mutation analysis of specifications is older than this work:
+- MutDafny (arXiv 2511.15403) mutates Dafny implementations and reads a verified mutant as a possible weak spec.
+- IronSpec mutates the specifications themselves.
+- Endres et al. (2024) score postconditions by how many mutants of an implementation they reject.
+
+The audit here differs in two ways. It decides equivalence by execution before any kernel runs. It also states each
+survivor at a witness input and confirms it with a kernel proof.
+
 ## 8. Reproduce
 
 `t/RUN-ON-LINUX.md` installs the seven kernels. Then:

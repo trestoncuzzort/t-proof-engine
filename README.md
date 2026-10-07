@@ -54,6 +54,12 @@ Measured from a clean clone of this repository on 2026-10-07 over the 114 commit
   race freedom is checked by rule (T47) and IEEE floats (T48). Dafny and Frama-C prove the heap and parallel tasks
   natively (T50); Verus, Lean, Rocq, F* and SPARK through a copy-in/copy-out rewrite (T53), so swap_at, clamp_all
   and offset_all are proved in all seven. SPARK and Frama-C prove the float tasks (T49, T51). The direction they serve is in [NORTH-STAR.md](NORTH-STAR.md).
+- **The specification audit** (`python3 t/cli.py audit DIR --kernel dafny`, PREDICT T54) runs every one-edit
+  mutant of each body. It reports the ones the spec cannot tell from the real program, and the kernel proves them.
+  Over 316 Dafny-verified DafnyBench programs ([t/AUDIT-DAFNYBENCH.md](t/AUDIT-DAFNYBENCH.md)), Dafny also proves a
+  different program against the same contract in 44. Read by hand, 23 are gaps
+  ([t/dafnybench/CLASSIFIED.md](t/dafnybench/CLASSIFIED.md)), among them four weak specs MutDafny's authors found
+  by hand. On t's own suites it found seven specs to strengthen.
 - [t/AUTONOMY.md](t/AUTONOMY.md): 25 navigation, guidance and control routines (`t/autonomy/`). Verified with the
   twin refuted: Frama-C 21, SPARK 20, Dafny 18, F* 17, Lean 15, Verus 14, Rocq 14; 13 in all seven.
 - Most refusals are of constructs added to the language on 2026-10-06, which the other kernels are being taught

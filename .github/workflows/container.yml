@@ -25,8 +25,18 @@ jobs:
           sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
           df -h /
 
+      - name: set up buildx
+        uses: docker/setup-buildx-action@v3
+
       - name: build the image
-        run: docker build -t t-proof-engine .
+        # the layers are cached between runs, so a change to t alone rebuilds only the last layer
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          load: true
+          tags: t-proof-engine
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
       - name: seven kernels, four tasks
         run: |
@@ -36,3 +46,19 @@ jobs:
             t verify /tmp/smoke --jobs 2 --flake 1 --table /tmp/smoke.md; rc=$?; cat /tmp/smoke.md; exit $rc'
           echo "verify took $(( $(date +%s) - start )) s"
           docker images t-proof-engine
+
+      - name: diagnose a failed cell
+        if: failure()
+        run: |
+          docker run --rm --entrypoint sh t-proof-engine -c '
+            cd t && python3 -c "
+          import sys, pathlib
+          sys.path.insert(0, \".\")
+          import tasks_io, tlib
+          from verifiers import framac
+          p = pathlib.Path(\"/tmp/reverse.c\")
+          p.write_text(tlib.lower(tasks_io.load_task(\"tasks/reverse.t\"), \"framac\"))
+          r = framac.verify(p)
+          print(r.outcome)
+          print(r.error)
+          " && frama-c -wp -wp-prover alt-ergo -wp-steps 20000 /tmp/reverse.c 2>&1 | tail -40'
