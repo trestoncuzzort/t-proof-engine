@@ -1,4 +1,4 @@
-# t cross-kernel agreement, 2026-10-07 12:00Z
+# t cross-kernel agreement, 2026-10-07 13:07Z
 
 Cell = real outcome / twin outcome. Agreement means `verified / refuted` in every present column. A real-VERIFIED, twin-VERIFIED cell reads `verified / decorative` (the spec cannot tell real and twin apart) or `verified / unsound` (the twin's own measured witness says a sound kernel must refute it, and this one did not); neither counts as agreement.
 
@@ -15,7 +15,7 @@ Cell = real outcome / twin outcome. Agreement means `verified / refuted` in ever
 | cheapest | verified / refuted | verified / refuted | abstain / abstain | abstain / abstain | abstain / abstain | abstain / abstain | abstain / abstain |
 | checked_tail | verified / refuted | verified / refuted | verified / refuted | abstain / abstain | verified / refuted | abstain / abstain | verified / refuted |
 | clamp | verified / refuted | verified / refuted | verified / refuted | verified / refuted | verified / refuted | verified / refuted | verified / refuted |
-| clamp_all | verified / refuted | abstain / abstain | abstain / abstain | verified / refuted | abstain / abstain | abstain / abstain | abstain / abstain |
+| clamp_all | verified / refuted | verified / refuted | verified / refuted | verified / refuted | verified / refuted | verified / refuted | verified / refuted |
 | color_code | verified / refuted | verified / refuted | verified / refuted | verified / refuted | verified / refuted | verified / refuted | verified / refuted |
 | contains | verified / refuted | verified / refuted | verified / refuted | verified / refuted | verified / refuted | verified / refuted | verified / refuted |
 | count_evens_skip | verified / refuted | verified / refuted | verified / refuted | abstain / abstain | verified / refuted | abstain / abstain | verified / refuted |
@@ -62,7 +62,7 @@ Cell = real outcome / twin outcome. Agreement means `verified / refuted` in ever
 | min_max | verified / refuted | verified / refuted | verified / refuted | verified / refuted | verified / refuted | verified / refuted | verified / refuted |
 | none_neg | verified / refuted | verified / refuted | verified / refuted | verified / refuted | verified / refuted | verified / refuted | verified / refuted |
 | odd_positions | verified / refuted | verified / refuted | verified / refuted | verified / refuted | verified / refuted | verified / refuted | verified / refuted |
-| offset_all | verified / refuted | abstain / abstain | abstain / abstain | verified / refuted | abstain / abstain | abstain / abstain | abstain / abstain |
+| offset_all | verified / refuted | verified / refuted | verified / refuted | verified / refuted | verified / refuted | verified / refuted | verified / refuted |
 | pad_right_len | verified / refuted | verified / refuted | abstain / abstain | abstain / abstain | abstain / abstain | abstain / abstain | abstain / abstain |
 | palindrome | verified / refuted | verified / refuted | verified / refuted | verified / refuted | verified / refuted | verified / refuted | verified / refuted |
 | probe_names_dafny | verified / refuted | verified / refuted | verified / refuted | verified / refuted | verified / refuted | verified / refuted | verified / refuted |
@@ -76,17 +76,17 @@ Cell = real outcome / twin outcome. Agreement means `verified / refuted` in ever
 | put_key | verified / refuted | verified / refuted | abstain / abstain | abstain / abstain | abstain / abstain | abstain / abstain | abstain / abstain |
 | rate_limit | abstain / abstain | abstain / abstain | timeout / refuted | timeout / refuted | abstain / abstain | abstain / abstain | abstain / abstain |
 | rect_area | verified / refuted | verified / refuted | verified / refuted | verified / refuted | verified / refuted | verified / refuted | verified / refuted |
-| relu_all | verified / refuted | abstain / abstain | abstain / abstain | verified / refuted | abstain / abstain | abstain / abstain | abstain / abstain |
+| relu_all | verified / refuted | verified / unproved | verified / timeout | verified / refuted | verified / refuted | verified / unproved | verified / unproved |
 | remainder | verified / refuted | verified / refuted | verified / refuted | verified / refuted | verified / refuted | verified / refuted | verified / refuted |
 | rev_equal | verified / refuted | verified / refuted | verified / refuted | verified / refuted | verified / refuted | verified / refuted | verified / refuted |
 | reverse | verified / refuted | verified / refuted | verified / refuted | verified / refuted | verified / refuted | verified / refuted | verified / refuted |
-| reverse_in_place | verified / refuted | abstain / abstain | abstain / abstain | abstain / abstain | abstain / abstain | abstain / abstain | abstain / abstain |
-| ring_push | verified / refuted | abstain / abstain | abstain / abstain | verified / refuted | abstain / abstain | abstain / abstain | abstain / abstain |
+| reverse_in_place | verified / refuted | unproved / refuted | timeout / refuted | abstain / abstain | unproved / refuted | unproved / refuted | unproved / refuted |
+| ring_push | verified / refuted | unproved / refuted | verified / refuted | verified / refuted | unproved / refuted | unproved / refuted | unproved / refuted |
 | root_floor | verified / refuted | verified / refuted | verified / refuted | verified / refuted | verified / refuted | verified / refuted | verified / refuted |
 | row_max_len | verified / refuted | verified / refuted | verified / refuted | verified / refuted | verified / refuted | verified / refuted | verified / refuted |
 | safe_ratio | verified / refuted | abstain / abstain | verified / refuted | abstain / abstain | abstain / abstain | abstain / abstain | verified / refuted |
 | sat_scale | abstain / abstain | abstain / abstain | verified / refuted | timeout / refuted | abstain / abstain | abstain / abstain | abstain / abstain |
-| scale_all | verified / refuted | abstain / abstain | abstain / abstain | verified / refuted | abstain / abstain | abstain / abstain | abstain / abstain |
+| scale_all | verified / refuted | verified / unproved | verified / refuted | verified / refuted | verified / refuted | verified / timeout | verified / unproved |
 | seq_max | verified / refuted | verified / refuted | verified / refuted | verified / refuted | verified / refuted | verified / refuted | verified / refuted |
 | set_collect | verified / refuted | verified / refuted | abstain / abstain | abstain / abstain | verified / refuted | verified / refuted | verified / refuted |
 | set_first | verified / refuted | verified / refuted | verified / refuted | verified / refuted | verified / refuted | verified / refuted | verified / refuted |
@@ -100,10 +100,10 @@ Cell = real outcome / twin outcome. Agreement means `verified / refuted` in ever
 | squares | verified / refuted | verified / refuted | verified / refuted | verified / refuted | verified / refuted | verified / refuted | verified / refuted |
 | strip_dots | verified / refuted | verified / refuted | abstain / abstain | abstain / abstain | abstain / abstain | abstain / abstain | abstain / abstain |
 | sum_one | verified / refuted | verified / refuted | verified / refuted | verified / refuted | verified / refuted | verified / refuted | verified / refuted |
-| sum_tail | verified / refuted | verified / refuted | timeout / refuted | abstain / abstain | verified / timeout | verified / refuted | verified / refuted |
+| sum_tail | verified / refuted | verified / refuted | timeout / refuted | abstain / abstain | verified / refuted | verified / refuted | verified / refuted |
 | sum_upto | verified / refuted | verified / refuted | verified / refuted | verified / refuted | verified / refuted | verified / refuted | verified / refuted |
 | swap | verified / refuted | verified / refuted | verified / refuted | verified / refuted | verified / refuted | verified / refuted | verified / refuted |
-| swap_at | verified / refuted | abstain / abstain | abstain / abstain | verified / refuted | abstain / abstain | abstain / abstain | abstain / abstain |
+| swap_at | verified / refuted | verified / refuted | verified / refuted | verified / refuted | verified / refuted | verified / refuted | verified / refuted |
 | swap_ends | verified / refuted | verified / refuted | abstain / abstain | abstain / abstain | abstain / abstain | abstain / abstain | abstain / abstain |
 | swap_prefix | verified / refuted | verified / refuted | abstain / abstain | abstain / abstain | abstain / abstain | abstain / abstain | abstain / abstain |
 | swap_rows | verified / refuted | verified / refuted | verified / refuted | abstain / abstain | verified / refuted | verified / refuted | verified / refuted |
@@ -138,11 +138,11 @@ Verdict basis: every source file hashed; e.g. `abs.dfy` 9fe1e7e805cfacce…, `ab
 |---|---|---|---|
 | framac | 3 | 41 | double_all, grid_row_sums, swap_rows |
 | dafny | 0 | 2 | (none) |
-| verus | 0 | 14 | (none) |
-| spark | 0 | 40 | (none) |
-| lean | 0 | 30 | (none) |
-| rocq | 0 | 34 | (none) |
-| fstar | 0 | 34 | (none) |
+| verus | 0 | 11 | (none) |
+| spark | 0 | 35 | (none) |
+| lean | 0 | 24 | (none) |
+| rocq | 0 | 31 | (none) |
+| fstar | 0 | 31 | (none) |
 
 Of the 3 tasks in six, 3 are framac alone.
 
@@ -151,11 +151,11 @@ Of the 3 tasks in six, 3 are framac alone.
 | kernel | carried | real verified | twin refuted where the real is verified | abstains by name |
 |---|---|---|---|---|
 | dafny | 111 | 111 | 111 of 111 (100%) | 3 |
-| verus | 100 | 99 | 99 of 99 (100%) | 14 |
-| spark | 77 | 73 | 73 of 73 (100%) | 37 |
+| verus | 107 | 104 | 102 of 104 (98%) | 7 |
+| spark | 84 | 79 | 78 of 79 (98%) | 30 |
 | framac | 72 | 69 | 69 of 69 (100%) | 42 |
-| lean | 86 | 84 | 83 of 84 (98%) | 28 |
-| rocq | 79 | 79 | 79 of 79 (100%) | 35 |
-| fstar | 81 | 79 | 79 of 79 (100%) | 33 |
+| lean | 93 | 89 | 89 of 89 (100%) | 21 |
+| rocq | 86 | 84 | 82 of 84 (97%) | 28 |
+| fstar | 88 | 84 | 82 of 84 (97%) | 26 |
 
-Verified with the twin refuted in all seven columns: 62 of 114 tasks.
+Verified with the twin refuted in all seven columns: 65 of 114 tasks.

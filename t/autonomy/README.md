@@ -7,8 +7,8 @@ input. The table is `t/AUTONOMY.md`, regenerated from a clean clone like `t/AGRE
 
 The routines use what the language carries since 2026-10-07: IEEE doubles (SPEC.md "Floats (v1)"), arrays written in
 place (SPEC.md "Heap (v1)") and parallel loops whose race freedom is checked by rule (SPEC.md "Concurrency (v1)").
-A float routine can be proved where floats are lowered (SPARK, Frama-C); an array routine where the heap is (Dafny,
-Frama-C); an integer routine in all seven kernels.
+A float routine can be proved where floats are lowered (SPARK, Frama-C); an array routine in Dafny and Frama-C natively
+and in the other five by copy-in/copy-out (PREDICT T53); an integer routine in all seven kernels.
 
 | routine | what it stands for | constructs |
 |---|---|---|

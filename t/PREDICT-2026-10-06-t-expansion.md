@@ -2369,3 +2369,56 @@ idle machine), Rocq 82 (+3), F* 82 (+3). Dafny 111 and Frama-C 69 do not move.
 (2) swap_at, clamp_all and offset_all enter all seven: 65 of 114.
 (3) `t/AUTONOMY.md`: SPARK 20 and Lean 15 (zero_fill); the other five rows do not move; all seven stays 13 of 25.
 (4) The AlgoVeri table does not move.
+
+### T53 read (2026-10-07 13:33Z): every registered bar held.
+
+The three tables were regenerated from a clean clone at 94fb961 on an idle machine, and are installed.
+(1) **Held:** Verus 102, SPARK 78, Lean 89 (sum_tail's twin refuted again), Rocq 82, F* 82; Dafny 111 and Frama-C 69
+unchanged.
+(2) **Held:** swap_at, clamp_all and offset_all are in all seven: 65 of 114.
+(3) **Held:** `t/AUTONOMY.md` reads SPARK 20 and Lean 15 (zero_fill); Frama-C 21, Dafny 18, F* 17, Verus 14 and Rocq
+14 unchanged; all seven 13 of 25.
+(4) **Held:** the AlgoVeri table is byte-identical below its date line.
+- **One uncounted cell differs from the probe:** scale_all's Rocq twin reads timeout (unproved in the probe). It
+  counts in neither reading.
+
+## T54 registered (2026-10-07 13:34Z, after hand probes and before the full run): D8, the specification audit
+
+**The tool.** `t/audit.py` (`cli.py audit`) runs every one-edit mutant the twin ladder can build, not only the first,
+over the task's bounded domain. Each mutant is **killed** (its result falsifies `ensures` at some point, or has no
+value), **same** (the same result everywhere), **diverges** (runs out of steps where the real body ends; a kernel
+rejects it on termination) or a **survivor** (a different result somewhere, and `ensures` holds everywhere). With
+`--kernel`, the real body and up to three survivors are verified in that kernel. A survivor the kernel proves is a
+wrong program with a proof.
+
+**Prior art, read** (receipt 0139ee2dd35d): MutDafny (arXiv 2511.15403) mutates 794 Dafny programs (743 from
+DafnyBench) and calls a mutant alive when Dafny verifies it. Of 118,458 mutants, 30,459 were alive; a manual triage of
+284 found 157 equivalent, 77 pointing at weak specs and 50 inconclusive. Five weak specs were named: bst4copy and
+dafny-synthesis task_id 2, 126, 161 and 249. Here equivalence is decided by execution before any kernel runs, and a
+survivor is a postcondition finding that does not depend on the loop invariants. The cost is the bounded domain: a
+difference outside it is not seen.
+
+**Measured before this registration, stated plainly.**
+- **MutDafny's four dafny-synthesis weak specs** (all four are in dawnr's 326 lifted DafnyBench tasks): each has
+  survivors (126: 13, 161: 11, 2: 11, 249: 11). Dafny verifies each real body **and proves a survivor in all four**.
+  126 (`sum >= every common divisor`) admits summing every i. 2, 161 and 249 (each `result` within the intended set,
+  never the converse) admit a loop that stops one element early: `a=[0], b=[0]` gives `[]` where the real gives
+  `[0]`. These are the weaknesses MutDafny's authors found by hand, found here mechanically with a witness. 4 s for
+  the four, kernel included.
+- **t's own suites, interpreter only:**
+  - the 114 tasks: 1,541 of 1,570 behaviour-changing mutants killed (98.2%); 6 tasks admit a survivor;
+  - the 25 autonomy routines: 810 of 813 killed (99.6%); 2 admit a survivor;
+  - read by hand, seven are gaps:
+    - count_pos_for, evens, filter_pos and index_map: bounds or membership only;
+    - rate_limit: the direction of a limited step is unstated;
+    - pid_step: which limit a saturated command takes is unstated;
+    - tree_insert: the search-tree order is unstated;
+  - nearest_index's survivor is a tie, intended latitude;
+  - every one of these specs passes the twin rule; the audit asks more of a spec than one refuted twin.
+
+**Bars**, for the full run over the 326 lifted tasks with `--kernel dafny` (guesses where marked):
+(1) At least 300 of the 326 are audited (the ladder pilot reached 317).
+(2) Dafny verifies the real body in at least 90% of the audited tasks (the sources were verified before lifting).
+(3) A guess: between 25% and 60% of the audited tasks admit a survivor.
+(4) A guess: where the real body is verified and a survivor exists, Dafny proves a survivor in at least half.
+(5) The four tasks above read as measured.

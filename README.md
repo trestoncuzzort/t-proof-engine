@@ -32,15 +32,16 @@ Measured from a clean clone of this repository on 2026-10-07 over the 114 commit
 | kernel | proved, twin refuted | carried, not proved | refused by name |
 |---|---|---|---|
 | Dafny | 111 | 0 | 3 |
-| Verus | 99 | 1 | 14 |
-| Rocq | 79 | 0 | 35 |
-| Lean 4 | 83 | 3 | 28 |
-| F\* | 79 | 2 | 33 |
-| SPARK | 73 | 4 | 37 |
+| Verus | 102 | 5 | 7 |
+| Lean 4 | 89 | 4 | 21 |
+| Rocq | 82 | 4 | 28 |
+| F\* | 82 | 6 | 26 |
+| SPARK | 78 | 6 | 30 |
 | Frama-C | 69 | 3 | 42 |
 
-- In every kernel, the twin of every proved program is refuted (100%).
-- 62 of the 114 tasks are proved, with the twin refuted, in all seven kernels.
+- In Dafny, Lean and Frama-C the twin of every proved program is refuted. In Verus, Rocq, F* and SPARK, 2, 2, 2 and 1
+  heap twins are not refuted yet: no certificate yet for a twin that differs only in the array, or a timeout.
+- 65 of the 114 tasks are proved, with the twin refuted, in all seven kernels.
 - Datatypes with fields (records and non-recursive sums, PREDICT T23) and recursive datatypes (trees, T25) are proved
   in Dafny, Verus, Lean, Rocq and F* (T34, T35); SPARK and Frama-C carry the non-recursive ones (T36, T37), so
   color_code, shape_area, manhattan and rect_area are verified with the twin refuted in all seven. A quantifier over a seq's elements is stated in
@@ -50,12 +51,11 @@ Measured from a clean clone of this repository on 2026-10-07 over the 114 commit
   `continue`, `while true`) are proved in all seven through one rewrite (T44), F* and SPARK carry filtered
   comprehensions (T45), and Frama-C flattens a datatype with a seq field into parameters (T43).
 - Since 2026-10-07 the language has a heap (arrays written in place, `modifies`, `old`; T46), parallel loops whose
-  race freedom is checked by rule (T47) and IEEE floats (T48). Dafny proves the seven heap and parallel tasks, SPARK
-  the float tasks on `Long_Float` (T49). The direction they serve is in [NORTH-STAR.md](NORTH-STAR.md).
+  race freedom is checked by rule (T47) and IEEE floats (T48). Dafny and Frama-C prove the heap and parallel tasks
+  natively (T50); Verus, Lean, Rocq, F* and SPARK through a copy-in/copy-out rewrite (T53), so swap_at, clamp_all
+  and offset_all are proved in all seven. SPARK and Frama-C prove the float tasks (T49, T51). The direction they serve is in [NORTH-STAR.md](NORTH-STAR.md).
 - [t/AUTONOMY.md](t/AUTONOMY.md): 25 navigation, guidance and control routines (`t/autonomy/`). Verified with the
-  twin refuted: Frama-C 21, SPARK 19, Dafny 18, F* 17, Verus 14, Lean 14, Rocq 14; 13 in all seven.
-- Lean's sum_tail twin reads timeout in this table: the clean run had a lowering snapshot running beside it, and
-  alone the twin is refuted (T51/T52's read).
+  twin refuted: Frama-C 21, SPARK 20, Dafny 18, F* 17, Lean 15, Verus 14, Rocq 14; 13 in all seven.
 - Most refusals are of constructs added to the language on 2026-10-06, which the other kernels are being taught
   now.
 - [t/ALGOVERI.md](t/ALGOVERI.md): 30 of AlgoVeri's contracts in seven kernels, regenerated from a clean clone for
