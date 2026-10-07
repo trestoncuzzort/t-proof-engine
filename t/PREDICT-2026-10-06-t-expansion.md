@@ -2493,3 +2493,33 @@ The tables were regenerated from a clean clone at 1bc4dc6 on an idle machine, an
 mutants killed. `t/AUDIT-AUTONOMY.md` reads 1 of 25 (nearest_index's tie), 812 of 813 killed.
 - **What it cost:** one all-seven cell. A stronger contract is harder to prove, and Frama-C's missing frame fact for
   recursive logic functions over memory now blocks two tasks (double_all and filter_pos) instead of one.
+
+## T56 registered (2026-10-07 14:29Z, after hand probes and before the clean-clone run): D8 v2, three more corpora in their own kernels
+
+**The change.** Three more lifted corpora are committed, each with its license and provenance, and audited in the
+kernel its source was verified in:
+- `t/acslbyexample/`: 16 functions from ACSL by Example (Fraunhofer FOKUS, MIT), in Frama-C;
+- `t/vericoding/verus/` (66) and `t/vericoding/lean/` (16): verified solutions from the vericoding benchmark (MIT;
+  arXiv 2509.22908), in Verus and Lean.
+
+**Prior art, read** (receipt ceb1bc69583b): the vericoding paper estimates by manual inspection that "conditioned on
+vericoding success, roughly 9% of the specs were too weak and another 15% had poor translations". It found them with
+an LLM-as-judge, a quality score and sampling, and it keeps incomplete specs deliberately. No execution- or
+kernel-based measure is reported.
+
+**Measured before this registration, stated plainly** (hand runs of `t/audit.py --kernel K`):
+- **ACSL by Example, Frama-C:** 16 audited; 457 of 457 behaviour-changing mutants killed; **0 survivors**. Frama-C
+  verifies 13 real bodies (find3, find_if_not and is_sorted_until time out).
+- **Vericoding Verus:** 63 of 66 audited (3 have no input in the domain); 1,369 of 1,414 killed (96.8%); 20 tasks
+  admit a survivor. Verus verifies 55 real bodies and **proves a survivor in 14**. By hand
+  (`t/vericoding/CLASSIFIED.md`), 13 are gaps and 1 is a tie. The six APPS-derived ones state only that the output is
+  well formed; two are satisfied by a constant. The NumPy-derived ones state mostly the output's length.
+- **Vericoding Lean:** 16 audited; 213 of 213 killed; **0 survivors**. Lean verifies 12 real bodies.
+- The contrast is the finding. The expert-written library and the Lean track pin their results down, including the
+  first maximum on ties (ACSL by Example's max_element). In the Verus track, where a solution verified against the
+  spec counts as solved, 13 of the 55 verified tasks are solved by a one-edit wrong program as well.
+
+**Bars**, for the clean-clone tables at this registration's commit:
+(1) The interpreter's columns (mutants, killed, same, diverge, survivors) reproduce exactly in all three.
+(2) The kernel columns reproduce within one task in each corpus: Frama-C 13 real bodies verified, Verus 55 and 14,
+Lean 12.
