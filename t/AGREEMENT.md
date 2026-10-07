@@ -1,4 +1,4 @@
-# t cross-kernel agreement, 2026-10-07 07:46Z
+# t cross-kernel agreement, 2026-10-07 08:32Z
 
 Cell = real outcome / twin outcome. Agreement means `verified / refuted` in every present column. A real-VERIFIED, twin-VERIFIED cell reads `verified / decorative` (the spec cannot tell real and twin apart) or `verified / unsound` (the twin's own measured witness says a sound kernel must refute it, and this one did not); neither counts as agreement.
 
@@ -10,10 +10,10 @@ Cell = real outcome / twin outcome. Agreement means `verified / refuted` in ever
 | all_positive | verified / refuted | verified / refuted | abstain / abstain | abstain / abstain | verified / refuted | verified / refuted | abstain / abstain |
 | any_neg_for | verified / refuted | verified / refuted | verified / refuted | verified / refuted | verified / refuted | verified / refuted | verified / refuted |
 | average | verified / refuted | abstain / abstain | verified / refuted | abstain / abstain | abstain / abstain | abstain / abstain | verified / refuted |
-| bag_size | verified / refuted | verified / refuted | abstain / abstain | abstain / abstain | verified / refuted | abstain / abstain | abstain / abstain |
+| bag_size | verified / refuted | verified / refuted | verified / refuted | abstain / abstain | verified / refuted | verified / refuted | verified / refuted |
 | by_second | verified / refuted | verified / refuted | abstain / abstain | abstain / abstain | abstain / abstain | abstain / abstain | abstain / abstain |
 | cheapest | verified / refuted | verified / refuted | abstain / abstain | abstain / abstain | abstain / abstain | abstain / abstain | abstain / abstain |
-| checked_tail | verified / refuted | verified / refuted | abstain / abstain | abstain / abstain | verified / refuted | abstain / abstain | abstain / abstain |
+| checked_tail | verified / refuted | verified / refuted | verified / refuted | abstain / abstain | verified / refuted | abstain / abstain | verified / refuted |
 | clamp | verified / refuted | verified / refuted | verified / refuted | verified / refuted | verified / refuted | verified / refuted | verified / refuted |
 | color_code | verified / refuted | verified / refuted | verified / refuted | verified / refuted | verified / refuted | verified / refuted | verified / refuted |
 | contains | verified / refuted | verified / refuted | verified / refuted | verified / refuted | verified / refuted | verified / refuted | verified / refuted |
@@ -84,7 +84,7 @@ Cell = real outcome / twin outcome. Agreement means `verified / refuted` in ever
 | set_toggle | verified / refuted | verified / refuted | abstain / abstain | abstain / abstain | verified / refuted | verified / refuted | verified / refuted |
 | shape_area | verified / refuted | verified / refuted | verified / refuted | verified / refuted | verified / refuted | verified / refuted | verified / refuted |
 | signs | verified / refuted | verified / refuted | abstain / abstain | abstain / abstain | abstain / abstain | abstain / abstain | abstain / abstain |
-| some_negative | verified / refuted | verified / refuted | verified / refuted | verified / refuted | verified / refuted | unproved / unproved | verified / refuted |
+| some_negative | verified / refuted | verified / refuted | verified / refuted | verified / refuted | verified / refuted | verified / refuted | verified / refuted |
 | sort3 | verified / refuted | verified / refuted | abstain / abstain | abstain / abstain | abstain / abstain | abstain / abstain | abstain / abstain |
 | sort_it | verified / refuted | verified / refuted | abstain / abstain | abstain / abstain | verified / refuted | verified / refuted | abstain / abstain |
 | split_join | verified / refuted | verified / refuted | timeout / refuted | abstain / abstain | verified / refuted | verified / refuted | unproved / refuted |
@@ -126,15 +126,15 @@ Verdict basis: every source file hashed; e.g. `abs.dfy` 9fe1e7e805cfacce…, `ab
 
 | kernel | sole blocker of | co-blocker of | tasks it alone keeps out of all seven |
 |---|---|---|---|
-| framac | 3 | 42 | double_all, grid_row_sums, swap_rows |
-| rocq | 1 | 28 | some_negative |
+| framac | 4 | 41 | bag_size, double_all, grid_row_sums, swap_rows |
 | dafny | 0 | 0 | (none) |
 | verus | 0 | 8 | (none) |
-| spark | 0 | 39 | (none) |
+| spark | 0 | 37 | (none) |
 | lean | 0 | 23 | (none) |
-| fstar | 0 | 31 | (none) |
+| rocq | 0 | 27 | (none) |
+| fstar | 0 | 29 | (none) |
 
-Of the 4 tasks in six, 3 are framac alone, 1 is rocq alone.
+Of the 4 tasks in six, 4 are framac alone.
 
 ## Per kernel
 
@@ -142,10 +142,10 @@ Of the 4 tasks in six, 3 are framac alone, 1 is rocq alone.
 |---|---|---|---|---|
 | dafny | 104 | 104 | 104 of 104 (100%) | 0 |
 | verus | 97 | 96 | 96 of 96 (100%) | 7 |
-| spark | 68 | 65 | 65 of 65 (100%) | 36 |
+| spark | 70 | 67 | 67 of 67 (100%) | 34 |
 | framac | 60 | 59 | 59 of 59 (100%) | 44 |
 | lean | 83 | 81 | 81 of 81 (100%) | 21 |
-| rocq | 76 | 75 | 75 of 75 (100%) | 28 |
-| fstar | 75 | 73 | 73 of 73 (100%) | 29 |
+| rocq | 77 | 77 | 77 of 77 (100%) | 27 |
+| fstar | 77 | 75 | 75 of 75 (100%) | 27 |
 
-Verified with the twin refuted in all seven columns: 58 of 104 tasks.
+Verified with the twin refuted in all seven columns: 59 of 104 tasks.

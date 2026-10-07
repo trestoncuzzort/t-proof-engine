@@ -33,19 +33,20 @@ Measured from a clean clone of this repository on 2026-10-07 over the 104 commit
 |---|---|---|---|
 | Dafny | 104 | 0 | 0 |
 | Verus | 96 | 1 | 7 |
-| Rocq | 75 | 1 | 28 |
+| Rocq | 77 | 0 | 27 |
 | Lean 4 | 81 | 2 | 21 |
-| F\* | 73 | 2 | 29 |
-| SPARK | 65 | 3 | 36 |
+| F\* | 75 | 2 | 27 |
+| SPARK | 67 | 3 | 34 |
 | Frama-C | 59 | 1 | 44 |
 
 - In every kernel, the twin of every proved program is refuted (100%).
-- 58 of the 104 tasks are proved, with the twin refuted, in all seven kernels.
+- 59 of the 104 tasks are proved, with the twin refuted, in all seven kernels.
 - Datatypes with fields (records and non-recursive sums, PREDICT T23) and recursive datatypes (trees, T25) are proved
   in Dafny, Verus, Lean, Rocq and F* (T34, T35); SPARK and Frama-C carry the non-recursive ones (T36, T37), so
   color_code, shape_area, manhattan and rect_area are verified with the twin refuted in all seven. A quantifier over a seq's elements is stated in
   all seven, over a set's in Dafny, Verus and Lean (T26, T30). Finite sets are carried in Lean too, on core Std's
-  extensional tree set (T29). Frama-C gives a seq local its own caller-provided buffer (T31).
+  extensional tree set (T29). Frama-C gives a seq local its own caller-provided buffer (T31). A datatype field may be
+  a seq in Rocq, F* and SPARK too (T42), and Rocq proves loops over a datatype state (T41).
 - Most refusals are of constructs added to the language on 2026-10-06, which the other kernels are being taught
   now.
 - [t/ALGOVERI.md](t/ALGOVERI.md): 30 of AlgoVeri's contracts in seven kernels, regenerated from a clean clone for

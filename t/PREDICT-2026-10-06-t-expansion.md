@@ -2072,3 +2072,16 @@ to 77 with bag_size.
 (2) bag_size reads verified/refuted in Rocq, F* and SPARK, so it is in six (all but Frama-C). checked_tail reads it in
 F* and SPARK, so it is in five (Rocq and Frama-C refuse by name). F* goes from 73 to 75, and SPARK from 65 to 67.
 (3) discrete_log_naive's Rocq cell reads unproved/refuted. No other cell moves.
+
+### T41 and T42 read (2026-10-07 08:52Z): every bar held.
+
+Both tables were regenerated from a clean clone at fb3e1f8, with no proof run beside it: the matrix of 104 (3 jobs),
+then the AlgoVeri table of 30 (2 jobs), in one unit under 11 GB, with no OOM.
+(1) **Held:** some_negative reads verified/refuted in Rocq, so it is in all seven: all seven went from 58 to 59. Rocq
+went from 75 to 77 with bag_size.
+(2) **Held:** bag_size reads verified/refuted in Rocq, F* and SPARK, so it is in six; Frama-C alone keeps it out.
+checked_tail reads verified/refuted in F* and SPARK, so it is in five; Rocq and Frama-C refuse it by name. F* went
+from 73 to 75, and SPARK from 65 to 67.
+(3) **Held:** discrete_log_naive's Rocq cell reads unproved/refuted. AlgoVeri stays at 30 programs: Dafny 30,
+Verus 9, F* 5, SPARK 4, Frama-C 2, Lean 1, Rocq 1; all seven 1.
+- No other cell moved, in either table.

@@ -1,4 +1,4 @@
-# t cross-kernel agreement, 2026-10-07 08:06Z
+# t cross-kernel agreement, 2026-10-07 08:52Z
 
 Cell = real outcome / twin outcome. Agreement means `verified / refuted` in every present column. A real-VERIFIED, twin-VERIFIED cell reads `verified / decorative` (the spec cannot tell real and twin apart) or `verified / unsound` (the twin's own measured witness says a sound kernel must refute it, and this one did not); neither counts as agreement.
 
@@ -13,7 +13,7 @@ Cell = real outcome / twin outcome. Agreement means `verified / refuted` in ever
 | zig_zag | verified / refuted | unproved / unproved | abstain / abstain | abstain / abstain | unproved / refuted | abstain / abstain | abstain / abstain |
 | zig_zig | verified / refuted | unproved / unproved | abstain / abstain | abstain / abstain | unproved / refuted | abstain / abstain | abstain / abstain |
 | bubble_sort | verified / refuted | unproved / refuted | abstain / abstain | abstain / abstain | unproved / unproved | abstain / abstain | timeout / refuted |
-| discrete_log_naive | verified / refuted | verified / refuted | verified / refuted | abstain / abstain | verified / unproved | unproved / unproved | timeout / refuted |
+| discrete_log_naive | verified / refuted | verified / refuted | verified / refuted | abstain / abstain | verified / unproved | unproved / refuted | timeout / refuted |
 | fast_exponential | verified / refuted | unproved / refuted | timeout / refuted | verified / refuted | unproved / refuted | unproved / refuted | unproved / refuted |
 | insertion_sort | verified / refuted | unproved / refuted | abstain / abstain | abstain / abstain | unproved / unproved | abstain / abstain | timeout / refuted |
 | integer_exponential | verified / refuted | verified / refuted | verified / refuted | verified / refuted | verified / refuted | verified / refuted | verified / refuted |
