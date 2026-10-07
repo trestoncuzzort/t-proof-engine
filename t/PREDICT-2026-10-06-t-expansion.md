@@ -1359,3 +1359,24 @@ recursor), with the tree probe measured.
 (2) Rocq, F*, SPARK and Frama-C refuse all five by name: 20 cells.
 (3) No other cell moves against T24's matrix.
 (4) Per kernel: Dafny 99, Verus 91, and Lean five more than T24's matrix reads. All seven stays 48, now of 99.
+
+### T24 read (2026-10-07 03:28Z): AlgoVeri's discrete_logarithm and five engine defects. All four bars held.
+
+Both tables were regenerated from a clean clone at fbce7d9: the matrix of 94 (`t/AGREEMENT.md`) and the 22 AlgoVeri
+programs (`t/ALGOVERI.md`, the first AlgoVeri table of record since T13's).
+(1) **Held:** `grid_row_sums` reads verified with the twin refuted in Lean. It is the only cell of the 94 that moved.
+(2) **Held:** Lean goes from 67 to 68, and all seven stays 48. `grid_row_sums` still needs Frama-C.
+(3) **Held:** `discrete_log_naive` reads verified with the twin refuted in Dafny and Verus, verified with the twin
+unproved in Lean, and abstains elsewhere. Dafny is 22 of 22.
+(4) **Held:** no Lean AlgoVeri row changed. Every other change against T13's table is a T15 or T17 repair, now in the
+table of record:
+- Verus: quick_sort verified/refuted; kmp and merge_sort unproved with the twin refuted; matrix_multiply unproved.
+- F*: binary_search and linear_search verified/refuted; kmp unproved/refuted; bubble_sort and insertion_sort
+  timeout.
+- SPARK: longest_common_subsequence and string_search_naive timeout with the twin refuted.
+
+F*'s merge_sort also moved, from abstain to unproved/refuted: T16's comprehensions, read as measured. The AlgoVeri
+counts are Dafny 22, Verus 7, F* 5, SPARK 3, Frama-C 2, Rocq 1, Lean 0. Two MALFORMED cells remain, the two T13
+named: Verus poly_multiply_naive and F* longest_palindromic_substring.
+
+Receipts behind T24's fixes, which its commit message miscited: 134d11c182fc (Lean) and 2d503d12f07a (Verus).

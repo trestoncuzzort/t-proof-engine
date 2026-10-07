@@ -34,7 +34,7 @@ Measured from a clean clone of this repository on 2026-10-07 over the 94 committ
 | Dafny | 94 | 0 | 0 |
 | Verus | 86 | 1 | 7 |
 | Rocq | 62 | 0 | 32 |
-| Lean 4 | 67 | 3 | 24 |
+| Lean 4 | 68 | 2 | 24 |
 | F\* | 59 | 2 | 33 |
 | SPARK | 56 | 3 | 35 |
 | Frama-C | 49 | 1 | 44 |
@@ -45,9 +45,9 @@ Measured from a clean clone of this repository on 2026-10-07 over the 94 committ
   other four refuse them by name.
 - Most refusals are of constructs added to the language on 2026-10-06, which the other kernels are being taught
   now.
-- [t/ALGOVERI.md](t/ALGOVERI.md): 21 of AlgoVeri's contracts in seven kernels. Dafny verifies all 21 with the twin
-  refuted, and the other kernels far fewer. PREDICT T13's read names every failure, and T15 and T17 repaired 11 of
-  its 13 malformed cells. Re-run after them, Verus reads 6 and F* 5.
+- [t/ALGOVERI.md](t/ALGOVERI.md): 22 of AlgoVeri's contracts in seven kernels, regenerated from a clean clone for
+  T24. Dafny verifies all 22 with the twin refuted; Verus 7, F* 5, SPARK 3, Frama-C 2, Rocq 1, Lean 0. T15 and T17
+  repaired 11 of T13's 13 malformed cells; the other two are named in T13's read.
 
 The registrations and reads behind these numbers are in
 [t/PREDICT-2026-10-06-t-expansion.md](t/PREDICT-2026-10-06-t-expansion.md). Each change states, before it runs,
