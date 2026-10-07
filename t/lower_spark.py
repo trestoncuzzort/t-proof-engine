@@ -2006,9 +2006,36 @@ LIB_PREAMBLE = {
    function T_Contains (S : Seq; X : Big_Integer) return Boolean is
      (for some I in T_Range'(Big_Integer'(0), Len (S)) => Elem (S, I) = X);
 """,
+    # SPEC.md "Reductions (v1)" (PREDICT T21, 2026-10-07): the extremum of the first N elements, in prefix form as
+    # the comprehensions are, its Post the two facts the SPEC states (a member, and bounding every element), the
+    # existential written as T_Contains writes membership; the recursion guarded by R_Has, the Has_Element term a
+    # T_Range quantifier is instantiated through (PREDICT T18)
+    "T_Maxs": """\
+   function T_Maxs (S : Seq; N : Big_Integer) return Big_Integer
+   with
+     Pre  => N > Big_Integer'(0) and then N <= Len (S),
+     Post => (for some I in T_Range'(Big_Integer'(0), N) => Elem (S, I) = T_Maxs'Result)
+       and then (for all I in T_Range'(Big_Integer'(0), N) => Elem (S, I) <= T_Maxs'Result),
+     Subprogram_Variant => (Decreases => N);
+
+   function T_Maxs (S : Seq; N : Big_Integer) return Big_Integer is
+     (if not R_Has (T_Range'(Big_Integer'(1), N), N - Big_Integer'(1)) then Elem (S, Big_Integer'(0))
+      else Max (T_Maxs (S, N - Big_Integer'(1)), Elem (S, N - Big_Integer'(1))));
+
+   function T_Mins (S : Seq; N : Big_Integer) return Big_Integer
+   with
+     Pre  => N > Big_Integer'(0) and then N <= Len (S),
+     Post => (for some I in T_Range'(Big_Integer'(0), N) => Elem (S, I) = T_Mins'Result)
+       and then (for all I in T_Range'(Big_Integer'(0), N) => T_Mins'Result <= Elem (S, I)),
+     Subprogram_Variant => (Decreases => N);
+
+   function T_Mins (S : Seq; N : Big_Integer) return Big_Integer is
+     (if not R_Has (T_Range'(Big_Integer'(1), N), N - Big_Integer'(1)) then Elem (S, Big_Integer'(0))
+      else Min (T_Mins (S, N - Big_Integer'(1)), Elem (S, N - Big_Integer'(1))));
+""",
 }
-LIB_ORDER = ["T_Pow", "T_Isqrt", "T_Gcd", "T_Sum", "T_Rev", "T_Contains"]
-SPARK_LIB = frozenset({"min", "max", "abs", "sum", "gcd", "pow", "isqrt", "rev", "in"})
+LIB_ORDER = ["T_Pow", "T_Isqrt", "T_Gcd", "T_Sum", "T_Rev", "T_Contains", "T_Maxs"]
+SPARK_LIB = frozenset({"min", "max", "abs", "sum", "gcd", "pow", "isqrt", "rev", "in", "maxs"})
 
 DIVMOD_PREAMBLE = """\
    function T_Mod (X, Y : Big_Integer) return Big_Integer is
@@ -4239,6 +4266,11 @@ class Lower:
             return "real"   # SPEC.md "Exact rationals (v1)": real(x)
         if op in ("floor", "ceil"):
             return "int"
+        if op in ("min", "max") and len(e["args"]) == 1:
+            # SPEC.md "Reductions (v1)" (PREDICT T21): max(s)/min(s) is an element, never the seq; read as the seq's
+            # type it made `max(s) + 1` (largest's twin) a concatenation, a file gnatprove refused
+            t0 = self._ty(e["args"][0], types)
+            return "real" if isinstance(t0, dict) and t0.get("seq") == "real" else "int"
         if op in ("min", "max", "abs", "rev"):
             return self._ty(e["args"][0], types)   # SPEC.md "The library (v1)" (2026-10-06): the operand's type
         if op == "sum":
@@ -4567,6 +4599,12 @@ class Lower:
                 self.needs_range = True
             eq = f"{_pair_ada_name(pty)}_Eq ({args[0]}, {args[1]})"
             return eq if op == "==" else f"(not {eq})"
+        if op in ("min", "max") and len(e["args"]) == 1:
+            # SPEC.md "Reductions (v1)" in SPARK (PREDICT T21): max(s)/min(s) of one argument, the prefix-form
+            # T_Maxs/T_Mins (LIB_PREAMBLE), whose Pre `Len (S) > 0` is the definedness obligation at this call
+            self.needs_lib.add("T_Maxs")
+            self.needs_range = True
+            return f"T_{'Maxs' if op == 'max' else 'Mins'} ({args[0]}, Len ({args[0]}))"
         if op in ("min", "max"):
             # SPEC.md "The library (v1)" (2026-10-06): Big_Integers' and Big_Reals' own Min/Max (A.5.6, A.5.7)
             return f"{op.capitalize()} ({args[0]}, {args[1]})"

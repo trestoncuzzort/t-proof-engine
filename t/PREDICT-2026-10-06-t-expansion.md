@@ -1099,3 +1099,28 @@ Frama-C (T19). No other cell moved, and every kernel still refutes the twin of e
 Three tasks are two kernels short: `largest` (SPARK, F*: max of one argument, T21 next), `sum_tail` and
 `grid_row_sums`.
 
+## T21 registered (2026-10-07 01:20Z, after hand probes and before the clean-clone matrix): max/min of one argument in SPARK and F*
+
+`largest` is two kernels short of all seven: SPARK and F* refuse `max(s)` by name.
+
+**Design** (receipt dfe96e13d0c5). Both kernels take the prefix form the comprehensions use: the extremum of the
+first n elements, recursive on n, with the two facts SPEC.md states (a member of the seq, and a bound on every
+element).
+- **SPARK:** the facts are T_Maxs's Post, the existential written the way T_Contains writes membership, and the
+  recursion is guarded by R_Has.
+- **F*:** one SMT-patterned induction lemma states them, the existential over an index, which FStar.Seq.Properties'
+  patterned `seq_mem_k` carries to `Seq.mem`.
+
+The call's precondition is the definedness obligation.
+
+**Measured before this registration.**
+- `largest` COUNTS in F*: verified, wrong-constant twin refuted.
+- In SPARK the twin `max(s) + 1` first did not compile. `_ty` had read `max(s)` as a seq, making the `+` a
+  concatenation. Read as an element, `largest` COUNTS in SPARK too.
+- Of the 88 committed tasks, only `largest`'s SPARK and F* files change, and the whole suite passes (697).
+
+**Bars.**
+(1) The clean-clone matrix that follows reads `largest` verified with the twin refuted in SPARK and F*.
+(2) No other cell moves.
+(3) All seven goes from 47 to 48.
+
