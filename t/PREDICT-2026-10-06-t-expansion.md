@@ -1450,3 +1450,14 @@ each.
 three rotations do not. Lean, Rocq, F*, SPARK and Frama-C abstain by name on all five.
 (3) The 22 earlier AlgoVeri programs read as in T24's table.
 (4) AlgoVeri Dafny 27 of 27, Verus 9.
+
+### T26 read (2026-10-07 04:03Z): quantifiers over a collection. All four bars held; all seven goes from 48 to 49.
+
+The matrix was regenerated from a clean clone at c48c57f (`t/AGREEMENT.md`) and compared cell by cell with T25's.
+(1) **Held:** `none_neg`, its contract written as `forall x in s . x >= 0`, reads verified with the twin refuted in all
+seven kernels. All seven goes from 48 to 49.
+(2) **Held:** `all_pos_set` reads verified with the twin refuted in Dafny and Verus, and abstains by name in Lean, Rocq,
+F*, SPARK and Frama-C.
+(3) **Held:** no other cell moved.
+(4) **Held:** Dafny 101, Verus 93, Lean 74, Rocq 63, F* 60, SPARK 57, Frama-C 50. Every kernel still refutes the twin of
+every real it verifies (100%).
