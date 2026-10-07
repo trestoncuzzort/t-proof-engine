@@ -3006,3 +3006,48 @@ Regenerated from a clean clone at 8807045, and installed.
 tree_insert's stronger contract (T60) now costs nothing in Rocq or Lean.
 (2) **Held:** AlgoVeri's bst insert and search read unproved / refuted in Lean (refused before); no verified/refuted
 count moves.
+
+## T67 registered (2026-10-07 21:22Z, after hand runs and before the clean-clone run): real flight code, PX4
+
+**The change.** `t/flight/` restates 18 functions of PX4-Autopilot (BSD-3-Clause, commit dd804e4b) in t:
+- `math::constrain`, `min`, `max` (two and three arguments), `isInRange`, `signNoZero`, `signFromBool`, `sq` and
+  `negate<int16_t>`;
+- `matrix::sign` and the integer `matrix::wrap`;
+- the index search of `interpolateNXY`;
+- at double: `constrain`, `lerp`, `interpolate`, `SlewRate::update` and `AlphaFilter`'s update.
+
+Each body follows PX4's statement by statement. `t/flight/README.md` gives each one's file, line and instantiation
+and the transcription notes. PX4 ships no contracts, so they are this repository's, each audited to zero survivors.
+`t/flight/px4_diff.py` compiles PX4's own C++ at the pinned commit (its platform header replaced by a two-macro
+stub) and runs it on every domain point of the matching t task, comparing with t's interpreter.
+
+**Measured before this registration, stated plainly** (hand runs):
+- **The audit:** 18 of 18 specs admit no survivor; 541 one-edit mutants, every behaviour-changing one killed.
+- **PX4 itself against the transcription** (17 compared, the index search being internal to `interpolateNXY`):
+  - 16 agree on every point (5,505 points).
+  - `AlphaFilter<double>` differs in the last bits wherever `alpha` is not a binary32 value (alpha = 0.1). Its
+    `_alpha` member is a `float` even when the filter's type is double. Rerunning t's interpreter with `alpha`
+    rounded to binary32 reproduces PX4 on every one of the 400 points.
+  - `SlewRate<double>::update` likewise takes `dt` as `float`; on this domain every `dt` is binary32-exact.
+- **The seven kernels:**
+  - 12 integer routines are verified/refuted in all seven: constrain, min, max, min3, max3, isInRange, sign,
+    signNoZero, signFromBool, sq, negate<int16_t>, and interpolateNXY's index search (once its quantifiers were
+    stated over `x[k]`, which Verus needs as a trigger).
+  - The integer `wrap` is verified only in F*: its `rng * ((low - y) / rng + 1)` is non-linear, the wall
+    grid_cell hits in the autonomy suite.
+  - At double:
+    - constrain and the alpha update: verified/refuted in SPARK and Frama-C;
+    - lerp: SPARK verified, Frama-C timeout;
+    - the slew update: Frama-C verified, SPARK timeout;
+    - interpolate: a timeout in both (float division), and verified nowhere.
+- **At the width PX4 ships** (`t/ship.py`, WP machine integers with overflow guards):
+  - 14 routines ship for every 32-bit input.
+  - `math::sq` ships within ±2^15: squaring a 32-bit `int` past 46,340 overflows.
+  - The integer `wrap` has no envelope found.
+- **Suite:** passes (`t/test_flight.py`).
+
+**Bars**, for the clean-clone tables at this registration's commit:
+(1) `t/FLIGHT.md` (the seven kernels over `t/flight/`) reads 12 routines in all seven, and the cells above within one
+cell of a float timeout.
+(2) `t/PX4-DIFF.md` reads 16 agreeing on every point and AlphaFilter agreeing once its binary32 narrowing is applied.
+(3) `t/SHIP-FLIGHT.md` reads 14 for every int32 input and `sq` within ±2^15.
