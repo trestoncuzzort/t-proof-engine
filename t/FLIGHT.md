@@ -1,4 +1,4 @@
-# t cross-kernel agreement, 2026-10-07 22:20Z
+# t cross-kernel agreement, 2026-10-07 23:29Z
 
 Cell = real outcome / twin outcome. Agreement means `verified / refuted` in every present column. A real-VERIFIED, twin-VERIFIED cell reads `verified / decorative` (the spec cannot tell real and twin apart) or `verified / unsound` (the twin's own measured witness says a sound kernel must refute it, and this one did not); neither counts as agreement.
 
@@ -20,6 +20,9 @@ Cell = real outcome / twin outcome. Agreement means `verified / refuted` in ever
 | px4_min | verified / refuted | verified / refuted | verified / refuted | verified / refuted | verified / refuted | verified / refuted | verified / refuted |
 | px4_min3 | verified / refuted | verified / refuted | verified / refuted | verified / refuted | verified / refuted | verified / refuted | verified / refuted |
 | px4_negate_i16 | verified / refuted | verified / refuted | verified / refuted | verified / refuted | verified / refuted | verified / refuted | verified / refuted |
+| px4_rb_pop_front | verified / refuted | verified / refuted | verified / refuted | verified / refuted | verified / refuted | verified / refuted | verified / refuted |
+| px4_rb_push_back | verified / refuted | verified / refuted | verified / refuted | verified / refuted | verified / refuted | verified / refuted | verified / refuted |
+| px4_rb_space_available | verified / refuted | verified / refuted | verified / refuted | verified / refuted | verified / refuted | verified / refuted | verified / refuted |
 | px4_sign | verified / refuted | verified / refuted | verified / refuted | verified / refuted | verified / refuted | verified / refuted | verified / refuted |
 | px4_sign_from_bool | verified / refuted | verified / refuted | verified / refuted | verified / refuted | verified / refuted | verified / refuted | verified / refuted |
 | px4_sign_no_zero | verified / refuted | verified / refuted | verified / refuted | verified / refuted | verified / refuted | verified / refuted | verified / refuted |
@@ -60,12 +63,12 @@ Of the 2 tasks in six, 2 are rocq alone.
 
 | kernel | carried | real verified | twin refuted where the real is verified | abstains by name |
 |---|---|---|---|---|
-| dafny | 19 | 17 | 17 of 17 (100%) | 5 |
-| verus | 19 | 17 | 17 of 17 (100%) | 5 |
-| spark | 24 | 20 | 20 of 20 (100%) | 0 |
-| framac | 24 | 20 | 20 of 20 (100%) | 0 |
-| lean | 19 | 17 | 17 of 17 (100%) | 5 |
-| rocq | 19 | 15 | 15 of 15 (100%) | 5 |
-| fstar | 19 | 19 | 19 of 19 (100%) | 5 |
+| dafny | 22 | 20 | 20 of 20 (100%) | 5 |
+| verus | 22 | 20 | 20 of 20 (100%) | 5 |
+| spark | 27 | 23 | 23 of 23 (100%) | 0 |
+| framac | 27 | 23 | 23 of 23 (100%) | 0 |
+| lean | 22 | 20 | 20 of 20 (100%) | 5 |
+| rocq | 22 | 18 | 18 of 18 (100%) | 5 |
+| fstar | 22 | 22 | 22 of 22 (100%) | 5 |
 
-Verified with the twin refuted in all seven columns: 15 of 24 tasks.
+Verified with the twin refuted in all seven columns: 18 of 27 tasks.

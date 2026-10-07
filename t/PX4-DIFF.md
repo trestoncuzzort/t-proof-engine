@@ -2,7 +2,7 @@
 
 PX4-Autopilot at dd804e4b9c490aed051bb36f8d3fca1ee137be2a: each routine's own C++ (the call below) compiled and run on every domain point of its t task (at most 400), each result compared with t's interpreter (t/flight/px4_diff.py).
 
-- routines compared: 23; agree on every point: 22; points: 6677
+- routines compared: 26; agree on every point: 25; points: 7060
 
 | t task | PX4 call | status | points | first difference |
 |---|---|---|---|---|
@@ -22,6 +22,9 @@ PX4-Autopilot at dd804e4b9c490aed051bb36f8d3fca1ee137be2a: each routine's own C+
 | px4_min | `math::min<int64_t>(a, b)` | agrees | 400 |  |
 | px4_min3 | `math::min<int64_t>(a, b, c)` | agrees | 400 |  |
 | px4_negate_i16 | `math::negate<int16_t>((int16_t)value)` | agrees | 85 |  |
+| px4_rb_pop_front | `[&]{ Ringbuffer b; b.allocate((size_t)size); b._start = (size_t)start; b._end = (size_t)end; std::vector<uint8_t> dst((size_t)buf_max_len + 1); size_t n = b.pop_front(dst.data(), (size_t)buf_max_len); return std::make_pair((long long)n, (long long)b._start); }()` | agrees | 104 |  |
+| px4_rb_push_back | `[&]{ Ringbuffer b; b.allocate((size_t)size); b._start = (size_t)start; b._end = (size_t)end; std::vector<uint8_t> src((size_t)buf_len + 1); bool ok = b.push_back(src.data(), (size_t)buf_len); return std::make_pair((long long)ok, (long long)b._end); }()` | agrees | 104 |  |
+| px4_rb_space_available | `[&]{ Ringbuffer b; b.allocate((size_t)size); b._start = (size_t)start; b._end = (size_t)end; return b.space_available(); }()` | agrees | 175 |  |
 | px4_sign | `matrix::sign<int64_t>(val)` | agrees | 86 |  |
 | px4_sign_from_bool | `math::signFromBool(positive)` | agrees | 2 |  |
 | px4_sign_no_zero | `math::signNoZero<int64_t>(val)` | agrees | 86 |  |

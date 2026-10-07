@@ -77,22 +77,33 @@ Measured from a clean clone of this repository on 2026-10-07 over the 114 commit
 - **Shipping at width** (`python3 t/cli.py ship DIR`, PREDICT T63) proves the C again with machine integers and
   overflow guards, inferring loop bounds where a counter needs one. 63 routines ship for every 32-bit input. 12 ship within a proved operating envelope: abs within
   ±2^30, a cross-track test within ±2^14 ([t/SHIP-AUTONOMY.md](t/SHIP-AUTONOMY.md)).
-- **Real flight code** ([t/FLIGHT.md](t/FLIGHT.md), PREDICT T67, T68). 24 functions from
+- **Real flight code** ([t/FLIGHT.md](t/FLIGHT.md), PREDICT T67-T69). 27 functions from
   [PX4-Autopilot](https://github.com/PX4/PX4-Autopilot), the open-source drone autopilot, are restated in t
-  statement by statement (`t/flight/`, BSD-3, file and line for each): mathlib, the `Hysteresis` state machine that
-  arming and landing logic uses, and the collision-prevention bin index.
-  - 15 are verified with the twin refuted in all seven kernels.
+  statement by statement (`t/flight/`, BSD-3, file and line for each). They cover:
+  - mathlib;
+  - the `Hysteresis` state machine that arming and landing logic uses;
+  - the collision-prevention bin index;
+  - the `Ringbuffer` under MAVLink's message buffer.
+  - 18 are verified with the twin refuted in all seven kernels.
   - Each contract kills every one-edit mutant of its body.
-  - `t/flight/px4_diff.py` compiles PX4's own C++ at the pinned commit and runs it on every domain point. 22 of the
-    23 compared functions agree on every point, and `AlphaFilter<double>` agrees once PX4's binary32 `alpha` is
+  - `t/flight/px4_diff.py` compiles PX4's own C++ at the pinned commit and runs it on every domain point. 25 of the
+    26 compared functions agree on every point, and `AlphaFilter<double>` agrees once PX4's binary32 `alpha` is
     applied ([t/PX4-DIFF.md](t/PX4-DIFF.md)).
-  - At machine width, 15 ship for every int32 input and 4 within a proved envelope
+  - At machine width, 18 ship for every int32 input and 4 within a proved envelope
     ([t/SHIP-FLIGHT.md](t/SHIP-FLIGHT.md)).
   - **A PX4 defect, found by the method.** `ObstacleMath::wrap_bin`'s contract, the one PX4's own unit test
     states, holds only for `bin >= -bin_count`. All seven kernels refute it without that bound, and PX4's compiled
     code returns -1 at their input ([t/FLIGHT-FINDINGS.md](t/FLIGHT-FINDINGS.md)). The collision-prevention sensor
     path does not establish the bound: a field of view the code never range-checks indexes the obstacle map
     negatively ([t/flight/README.md](t/flight/README.md)).
+  - **Real code tested the toolchain too.** Nine lowering gaps that the 114-task suite never reached surfaced on
+    PX4's code (PREDICT T68, T69). Each was fixed with no published cell lost.
+    - Two were semantic faults: Lean and F\* each lowered a `return` two `if`s deep to a different program (Lean on
+      PX4's `push_back`, F\* on a smaller probe). No committed task but `push_back` has a `return` that deep, and
+      Lean had not verified it.
+    - Seven were completeness gaps: Frama-C compared bools as integers, its certificate refused sibling-scoped
+      locals, Rocq refused a renamed `_len` name and flattened sibling scopes, Lean's `grind` dropped a derived
+      index equality, and Rocq's pair proofs and Lean's `min` each needed one more fallback.
 - [t/AUTONOMY.md](t/AUTONOMY.md): 25 navigation, guidance and control routines (`t/autonomy/`). Verified with the
   twin refuted: Frama-C 21, SPARK 20, Dafny 18, F* 18, Lean 15, Verus 15, Rocq 15; 14 in all seven.
 - Most refusals are of constructs added to the language on 2026-10-06, which the other kernels are being taught

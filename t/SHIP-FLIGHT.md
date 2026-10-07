@@ -2,7 +2,7 @@
 
 Each routine's C lowering proved with WP's machine-integer model and `-wp-rte`, so every signed operation owes a no-overflow proof (t/ship.py). Where an overflow guard is open for the full range, the largest bound ±2^k on every int input and sequence element (lengths at most 1000) under which every goal proves is the routine's proved operating envelope.
 
-- ships for every int32 input: 15
+- ships for every int32 input: 18
 - ships within an envelope: 4
 - no envelope found: 1
 - contract open at machine width: 4
@@ -26,6 +26,9 @@ Each routine's C lowering proved with WP's machine-integer model and `-wp-rte`, 
 | px4_min | ships for every int32 input | 6/6 |  |  |
 | px4_min3 | ships for every int32 input | 8/8 |  |  |
 | px4_negate_i16 | ships for every int32 input | 10/10 |  |  |
+| px4_rb_pop_front | ships for every int32 input | 37/37 |  |  |
+| px4_rb_push_back | ships for every int32 input | 37/37 |  |  |
+| px4_rb_space_available | ships for every int32 input | 14/14 |  |  |
 | px4_sign | ships for every int32 input | 10/10 |  |  |
 | px4_sign_from_bool | ships for every int32 input | 6/6 |  |  |
 | px4_sign_no_zero | ships for every int32 input | 9/9 |  |  |

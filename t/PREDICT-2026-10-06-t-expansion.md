@@ -3229,3 +3229,22 @@ the way: Frama-C compared bools as ints, and Lean's `grind` dropped a derived eq
 (4) `t/SHIP-FLIGHT.md`: 18 for every int32 input, 4 within an envelope, 1 with no envelope, 4 open.
 (5) No verified cell lost to the fixes. The Lean column reads 89, 15 and 1, and the Rocq column 84, 15 and 1, over
 `t/tasks/`, `t/autonomy/` and `t/algoveri/`, as installed.
+
+### T69 read (2026-10-07 23:45Z): all five bars held
+
+Clean clone at 3b36d82, unit tup-t-clean44. Tables installed: `t/FLIGHT.md`, `t/FLIGHT-FINDINGS.md`,
+`t/PX4-DIFF.md`, `t/SHIP-FLIGHT.md`.
+
+- **(1) held.** "Verified with the twin refuted in all seven columns: 18 of 27 tasks". All three `Ringbuffer`
+  functions are in all seven. The Rocq trace cells (`holds`, `switches`) are still timeouts, and Frama-C's slew
+  update is still the one FLAKED float cell.
+- **(2) held.** `px4_wrap_bin_any` is refuted in all seven.
+- **(3) held.** "routines compared: 26; agree on every point: 25; points: 7060".
+- **(4) held.** 18 for every int32 input, 4 within an envelope, 1 with no envelope found, 4 open.
+- **(5) held.** Lean verifies 89, 15 and 1, and Rocq 84, 15 and 1, over `t/tasks/`, `t/autonomy/` and
+  `t/algoveri/`, as installed. Not one verified cell was lost to the six fixes.
+
+What this establishes: a buffer PX4 ships under MAVLink is proved in seven kernels against a contract that pins its
+indices exactly. Getting there found two semantic faults (Lean and F\* lowering an early `return` two `if`s deep
+to a different program) that 114 hand-written tasks never reached. Real code is a test of the toolchain as much
+as of the method.
