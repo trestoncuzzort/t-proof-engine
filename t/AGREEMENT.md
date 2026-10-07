@@ -1,4 +1,4 @@
-# t cross-kernel agreement, 2026-10-07 04:22Z
+# t cross-kernel agreement, 2026-10-07 04:55Z
 
 Cell = real outcome / twin outcome. Agreement means `verified / refuted` in every present column. A real-VERIFIED, twin-VERIFIED cell reads `verified / decorative` (the spec cannot tell real and twin apart) or `verified / unsound` (the twin's own measured witness says a sound kernel must refute it, and this one did not); neither counts as agreement.
 
@@ -55,7 +55,7 @@ Cell = real outcome / twin outcome. Agreement means `verified / refuted` in ever
 | lookup_or | verified / refuted | verified / refuted | abstain / abstain | abstain / abstain | abstain / abstain | abstain / abstain | abstain / abstain |
 | manhattan | verified / refuted | verified / refuted | abstain / abstain | abstain / abstain | verified / refuted | abstain / abstain | abstain / abstain |
 | max | verified / refuted | verified / refuted | verified / refuted | verified / refuted | verified / refuted | verified / refuted | verified / refuted |
-| members_upto | verified / refuted | verified / refuted | abstain / abstain | abstain / abstain | abstain / abstain | abstain / abstain | abstain / abstain |
+| members_upto | verified / refuted | verified / refuted | abstain / abstain | abstain / abstain | unproved / refuted | abstain / abstain | abstain / abstain |
 | min_max | verified / refuted | verified / refuted | verified / refuted | verified / refuted | verified / refuted | verified / refuted | verified / refuted |
 | none_neg | verified / refuted | verified / refuted | verified / refuted | verified / refuted | verified / refuted | verified / refuted | verified / refuted |
 | odd_positions | verified / refuted | verified / refuted | verified / refuted | verified / refuted | unproved / refuted | verified / refuted | verified / refuted |
@@ -77,8 +77,8 @@ Cell = real outcome / twin outcome. Agreement means `verified / refuted` in ever
 | row_max_len | verified / refuted | verified / refuted | verified / refuted | verified / refuted | verified / refuted | verified / refuted | verified / refuted |
 | safe_ratio | verified / refuted | abstain / abstain | verified / refuted | abstain / abstain | abstain / abstain | abstain / abstain | verified / refuted |
 | seq_max | verified / refuted | verified / refuted | verified / refuted | verified / refuted | verified / refuted | verified / refuted | verified / refuted |
-| set_collect | verified / refuted | verified / refuted | abstain / abstain | abstain / abstain | abstain / abstain | verified / refuted | verified / refuted |
-| set_toggle | verified / refuted | verified / refuted | abstain / abstain | abstain / abstain | abstain / abstain | verified / refuted | verified / refuted |
+| set_collect | verified / refuted | verified / refuted | abstain / abstain | abstain / abstain | verified / refuted | verified / refuted | verified / refuted |
+| set_toggle | verified / refuted | verified / refuted | abstain / abstain | abstain / abstain | verified / refuted | verified / refuted | verified / refuted |
 | shape_area | verified / refuted | verified / refuted | abstain / abstain | abstain / abstain | verified / refuted | abstain / abstain | abstain / abstain |
 | signs | verified / refuted | verified / refuted | abstain / abstain | abstain / abstain | abstain / abstain | abstain / abstain | abstain / abstain |
 | some_negative | verified / refuted | verified / refuted | abstain / abstain | abstain / abstain | verified / refuted | abstain / abstain | abstain / abstain |
@@ -124,7 +124,7 @@ Verdict basis: every source file hashed; e.g. `abs.dfy` 9fe1e7e805cfacce…, `ab
 | kernel | sole blocker of | co-blocker of | tasks it alone keeps out of all seven |
 |---|---|---|---|
 | framac | 4 | 47 | double_all, grid_row_sums, palindrome, swap_rows |
-| lean | 1 | 26 | odd_positions |
+| lean | 1 | 24 | odd_positions |
 | dafny | 0 | 0 | (none) |
 | verus | 0 | 8 | (none) |
 | spark | 0 | 44 | (none) |
@@ -141,7 +141,7 @@ Of the 5 tasks in six, 4 are framac alone, 1 is lean alone.
 | verus | 94 | 93 | 93 of 93 (100%) | 7 |
 | spark | 60 | 57 | 57 of 57 (100%) | 41 |
 | framac | 51 | 50 | 50 of 50 (100%) | 50 |
-| lean | 76 | 74 | 74 of 74 (100%) | 25 |
+| lean | 79 | 76 | 76 of 76 (100%) | 22 |
 | rocq | 63 | 63 | 63 of 63 (100%) | 38 |
 | fstar | 62 | 60 | 60 of 60 (100%) | 39 |
 

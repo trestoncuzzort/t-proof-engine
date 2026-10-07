@@ -1,4 +1,4 @@
-# t cross-kernel agreement, 2026-10-07 04:36Z
+# t cross-kernel agreement, 2026-10-07 05:12Z
 
 Cell = real outcome / twin outcome. Agreement means `verified / refuted` in every present column. A real-VERIFIED, twin-VERIFIED cell reads `verified / decorative` (the spec cannot tell real and twin apart) or `verified / unsound` (the twin's own measured witness says a sound kernel must refute it, and this one did not); neither counts as agreement.
 
@@ -15,8 +15,8 @@ Cell = real outcome / twin outcome. Agreement means `verified / refuted` in ever
 | bubble_sort | verified / refuted | unproved / refuted | abstain / abstain | abstain / abstain | unproved / unproved | abstain / abstain | timeout / timeout |
 | discrete_log_naive | verified / refuted | verified / refuted | abstain / abstain | abstain / abstain | verified / unproved | abstain / abstain | abstain / abstain |
 | fast_exponential | verified / refuted | unproved / refuted | timeout / refuted | verified / refuted | unproved / refuted | unproved / refuted | unproved / refuted |
-| insertion_sort | verified / refuted | unproved / refuted | abstain / abstain | abstain / abstain | unproved / unproved | abstain / abstain | timeout / timeout (FLAKED) |
-| integer_exponential | verified / refuted | verified / refuted | verified / refuted | verified / refuted | unproved / refuted | verified / refuted | verified / refuted |
+| insertion_sort | verified / refuted | unproved / refuted | abstain / abstain | abstain / abstain | unproved / unproved | abstain / abstain | timeout / timeout |
+| integer_exponential | verified / refuted | verified / refuted | verified / refuted | verified / refuted | verified / refuted | verified / refuted | verified / refuted |
 | kmp | verified / refuted | unproved / refuted | abstain / abstain | abstain / abstain | abstain / abstain | abstain / abstain | unproved / refuted |
 | linear_search | verified / refuted | verified / refuted | verified / refuted | abstain / abstain | abstain / abstain | abstain / abstain | verified / refuted |
 | solve_longest_common_subsequence | verified / refuted | unproved / refuted | timeout / refuted | abstain / abstain | unproved / unproved | unproved / unproved | unproved / refuted |
@@ -49,15 +49,15 @@ Verdict basis: every source file hashed; e.g. `ac_automata_search.dfy` fd9ce0518
 
 | kernel | sole blocker of | co-blocker of | tasks it alone keeps out of all seven |
 |---|---|---|---|
-| lean | 1 | 26 | integer_exponential |
 | dafny | 0 | 0 | (none) |
 | verus | 0 | 18 | (none) |
 | spark | 0 | 24 | (none) |
 | framac | 0 | 25 | (none) |
+| lean | 0 | 26 | (none) |
 | rocq | 0 | 26 | (none) |
 | fstar | 0 | 22 | (none) |
 
-Of the 1 tasks in six, 1 is lean alone.
+Of the 0 tasks in six, none are blocked alone.
 
 ## Per kernel
 
@@ -67,8 +67,8 @@ Of the 1 tasks in six, 1 is lean alone.
 | verus | 27 | 10 | 9 of 10 (90%) | 0 |
 | spark | 14 | 3 | 3 of 3 (100%) | 13 |
 | framac | 2 | 2 | 2 of 2 (100%) | 25 |
-| lean | 11 | 1 | 0 of 1 (0%) | 16 |
+| lean | 11 | 2 | 1 of 2 (50%) | 16 |
 | rocq | 3 | 1 | 1 of 1 (100%) | 24 |
 | fstar | 17 | 5 | 5 of 5 (100%) | 10 |
 
-Verified with the twin refuted in all seven columns: 0 of 27 tasks.
+Verified with the twin refuted in all seven columns: 1 of 27 tasks.

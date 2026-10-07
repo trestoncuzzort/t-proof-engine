@@ -1532,6 +1532,26 @@ the three rotations unproved, for the named `res.val` definedness. Lean, Rocq, F
 provisional, as before.
 (4) **Held:** AlgoVeri Dafny 27 of 27, Verus 9, the rest unchanged (F* 5, SPARK 3, Frama-C 2, Rocq 1, Lean 0).
 
+### T28 and T29 read (2026-10-07 05:18Z): every bar held.
+
+Both tables were regenerated from a clean clone at d8188c8, which carries T28 and T29 and not T30: the matrix of 101
+(`t/AGREEMENT.md`) and the AlgoVeri table of 27 (`t/ALGOVERI.md`).
+
+**T28**, the sign bridge for a product inside a lemma's definitions:
+(1) **Held:** no cell of the 101 moved for T28. The only cells that moved are T29's three, below.
+(2) **Held:** AlgoVeri's integer_exponential reads verified with the twin refuted in Lean. It is now verified/refuted
+in all seven, AlgoVeri's first such contract.
+(3) **Held:** fast_exponential's Lean cell kept its verdict. No other AlgoVeri cell moved. F*'s insertion_sort kept
+timeout/timeout, and this run's reruns agreed, so the FLAKED mark is gone.
+
+**T29**, finite sets in Lean:
+(1) **Held:** set_toggle and set_collect read verified with the twin refuted in Lean.
+(2) **Held:** members_upto's Lean cell moved from abstain to unproved/refuted. all_pos_set and words_seen kept their
+Lean refusals; at d8188c8, T30 had not yet landed.
+(3) **Held:** no other cell of the 101 moved. Lean went from 74 to 76, and all seven stayed at 49.
+
+AlgoVeri: Dafny 27, Verus 9, F* 5, SPARK 3, Frama-C 2, Lean 1, Rocq 1; all seven 1.
+
 ## T30 registered (2026-10-07 04:43Z, after hand probes and before the clean-clone runs): set-ranged quantifiers in Lean
 
 Lean refused a quantifier over a set's members. On T29's tree sets it now states one in both positions:

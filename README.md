@@ -34,7 +34,7 @@ Measured from a clean clone of this repository on 2026-10-07 over the 101 commit
 | Dafny | 101 | 0 | 0 |
 | Verus | 93 | 1 | 7 |
 | Rocq | 63 | 0 | 38 |
-| Lean 4 | 74 | 2 | 25 |
+| Lean 4 | 76 | 3 | 22 |
 | F\* | 60 | 2 | 39 |
 | SPARK | 57 | 3 | 41 |
 | Frama-C | 50 | 1 | 50 |
@@ -43,13 +43,15 @@ Measured from a clean clone of this repository on 2026-10-07 over the 101 commit
 - 49 of the 101 tasks are proved, with the twin refuted, in all seven kernels.
 - Datatypes with fields (records and non-recursive sums, PREDICT T23) and recursive datatypes (trees, T25) are proved
   in Dafny, Verus and Lean; the other four refuse them by name. A quantifier over a seq's elements is stated in all
-  seven, over a set's in Dafny and Verus (T26).
+  seven, over a set's in Dafny and Verus (T26). Finite sets are carried in Lean too, on core Std's extensional tree
+  set (T29).
 - Most refusals are of constructs added to the language on 2026-10-06, which the other kernels are being taught
   now.
 - [t/ALGOVERI.md](t/ALGOVERI.md): 27 of AlgoVeri's contracts in seven kernels, regenerated from a clean clone for
-  T27, five of them the BST family over recursive datatypes and set-ranged quantifiers. Dafny verifies all 27 with
-  the twin refuted; Verus 9, F* 5, SPARK 3, Frama-C 2, Rocq 1, Lean 0. T15 and T17 repaired 11 of T13's 13 malformed
-  cells; the other two are named in T13's read.
+  T28, five of them the BST family over recursive datatypes and set-ranged quantifiers. Dafny verifies all 27 with
+  the twin refuted; Verus 9, F* 5, SPARK 3, Frama-C 2, Rocq 1, Lean 1. integer_exponential is the first AlgoVeri
+  contract verified with the twin refuted in all seven (T28). T15 and T17 repaired 11 of T13's 13 malformed cells; the
+  other two are named in T13's read.
 
 The registrations and reads behind these numbers are in
 [t/PREDICT-2026-10-06-t-expansion.md](t/PREDICT-2026-10-06-t-expansion.md). Each change states, before it runs,
