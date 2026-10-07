@@ -2561,3 +2561,12 @@ F* or Rocq. The copy-in/copy-out rewrite (T53) grounds its result as `pair(value
 (1) The matrix: Verus 104, F* 84, Rocq 84 (+2 each); every other kernel unchanged; all seven 65 (scale_all enters;
 relu_all's SPARK twin is still a timeout).
 (2) `t/AUTONOMY.md`: Verus 15, F* 18, Rocq 15 (+1 each, zero_fill); all seven 14 of 25.
+
+### T57 read (2026-10-07 15:21Z): both bars held, exactly.
+
+Regenerated from a clean clone at 156d798 on an idle machine, and installed.
+(1) **Held:** Verus 104, F* 84, Rocq 84; every other kernel unchanged; all seven 65 of 114 (scale_all). In Verus,
+Rocq and F*, every proved program's twin is now refuted (104 of 104, 84 of 84, 84 of 84). SPARK's relu_all twin
+(timeout) is the matrix's one proved program without a refuted twin.
+(2) **Held:** `t/AUTONOMY.md` reads Verus 15, F* 18, Rocq 15; all seven 14 of 25 (zero_fill). sample_push's and
+saturate_all's twins are refuted in the three kernels too; their real bodies stay unproved there.

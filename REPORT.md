@@ -14,7 +14,7 @@ from a wrong one proves nothing. t is a small language in which a routine and it
 lowered mechanically into seven independently built proof systems. A cell of the resulting table counts only if two
 things hold. First, the kernel proves the real program. Second, it refutes the routine's **twin**, a one-edit mutant
 chosen by a search for an input where the mutant breaks the contract, by accepting a certificate at that input. Over
-114 tasks, 64 are proved with their twins refuted in all seven kernels. A specification audit runs every one-edit
+114 tasks, 65 are proved with their twins refuted in all seven kernels. A specification audit runs every one-edit
 mutant by execution and has the kernel prove the ones the spec cannot tell apart. Over 316 Dafny-verified DafnyBench
 programs, Dafny also proves a different, one-edit program against the same contract in 44; read by hand, 23 of those
 are gaps in the specification. Each kernel refuses by name what it cannot
@@ -67,29 +67,29 @@ invariants, early exits, recursion, methods and lemmas. Since 2026-10-07 it also
 
 ## 4. Results
 
-**The matrix** (114 tasks; `t/AGREEMENT.md`, clean clone at 1bc4dc6):
+**The matrix** (114 tasks; `t/AGREEMENT.md`, clean clone at 156d798):
 
 | kernel | proved, twin refuted | carried, not proved | refused by name |
 |---|---|---|---|
 | Dafny | 111 | 0 | 3 |
-| Verus | 102 | 5 | 7 |
+| Verus | 104 | 3 | 7 |
 | Lean 4 | 89 | 4 | 21 |
-| Rocq | 82 | 4 | 28 |
-| F\* | 82 | 6 | 26 |
+| Rocq | 84 | 2 | 28 |
+| F\* | 84 | 4 | 26 |
 | SPARK | 78 | 6 | 30 |
 | Frama-C | 68 | 4 | 42 |
 
-- 64 of the 114 tasks are proved with the twin refuted in **all seven**.
-- In Dafny, Lean and Frama-C every proved program's twin is refuted. In Verus, Rocq, F\* and SPARK, 2, 2, 2 and 1
-  heap twins are not refuted yet: no certificate yet for a twin that differs only in the array, or a timeout.
+- 65 of the 114 tasks are proved with the twin refuted in **all seven**.
+- In six kernels every proved program's twin is refuted. The one exception is SPARK's relu_all, whose twin times
+  out.
 - The heap reaches the five kernels without native arrays by copy-in/copy-out (PREDICT T53). With no aliasing,
   writing in place and copying back are the same program (Ada RM 6.2).
 
 **AlgoVeri** (30 contracts lifted from the public benchmark; `t/ALGOVERI.md`): Dafny 30, Verus 9, F\* 5, SPARK 4,
 Frama-C 2, Lean 1, Rocq 1. One contract is proved in all seven.
 
-**The autonomy suite** (25 routines; `t/autonomy/`, `t/AUTONOMY.md`, clean clone at 94fb961), verified with the
-twin refuted: Frama-C 21, SPARK 20, Dafny 18, F\* 17, Lean 15, Verus 14, Rocq 14. 13 of the 25 are in all seven.
+**The autonomy suite** (25 routines; `t/autonomy/`, `t/AUTONOMY.md`, clean clone at 156d798), verified with the
+twin refuted: Frama-C 21, SPARK 20, Dafny 18, F\* 18, Lean 15, Verus 15, Rocq 15. 14 of the 25 are in all seven.
 What keeps the others out is measured, not guessed:
 - nonlinear integer division (grid_cell, low_pass_step), which F\* alone proves;
 - float rounding under a step budget (pid_step);
