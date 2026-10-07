@@ -35,6 +35,9 @@ ones are stated over t's `float`, IEEE binary64, and compared at `double`; PX4 f
 | px4_hysteresis_switches | the same, with every request `true` | src/lib/hysteresis/hysteresis.cpp:60 | the class |
 | px4_wrap_bin | `ObstacleMath::wrap_bin` | src/lib/collision_prevention/ObstacleMath.cpp:120 | int |
 | px4_wrap_bin_72 | `ObstacleMath::wrap_bin(bin, BIN_COUNT)`, as `CollisionPrevention` calls it | src/lib/collision_prevention/ObstacleMath.cpp:120 | int, `BIN_COUNT` = 72 |
+| px4_rb_space_available | `Ringbuffer::space_available` | src/lib/ringbuffer/Ringbuffer.cpp:65 | the class, `size_t` |
+| px4_rb_push_back | `Ringbuffer::push_back`: its result and `_end` | src/lib/ringbuffer/Ringbuffer.cpp:87 | the class, `size_t` |
+| px4_rb_pop_front | `Ringbuffer::pop_front`: its result and `_start` | src/lib/ringbuffer/Ringbuffer.cpp:134 | the class, `size_t` |
 
 **Transcription notes.**
 - `matrix::wrap`'s local `range` is named `rng` here; `range` is an Ada keyword, and the renamed form collides with
@@ -64,6 +67,14 @@ ones are stated over t's `float`, IEEE binary64, and compared at `double`; PX4 f
   each step's starting fields through PX4's public methods alone (its comment says how). It never writes a private
   field.
 
+- `Ringbuffer` is the byte queue under `VariableLengthRingbuffer`, which buffers MAVLink's outgoing messages
+  (src/modules/mavlink/mavlink_main.h:687). Its state is `_start`, `_end` and `_size`, and the tasks take them as
+  parameters. Their `requires` is the class invariant the methods keep: both indices in `[0, _size]`, with `_size`
+  standing for 0 after a wrap, and at most `_size - 1` bytes in use. The tasks restate the index arithmetic. The
+  `memcpy` calls move bytes and touch no index, so they are left out; `push_back`'s null check is too, since every
+  caller here passes a buffer. Where PX4 returns early, the task does (`return`). Each task returns what PX4 returns,
+  paired with the index PX4 updates. The harness builds PX4 with `private` defined as `public` (access only) to set a
+  state and read the index back.
 - `wrap_bin` returns `(bin + bin_count) % bin_count` on C++ `int`s, and C++'s `%` truncates toward zero: the
   remainder takes the dividend's sign. Under `px4_wrap_bin`'s `requires`, the dividend is non-negative, and there
   C++'s `%` and t's Euclidean `%` agree. `findings/px4_wrap_bin_any` drops that `requires`, so its body spells the

@@ -3173,3 +3173,59 @@ proof needs for `wrap_bin` (the one PX4's own unit test states) holds only for `
 the function without that bound, and PX4's compiled code fails at the kernel's own input. Tracing the callers shows
 the collision-prevention sensor path does not establish the bound. Two lowering faults were also found and fixed on
 the way: Frama-C compared bools as ints, and Lean's `grind` dropped a derived equality.
+
+## T69 registered (2026-10-07 23:14Z, after hand runs and before the clean-clone run): PX4's Ringbuffer, and six lowering faults it found
+
+**What is added.**
+- Three functions of PX4's `Ringbuffer` in `t/flight/`, restated statement by statement:
+  - `space_available`;
+  - `push_back`: its result and `_end`;
+  - `pop_front`: its result and `_start`.
+- `Ringbuffer` is the byte queue under MAVLink's outgoing message buffer.
+- The contracts:
+  - for every state the class invariant admits, `space_available` is `size - 1 - used`;
+  - `push_back` succeeds exactly when `1 <= buf_len <= available`, adds `buf_len` to the bytes in use, and leaves
+    `_end` at a stated index;
+  - `pop_front` returns `min(used, max)`, removes that many, and leaves `_start` at a stated index.
+- The class invariant admits `_start == _end == _size`, the corner PX4's own test `EmptyAndNoSpaceForHeader`
+  names.
+- `px4_diff.py` drives PX4's class. It is built with `private` defined as `public` (access only) to set
+  `_start`/`_end` and read them back.
+
+**Lowering faults found by these three functions, each fixed and measured.** None changes a published cell:
+- **Lean dropped a `return` nested inside a branch that does not itself always return**
+  (`if x > 0 { if y > 0 { return 1; } } r := 2;` lowered to the constant 2). `to_expr` now keeps the path
+  condition `sym()` already computed.
+- **F\* collapsed a one-sided return to the outer condition alone** (`if x > 0 then 1 else 2`). It now conjoins the
+  arm's own return condition.
+  - Lean, F\* and the other five verify `ret_min`, `ret_pair` and `ret_one` (hand probes, not committed).
+  - Across every committed corpus, only `px4_rb_push_back` has a `return` two `if`s deep. F\*'s lowering is
+    byte-identical for every committed task.
+- **Rocq refused the sanitizer's own rename** of a `_len` name (`buf_len` to `tn_buf_len`). The rename is accepted,
+  and the one rename that could shadow a length binder is refused by name (receipt fef4b9d2b3f6).
+- **Rocq treated a `var` in each arm of an `if` as a redeclaration**, and **Frama-C's certificate, which hoists
+  locals, refused the twin a certificate** for the same reason. Each arm is now its own scope in Rocq. Frama-C's
+  hoisting merges same-name, same-type sibling locals, since the replay runs one arm (receipt 93b9dad929af). Only
+  the two new tasks have such locals.
+- **Rocq's pair proof** gains `t_sweep` before projecting, and **Lean's straight-line proof** gains
+  `unfold f t_min; grind`. Each comes after every earlier alternative (receipts 4281a80b3bfc, 98083e3f6f63).
+
+**Measured before this registration** (hand; pasted summary lines):
+- `px4_rb_*`: "Verified with the twin refuted in all seven columns: 3 of 3 tasks".
+- ship: "ships for every int32 input: 3", with 0 within an envelope, 0 with none found and 0 open.
+- `px4_diff.py`: "routines compared: 26; agree on every point: 25; points: 7060". AlphaFilter agrees after
+  narrowing; the finding is reproduced.
+- Sources changed by the fixes:
+  - Lean: 8 tasks. The 5 verified before stay verified; `low_pass_step` stays unproved.
+  - Rocq: 6 tasks. `divmod_pair` and `swap_at` stay verified, `ring_push` and `sample_push` stay unproved, and the
+    two ring-buffer tasks now verify.
+  - Frama-C and F\*: no real-program source changes.
+- Suite: 801 passed, 43 skipped, 1 xfailed. The Python 3.10 compile is clean.
+
+**Bars**, for a clean clone at this registration's commit:
+(1) `t/FLIGHT.md`: "Verified with the twin refuted in all seven columns: 18 of 27 tasks".
+(2) `t/FLIGHT-FINDINGS.md`: `px4_wrap_bin_any` refuted in all seven, unchanged.
+(3) `t/PX4-DIFF.md`: "routines compared: 26; agree on every point: 25".
+(4) `t/SHIP-FLIGHT.md`: 18 for every int32 input, 4 within an envelope, 1 with no envelope, 4 open.
+(5) No verified cell lost to the fixes. The Lean column reads 89, 15 and 1, and the Rocq column 84, 15 and 1, over
+`t/tasks/`, `t/autonomy/` and `t/algoveri/`, as installed.

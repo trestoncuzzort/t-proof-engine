@@ -10284,8 +10284,28 @@ def _value_certificate(task: dict, twin_body: list, w: dict,
             _, dec = assigned_names(twin_body)
             seq_locals = _seq_local_names(twin_body)             # PREDICT T31: declared where the replay writes them
             names = [ret] + [d for d in dec if d != ret and d not in seq_locals]
-            if len(set(dec)) != len(dec) or set(dec) & set(st):
+            if set(dec) & set(st):
                 return None            # flattening scopes would collide
+            if len(set(dec)) != len(dec):
+                # PREDICT T69: PX4's Ringbuffer::push_back declares `available` in both arms of an `if`. The
+                # replay runs one arm, so locals of one name and one type share a single flattened slot; two
+                # types under one name still collide.
+                decl_types: dict = {}
+
+                def _walk_decls(stmts):
+                    for s0 in stmts:
+                        if "var" in s0:
+                            decl_types.setdefault(s0["var"]["name"], set()).add(repr(s0["var"]["type"]))
+                        elif "if" in s0:
+                            _walk_decls(s0["if"]["then"])
+                            _walk_decls(s0["if"]["else"])
+                        elif "while" in s0:
+                            _walk_decls(s0["while"]["body"])
+                _walk_decls(twin_body)
+                if any(len(ts) > 1 for ts in decl_types.values()):
+                    return None        # flattening scopes would collide
+                dec = list(dict.fromkeys(dec))
+                names = [ret] + [d for d in dec if d != ret and d not in seq_locals]
             dt_names = {ret: _dt_of(rett)} if _dt_of(rett) else {}
             dt_names.update(_dt_local_types(twin_body))                 # PREDICT T40
             fl_names = {ret} if rett == "float" else set()

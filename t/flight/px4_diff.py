@@ -38,8 +38,14 @@ HEADERS = ["src/lib/mathlib/mathlib.h", "src/lib/mathlib/math/Functions.hpp", "s
            "src/lib/mathlib/math/SearchMin.hpp", "src/lib/mathlib/math/TrajMath.hpp",
            "src/lib/mathlib/math/Utilities.hpp", "src/lib/mathlib/math/filter/AlphaFilter.hpp",
            "src/lib/slew_rate/SlewRate.hpp", "src/lib/hysteresis/hysteresis.h", "src/lib/hysteresis/hysteresis.cpp",
-           "src/lib/collision_prevention/ObstacleMath.hpp", "src/lib/collision_prevention/ObstacleMath.cpp"]
-SOURCES = ["src/lib/hysteresis/hysteresis.cpp", "src/lib/collision_prevention/ObstacleMath.cpp"]
+           "src/lib/collision_prevention/ObstacleMath.hpp", "src/lib/collision_prevention/ObstacleMath.cpp",
+           "src/lib/ringbuffer/Ringbuffer.hpp", "src/lib/ringbuffer/Ringbuffer.cpp"]
+SOURCES = ["src/lib/hysteresis/hysteresis.cpp", "src/lib/collision_prevention/ObstacleMath.cpp",
+           "src/lib/ringbuffer/Ringbuffer.cpp"]
+# Ringbuffer keeps `_start` and `_end` private and says nothing of them through its methods but `space_used()`. Every
+# translation unit is built with `private` defined as `public`, which changes access only, never code or layout, so
+# the harness can set a state the task's `requires` admits and read the indices PX4's code leaves behind.
+ACCESS = ["-Dprivate=public"]
 MATRIX = ["AxisAngle", "Dcm", "Dcm2", "Dual", "Euler", "LeastSquaresSolver", "Matrix", "PseudoInverse", "Quaternion",
           "Scalar", "Slice", "SparseVector", "SquareMatrix", "Vector", "Vector2", "Vector3", "Vector4", "filter",
           "helper_functions", "integration", "math"]
@@ -87,6 +93,16 @@ CALLS = {
     "px4_hysteresis_switches": ("[&]{ " + _HYST_RUN.format(new="true") + "return h.get_state(); }()", "bool"),
     "px4_wrap_bin": ("ObstacleMath::wrap_bin((int)bin, (int)bin_count)", "int"),
     "px4_wrap_bin_72": ("ObstacleMath::wrap_bin((int)bin, 72)", "int"),
+    "px4_rb_space_available": ("[&]{ Ringbuffer b; b.allocate((size_t)size); b._start = (size_t)start; "
+                               "b._end = (size_t)end; return b.space_available(); }()", "int"),
+    "px4_rb_push_back": ("[&]{ Ringbuffer b; b.allocate((size_t)size); b._start = (size_t)start; b._end = (size_t)end; "
+                         "std::vector<uint8_t> src((size_t)buf_len + 1); "
+                         "bool ok = b.push_back(src.data(), (size_t)buf_len); "
+                         "return std::make_pair((long long)ok, (long long)b._end); }()", "pair"),
+    "px4_rb_pop_front": ("[&]{ Ringbuffer b; b.allocate((size_t)size); b._start = (size_t)start; b._end = (size_t)end; "
+                         "std::vector<uint8_t> dst((size_t)buf_max_len + 1); "
+                         "size_t n = b.pop_front(dst.data(), (size_t)buf_max_len); "
+                         "return std::make_pair((long long)n, (long long)b._start); }()", "pair"),
 }
 FINDINGS = HERE / "findings"
 # a task under findings/ restates a PX4 function with the contract it needs and without the `requires` PX4's callers
@@ -146,6 +162,10 @@ def program(task: dict, ref, call: str | None = None, pts: list | None = None) -
         if kind == "float":
             show = f'printf("%a\\n", (double)({expr}));'
             expect.append(float(real).hex())
+        elif kind == "pair":
+            show = (f'auto t_pair = ({expr}); '
+                    'printf("%lld %lld\\n", (long long)t_pair.first, (long long)t_pair.second);')
+            expect.append(f"{int(real.a)} {int(real.b)}")
         else:
             show = f'printf("%lld\\n", (long long)({expr}));'
             expect.append(str(int(real)))
@@ -154,7 +174,8 @@ def program(task: dict, ref, call: str | None = None, pts: list | None = None) -
     src = ("#include <cinttypes>\n#include <cstdio>\n#include <vector>\n#include <mathlib/mathlib.h>\n"
            "#include <matrix/math.hpp>\n#include <slew_rate/SlewRate.hpp>\n"
            "#include <mathlib/math/filter/AlphaFilter.hpp>\n#include <hysteresis/hysteresis.h>\n"
-           "#include <collision_prevention/ObstacleMath.hpp>\n"
+           "#include <collision_prevention/ObstacleMath.hpp>\n#include <ringbuffer/Ringbuffer.hpp>\n"
+           "#include <utility>\n"
            "int main() {\n" + "\n".join(lines) + "\n  return 0;\n}\n")
     return src, expect, inputs
 
@@ -164,7 +185,7 @@ def _compile_run(src: str, px4: Path) -> tuple[list[str] | None, str]:
         cpp, exe = Path(d) / "p.cpp", Path(d) / "p"
         cpp.write_text(src)
         p = subprocess.run(["g++", "-std=c++17", "-O1", "-ffp-contract=off", "-w", f"-I{px4}/src/lib",
-                            f"-I{px4}/src/lib/matrix", f"-I{px4}/stub", str(cpp)]
+                            f"-I{px4}/src/lib/matrix", f"-I{px4}/stub", *ACCESS, str(cpp)]
                            + [str(px4 / f) for f in SOURCES] + ["-o", str(exe)],
                            capture_output=True, text=True, timeout=300)
         if p.returncode != 0:
@@ -271,11 +292,13 @@ def main(argv=None) -> int:
                       "Each task under `t/flight/findings/` restates a PX4 function with its contract and without the "
                       "`requires` its callers do not establish. The input below is where the kernels' refutation "
                       "certificates point (or a probe); PX4's own code is run there.", "",
-                      "| t task | PX4 call | input | t | PX4 | breaks the contract | status |", "|---|---|---|---|---|---|---|"]
+                      "| t task | PX4 call | input | t | PX4 | breaks the contract | status |",
+                      "|---|---|---|---|---|---|---|"]
             for r in found:
                 for x in r.get("rows", [{}]):
-                    lines.append(f"| {r['name']} | `{r['px4_call']}` | {json.dumps(x.get('input', ''))} | {x.get('t', '')} | "
-                                 f"{x.get('px4', '')} | {x.get('breaks_contract', '')} | {r['status']} |")
+                    lines.append(f"| {r['name']} | `{r['px4_call']}` | {json.dumps(x.get('input', ''))} | "
+                                 f"{x.get('t', '')} | {x.get('px4', '')} | {x.get('breaks_contract', '')} | "
+                                 f"{r['status']} |")
         Path(args.table).write_text("\n".join(lines) + "\n")
     return 1 if any(r["status"] == "DIFFERS" for r in results) or any(r["status"] == "NOT REPRODUCED" for r in found) \
         else 0

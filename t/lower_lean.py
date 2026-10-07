@@ -4484,18 +4484,41 @@ class Lower:
                 # if where one arm returns and the other doesn't, without
                 # the OUTER branch itself always-returning), so this also
                 # covers cases the two one-sided branches above do not.
-                env_t, obs_t, _ = self.sym(c["then"], env, types, [])
-                env_e, obs_e, _ = self.sym(c["else"], env, types, [])
+                env_t, obs_t, ret_t = self.sym(c["then"], env, types, [])
+                env_e, obs_e, ret_e = self.sym(c["else"], env, types, [])
+                if (ret_t != "False" or ret_e != "False") and self.ret not in env:
+                    # the return slot read on a path that has not returned is never used (the result below
+                    # takes it only where `returned` holds), but it must be a term: Lean's `default`
+                    seeded = dict(env)
+                    seeded[self.ret] = "default"
+                    env_t, obs_t, ret_t = self.sym(c["then"], seeded, types, [])
+                    env_e, obs_e, ret_e = self.sym(c["else"], seeded, types, [])
                 merged = dict(env)
                 for k in set(env_t) | set(env_e):
                     t, f = env_t.get(k, k), env_e.get(k, k)
                     merged[k] = t if t == f else \
                         f"(if {cp} then {t} else {f})"
                 obs = ([ob0] if ob0 else []) \
-                    + [f"({cp} → {o})" for o in obs_t] \
-                    + [f"(¬{cp} → {o})" for o in obs_e]
+                    + [f"({cp} → {o})" for o in obs_t if o is not None] \
+                    + [f"(¬{cp} → {o})" for o in obs_e if o is not None]
                 re_, obs_r = self.to_expr(rest, merged, types)
-                return re_, obs + obs_r
+                if ret_t == "False" and ret_e == "False":
+                    return re_, obs + obs_r
+                # PREDICT T69: a `return` nested inside a branch that does not itself always return (PX4's
+                # Ringbuffer::push_back returns `(false, _end)` two `if`s deep). sym() reports the path condition
+                # under which a branch returned and freezes the return value there; the statements after the `if`
+                # run only on the other paths. This was discarded, so the return was lost: `if x > 0 { if y > 0
+                # { return 1; } } r := 2;` lowered to the constant 2.
+                if ret_t == ret_e:
+                    returned = ret_t
+                elif ret_t == "True" and ret_e == "False":
+                    returned = cp
+                elif ret_t == "False" and ret_e == "True":
+                    returned = f"(¬{cp})"
+                else:
+                    returned = f"(({cp} → {ret_t}) ∧ (¬{cp} → {ret_e}))"
+                return (f"(if {returned} then {merged[self.ret]} else {re_})",
+                        obs + [f"(¬{returned} → {o})" for o in obs_r])
             raise NotImplementedError(
                 "statements after a branch are not lowered for lean")
         if "return" in s:
@@ -8087,6 +8110,13 @@ theorem t_str_join_split_roundtrip (s : List Int) (c : Int) :
             + f"  | grind [{self.name}_t"
             + (", " + ", ".join(f"{f}_s" for f in self.sfuns)
                if self.sfuns else "") + "]\n"
+            # PREDICT T69 (PX4's Ringbuffer::pop_front, `min(_end - _start, buf_max_len)` inside a returned pair):
+            # grind does not open `t_min`/`t_max`/`t_abs` on its own here, and `unfold` of both the task and the
+            # helper then grind closes it (measured). Offered only when the task uses one, after every alternative
+            # above, so no other task's text changes.
+            + (f"  | (unfold {self.name}_t {' '.join(h for h in self.lib_fns if h in ('t_min', 't_max', 't_abs'))}"
+               "; grind)\n"
+               if any(h in ("t_min", "t_max", "t_abs") for h in self.lib_fns) else "")
             + ("  | decide\n" if not self.task["params"] else "")
             # 2026-09-28 (fz_p_dt_eq, the conformance suite): grind does
             # not split a datatype-typed parameter on its own, so a

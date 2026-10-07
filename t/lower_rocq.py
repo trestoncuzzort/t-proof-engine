@@ -5507,7 +5507,9 @@ RESERVED = {"at", "in", "fun", "if", "then", "else", "let", "forall", "exists",
 
 
 def _ck(name: str) -> str:
-    if (name in RESERVED or name.endswith("_len") or name.startswith("sf_")
+    # PREDICT T69: a `_len` name the sanitizer has already renamed (prefix `tn_`, the rename site's own namespace)
+    # is passed; the rename site below refuses the one rename that could shadow a length binder.
+    if (name in RESERVED or (name.endswith("_len") and not name.startswith("tn_")) or name.startswith("sf_")
             or name.startswith("t_")):
         # t_ is the certificate/tactic namespace (t_w_*, t_H, t_dis, ...)
         raise NotImplementedError(
@@ -6991,7 +6993,14 @@ def exec_straight(cx: Ctx, stmts: list, env: dict, local: dict,
         elif "var" in s:
             d = s["var"]
             v = _ck(d["name"])
-            assert v not in cx.tys and v not in local, f"redeclared {v}"
+            # PREDICT T69: each arm of an `if` is its own block (the `if` case below passes each a copy of `local`),
+            # so PX4's `const size_t available` in both arms of `push_back` declares two locals. A name an earlier
+            # `var` declared at the same type may be declared again in a sibling block; a parameter or return never.
+            var_names = cx.__dict__.setdefault("_var_names", {})
+            assert v not in local and (v not in cx.tys or var_names.get(v) is not None), f"redeclared {v}"
+            if v in cx.tys and var_names.get(v) != d["type"]:
+                raise NotImplementedError(f"rocq lowering: local {v!r} declared again at another type in a sibling block")
+            var_names[v] = d["type"]
             local[v] = d["type"]
             cx.tys[v] = d["type"]
             if cur_ctx is not None:
@@ -7029,11 +7038,11 @@ def exec_straight(cx: Ctx, stmts: list, env: dict, local: dict,
             cp = cx.prop(c["cond"], env, local)
             cb = cx.bx(c["cond"], env, local)
             env_t = exec_straight(
-                cx, c["then"], env, local,
+                cx, c["then"], env, dict(local),
                 None if cur_ctx is None else cur_ctx + [cp],
                 defs_binders, acc)
             env_e = exec_straight(
-                cx, c["else"], env, local,
+                cx, c["else"], env, dict(local),
                 None if cur_ctx is None else cur_ctx + [f"(~ {cp})"],
                 defs_binders, acc)
             for v in set(env) | set(env_t) | set(env_e):
@@ -9352,6 +9361,13 @@ Qed.
     # WITH a param byte-identical (`fa` is `forall {pb},\n` exactly as
     # before whenever `pb` is non-empty).
     fa = f"forall {pb},\n" if pb else ""
+    close = _dt_close(task)
+    if isinstance(ret_t, dict) and "pair" in ret_t and not task.get("datatypes"):
+        # PREDICT T69: a pair returned through branch-dependent ifs (PX4's Ringbuffer::push_back, `(ok, _end)`)
+        # leaves `fst (if c then (a, b) else ...)` stuck until the comparison `c` is decided. When plain `t_dis`
+        # fails, t_sweep splits every comparison with its reflect lemma, and the projections then reduce. Last,
+        # so a task that proved before proves by the same branch.
+        close = "  first [ t_dis | (t_sweep; cbn [fst snd] in *; t_dis) ]."
     return f"""{def_txt}
 Definition {name}_t {pb} : {rty(ret_t)} := {expr}.
 
@@ -9360,7 +9376,7 @@ Theorem {name}_t_spec :
 Proof.
   unfold {name}_t.
   intros.
-{pdestr}{pair_line}{site_txt}{_dt_close(task)}
+{pdestr}{pair_line}{site_txt}{close}
 Qed.
 """
 
@@ -13187,6 +13203,13 @@ def _lower(task: dict, body: list, witness: dict | None = None) -> str:
     task, renames = t_names.sanitize(
         task, t_names.KEYWORDS["rocq"] | prefix_bad,
         uppercase_ok=True, prefix="tn_")
+    # PREDICT T69: `buf_len` renamed is `tn_buf_len`, which still ends in `_len`. It can only capture the length
+    # binder of a seq named `tn_buf`, so that one case is refused by name (hygiene: a shadowing binder would change
+    # the proof's meaning silently).
+    for _new in renames.values():
+        if _new.endswith("_len") and (_new[:-4] in ns_declared or _new[:-4] in renames.values()):
+            raise NotImplementedError(
+                f"rocq lowering: the renamed {_new!r} would shadow the length binder of {_new[:-4]!r}")
     if task.get("datatypes"):
         _DTS.clear()
         _DTS.update({d["name"]: d for d in task["datatypes"]})   # PREDICT T34: the renamed declarations
