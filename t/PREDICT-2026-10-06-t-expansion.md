@@ -1655,3 +1655,32 @@ doubled_head:
 (1) doubled_head reads verified/refuted in Lean, so with T31 it is verified/refuted in all seven.
 (2) The other seven tasks keep their Lean verdicts.
 (3) No other cell moves for this change.
+
+## T33 registered (2026-10-07 05:24Z, after hand probes and before the clean-clone run that follows clean25): one orientation for a seq equality (Rocq)
+
+T31's rev_equal is verified/refuted in six kernels; Rocq's real is unproved. The code tests `u == b` with `u = rev(a)`
+and the contract states `b == rev(a)`. Rocq renders each operand in its own place:
+- code: `(a_len =? b_len) && t_seq_eqb a_len (t_rev a a_len) b`
+- contract: `b_len = a_len /\ forall k < b_len, b k = t_rev a a_len k`
+
+The closer ends the false branch by `congruence` between the contract's forall and the code's negated fact. Those are
+two different terms here, so nothing closes it. Receipt d051845f7561: Rocq's congruence is congruence closure, which
+closes a hypothesis against the negation of another only when they are the same term.
+
+**Design.** `_seq_eq_order`: in all three places Rocq states a seq `==` (code, contract, certificate arm), the operand
+whose rendered function sorts first leads, with its own length as the bound.
+
+**Measured before this registration, stated plainly.**
+- **Hand probes:** a hand proof compiles. So does the closer once the flipped facts are added and the lengths
+  substituted.
+- **Rocq, `cli verify`:** rev_equal COUNTS. double_all, palindrome and swap_rows, whose Rocq text changes, stay
+  verified/refuted.
+- **Byte identity:** of the 104 tasks and 27 AlgoVeri programs, exactly six lowerings change:
+  - Rocq's real and twin of palindrome and rev_equal;
+  - the real of double_all and swap_rows.
+- **Suite:** the whole suite passes (714).
+
+**Bars**, for the clean-clone matrix that follows clean25 (which runs at 9095774, without this change):
+(1) rev_equal reads verified/refuted in Rocq. With T31's six, it is then verified/refuted in all seven.
+(2) double_all, palindrome and swap_rows keep their Rocq verdicts.
+(3) No other cell moves against clean25's table.

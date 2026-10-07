@@ -6276,6 +6276,7 @@ class Ctx:
                 # t_upd_case/t_app_case).
                 fn_a, ln_a = self.seq_fn(e["args"][0], env, local)
                 fn_b, ln_b = self.seq_fn(e["args"][1], env, local)
+                fn_a, ln_a, fn_b, ln_b = _seq_eq_order(fn_a, ln_a, fn_b, ln_b)
                 core = f"(({ln_a} =? {ln_b}) && t_seq_eqb {ln_a} {fn_a} {fn_b})"
                 return core if op == "==" else f"(negb {core})"
             if t == "bool":
@@ -6438,6 +6439,7 @@ class Ctx:
                 # works; the left operand's is used).
                 fn_a, ln_a = self.seq_fn(e["args"][0], env, local)
                 fn_b, ln_b = self.seq_fn(e["args"][1], env, local)
+                fn_a, ln_a, fn_b, ln_b = _seq_eq_order(fn_a, ln_a, fn_b, ln_b)
                 core = (f"({ln_a} = {ln_b} /\\ "
                         f"(forall t_k : Z, 0 <= t_k < {ln_a} -> "
                         f"{fn_a} t_k = {fn_b} t_k))")
@@ -10508,6 +10510,14 @@ T_FEED = r"""Ltac t_feed H :=
 """
 
 
+
+def _seq_eq_order(fn_a: str, ln_a: str, fn_b: str, ln_b: str) -> tuple:
+    """PREDICT T33: one orientation for a seq `==` wherever it is stated (code, contract, certificate arm), the operand
+    whose rendered function sorts first leading. The closer ends a seq equality's false branch by `congruence` between
+    the contract's forall and the code's negated fact, which must then be one term: rev_equal's code `u == b` and its
+    contract `b == rev(a)` were the two orientations, and nothing closed it."""
+    return (fn_b, ln_b, fn_a, ln_a) if fn_b < fn_a else (fn_a, ln_a, fn_b, ln_b)
+
 def _zlit(v) -> str:
     n = int(v)
     return f"({n})" if n < 0 else str(n)
@@ -11524,7 +11534,8 @@ def _value_cert(cx, task, body, witness, def_text, w=None):
                     idx = i
                     break
             fn_a, ln_a = cx.seq_fn(a, env_stmt_rw, {})
-            fn_b, _ = cx.seq_fn(b, env_stmt_rw, {})
+            fn_b, ln_b = cx.seq_fn(b, env_stmt_rw, {})
+            fn_a, ln_a, fn_b, ln_b = _seq_eq_order(fn_a, ln_a, fn_b, ln_b)
             conj_text = (f"(forall t_k : Z, 0 <= t_k < {ln_a} -> "
                         f"{fn_a} t_k = {fn_b} t_k)")
             conjuncts.append((conj_text, [idx]))
