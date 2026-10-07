@@ -1316,3 +1316,13 @@ Lean, and abstains elsewhere. Dafny is 22 of 22.
 (4) No AlgoVeri cell reads differently from T13's table with T15's and T17's measured repairs applied, except as
 follows. The five Lean rows above keep their verdicts. T16, T18, T19 and T21 landed after those AlgoVeri runs and
 were never measured on AlgoVeri, so the F*, SPARK and Frama-C counts are read as measured.
+
+### T23 read (2026-10-07 02:53Z): datatypes with fields in Dafny, Verus and Lean. All four bars held.
+
+The matrix was regenerated from a clean clone of t-proof-engine at 0d091f5 (`t/AGREEMENT.md`) and compared cell by
+cell with the installed table.
+(1) **Held:** the six new tasks read verified with the twin refuted in Dafny, Verus and Lean (18 cells).
+(2) **Held:** Rocq, F*, SPARK and Frama-C abstain by name on all six (24 cells).
+(3) **Held:** no cell of the 88 moved. Only the six new rows differ.
+(4) **Held:** per kernel, Dafny 94, Verus 86, Lean 67, Rocq 62, F* 59, SPARK 56, Frama-C 49. All seven stays 48, now
+of 94. Every kernel still refutes the twin of every real it verifies (100%).
