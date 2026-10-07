@@ -142,14 +142,30 @@ def test_framac():
         ok("a whole array in old(...)" in str(e), f"refused by name: {e}")
 
 
-def test_others_refuse_by_name():
+def test_copy_in_copy_out():
+    # PREDICT T53: the value kernels take the heap through tshape.desugar_heap; the rewrite computes what the in-place
+    # program computes (result and final array) on every domain point
+    import tshape
+    for n in TASKS + ("scale_all", "offset_all", "relu_all"):
+        t = load(n)
+        t1, b1 = tshape.desugar_par(t, t["body"])
+        nt, nb, _ = tshape.desugar_heap(t1, b1)
+        ok(check_wf.check_wf({**nt, "body": nb}) == [], f"{n}: the rewrite is well-formed")
+        ok(nt["returns"][0]["type"] == {"pair": [t["returns"][0]["type"], "seq"]}, f"{n}: returns (result, array)")
+        ref, ref2 = interp.Reference(t), interp.Reference({**nt, "body": nb})
+        m = t["modifies"][0]
+        ok([(v, h[m]) for (_e, v), h in zip(ref.points, ref.heaps)] == [(v.a, v.b) for _e, v in ref2.points],
+           f"{n}: the same result and final array everywhere")
     for k in ("verus", "lean", "rocq", "fstar", "spark"):
-        try:
-            tlib.lower(load("swap_at"), k)
-            ok(False, f"{k} refuses")
-        except NotImplementedError as e:
-            ok("arrays by reference are not lowered yet" in str(e), f"{k} refuses by name: {e}")
-
+        src = tlib.lower(load("swap_at"), k)
+        ok("t_out" in src or "F'Result.P_B" in src, f"{k} lowers the heap by the rewrite")
+    two = surface.parse("t 1\ntask f(a: array, b: array) returns (r: int)\n  modifies a, b\n  ensures true\n"
+                        "{\n  r := 0;\n}\n")
+    try:
+        tlib.lower(two, "lean")
+        ok(False, "two written arrays refuse")
+    except NotImplementedError as e:
+        ok("two arrays" in str(e), f"two written arrays refuse by name: {e}")
 
 if __name__ == "__main__":
     for name, fn in sorted(globals().items()):

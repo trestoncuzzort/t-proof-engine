@@ -2327,3 +2327,45 @@ all seven, exactly the hand probes.
   timeout (Lean 83), and the next clean run re-measures it. A clean run's matrix half now gets an idle machine, with no
   snapshot and no suite beside it.
 
+
+## T53 registered (2026-10-07 12:40Z, after hand probes and before the clean-clone run): the heap in five more kernels
+
+**The change.** `tshape.desugar_heap` rewrites an in-place routine as copy-in/copy-out, which Ada RM 6.2 makes the
+same program when there is no aliasing (t's heap v1 forbids it). The array parameter becomes a sequence; the body
+works on a local copy `t_cur_<m>`; `a[i] := e` becomes an `update`; `return e` becomes `return pair(e, t_cur_<m>)`.
+The ensures reads `fst(t_out)` for the result, `snd(t_out)` for the array, and `old(e)` as `e`. The witness becomes
+`[value, final array]`. Verus, Lean, Rocq, F* and SPARK lower through it in place of refusing the heap by name;
+Dafny and Frama-C keep their native lowerings. Two written arrays, or a result type with no default, still refuse by
+name. Rocq's `default_term` gains the sequence slot, `((fun _ : Z => 0), 0)`, that the pair needs.
+
+**Measured before this registration, stated plainly.** Hand probes of the seven heap tasks and the three autonomy
+array routines in the five kernels (`cli.py verify`, after the Rocq default fix):
+
+| task | verus | spark | lean | rocq | fstar |
+|---|---|---|---|---|---|
+| clamp_all | verified / refuted | verified / refuted | verified / refuted | verified / refuted | verified / refuted |
+| offset_all | verified / refuted | verified / refuted | verified / refuted | verified / refuted | verified / refuted |
+| swap_at | verified / refuted | verified / refuted | verified / refuted | verified / refuted | verified / refuted |
+| scale_all | verified / unproved | verified / refuted | verified / refuted | verified / unproved | verified / unproved |
+| relu_all | verified / unproved | verified / timeout | verified / refuted | verified / unproved | verified / unproved |
+| ring_push | unproved / refuted | verified / refuted | unproved / refuted | unproved / refuted | unproved / refuted |
+| reverse_in_place | unproved / refuted | timeout / refuted | unproved / refuted | unproved / refuted | unproved / refuted |
+| zero_fill (autonomy) | verified / unproved | verified / refuted | verified / refuted | verified / unproved | verified / unproved |
+| sample_push (autonomy) | unproved / unproved | timeout / refuted | unproved / refuted | unproved / unproved | unproved / unproved |
+| saturate_all (autonomy) | unproved / unproved | timeout / refuted | unproved / refuted | unproved / unproved | unproved / unproved |
+
+- **Twins unrefuted in Verus, F* and Rocq:** where a twin differs from the real program only in the array, those three
+  have no value certificate for a `(value, sequence)` pair yet. These cells read verified/unproved, never
+  verified/refuted, and are not counted.
+- **Unproved reals:** the mod arithmetic of ring_push and sample_push, and reverse_in_place's index reflection.
+- **Byte identity:** in the 114 tasks only the seven heap tasks' lowerings change, in exactly these five kernels.
+  Nothing in AlgoVeri changes.
+- **Suite:** passes; every module compiles under Python 3.10. The names test allows Rocq's rename of `t_cur_<m>` and
+  `t_out`, since lower_rocq reserves the whole `t_` prefix.
+
+**Bars**, for the clean-clone tables at this registration's commit:
+(1) The matrix, verified/refuted: Verus 102 (+3), SPARK 78 (+5), Lean 89 (+5, and sum_tail's twin refuted again on an
+idle machine), Rocq 82 (+3), F* 82 (+3). Dafny 111 and Frama-C 69 do not move.
+(2) swap_at, clamp_all and offset_all enter all seven: 65 of 114.
+(3) `t/AUTONOMY.md`: SPARK 20 and Lean 15 (zero_fill); the other five rows do not move; all seven stays 13 of 25.
+(4) The AlgoVeri table does not move.

@@ -113,11 +113,8 @@ def test_kernels():
     ok("int scale_all_t(int *a, int a_n, int k)" in tlib.lower(load("scale_all"), "framac"),
        "Frama-C carries it with the heap (PREDICT T50)")
     for k in ("verus", "lean", "rocq", "fstar", "spark"):
-        try:
-            tlib.lower(load("scale_all"), k)
-            ok(False, f"{k} refuses")
-        except NotImplementedError as e:
-            ok("arrays by reference" in str(e), f"{k} refuses by name (the array): {e}")
+        src = tlib.lower(load("scale_all"), k)
+        ok("t_out" in src or "F'Result.P_B" in src, f"{k} lowers it through the heap rewrite (PREDICT T53)")
 
 
 if __name__ == "__main__":

@@ -7408,6 +7408,10 @@ def default_term(t) -> str:
         return f"({default_term(t1)}, {default_term(t2)})"
     if t == "set":
         return "S.empty"   # SPEC.md "Finite sets" (2026-09-27)
+    if t == "seq":
+        # PREDICT T53: a seq INSIDE a pair is one ((Z -> Z) * Z) value (the heap rewrite's (result, array) return); a
+        # top-level seq never reaches here (its callers build their own two slots)
+        return "((fun _ : Z => 0), 0)"
     return "false" if t == "bool" else "0"
 
 
@@ -13041,7 +13045,7 @@ def _lower(task: dict, body: list, witness: dict | None = None) -> str:
     import rocq_lib
     task, body = tshape.desugar_par(task, body)          # PREDICT T47: a parallel loop as its sequential `for`
     task, body = tshape.desugar_exits(task, body)        # PREDICT T44: break/continue rewritten; `while true` stays
-    tshape.abstain_on_heap(task, "rocq")                   # SPEC.md "Heap (v1)" (PREDICT T46): Dafny first
+    task, body, witness = tshape.desugar_heap(task, body, witness)   # PREDICT T53: copy-in/copy-out
     tshape.abstain_on_floats(task, body, "rocq")           # SPEC.md "Floats (v1)" (PREDICT T48)
     tshape.abstain_unless_carried(task, body, "rocq", carried={"comp-reduction", "comp", "exit"},
                                   lib=rocq_lib.ROCQ_LIB)   # PREDICT T10: the library in Rocq
