@@ -2852,3 +2852,42 @@ matches the hand runs.
 - 9,961 compiled runs of proven routines, in C (32 and 64 bits) and Python, against the interpreter.
 - No lowering bug.
 - Every C disagreement is integer width: the proof's integers are mathematical, the shipped C's are 32 bits.
+
+## T63 registered (2026-10-07 18:52Z, after hand runs and before the clean-clone run): R4b, the proof at the width that ships
+
+**The change.** `t/ship.py` (`cli.py ship`) proves each routine's Frama-C lowering again, this time with WP's
+machine-integer model and `-wp-rte`. Every signed operation then owes a no-overflow proof (WP manual 33.0,
+section 1.5, receipt 3fe411d90de6). Each routine reads one of:
+- **ships for every int32 input:** everything is proved at full width;
+- **ships within ±2^k:** an overflow guard is open at full width, and k (4 to 30) is the largest bound on every int
+  input and sequence element, with lengths at most 1000, under which every goal proves. It is stated as the
+  routine's proved operating envelope;
+- **no envelope found:** open even at ±16;
+- **contract open at machine width.**
+
+The matrix's own proofs are unchanged (Typed+nat, t's unbounded integers). This is a second proof, of the binary
+T62 compiled.
+
+**Measured before this registration, stated plainly** (hand runs):
+
+| suite | ships for every int32 input | ships within an envelope | no envelope found | contract open | C refuses |
+|---|---|---|---|---|---|
+| tasks (114) | 45 | 7 | 19 | 1 | 42 |
+| autonomy (25) | 16 | 5 | 2 | 1 | 1 |
+
+- **The envelopes:**
+  - abs ships within ±2^30: its `-x` overflows at INT_MIN, the classic case.
+  - debounce ±2^30, throttle_limit and aabb_overlap ±2^29.
+  - crosstrack_side and stop_distance_ok ±2^14: a product of two inputs, and `2 * decel * dist`.
+  - scale_all and sum_upto ±2^15.
+- **"No envelope found" is not "unsafe".** Most are loops whose counter or accumulator WP cannot bound without an
+  invariant that relates it to the index (`c <= i`), and non-linear goals (root_floor's `(r + 1) * (r + 1)`).
+  Inferring such bounding invariants from observed loop states, as R1b does, is the next item (R4c).
+- **Contract open at machine width:** filter_pos's loop invariant (the T55 frame gap) and pid_step (a float timeout,
+  as in the matrix).
+- **Suite:** passes (`t/test_ship.py`).
+
+**Bars**, for the clean-clone tables at this registration's commit:
+(1) Both tables reproduce the hand runs' counts. An envelope's k may differ by one only where a goal sits at the
+step budget.
+(2) No routine reads "ships for every int32 input" whose C build (T62) disagrees with the interpreter inside int32.
