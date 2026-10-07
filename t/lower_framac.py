@@ -4404,7 +4404,12 @@ def list_term(e: dict, ctx: Ctx) -> str:
     if e.get("op") == "seq":
         out = "\\Nil"
         for a in reversed(e.get("args", ())):
-            out = f"\\Cons({term(a, ctx)}, {out})"
+            # PREDICT T55: an element read from a C array is an `int`, and \Cons takes its element type from its
+            # argument, so `\Cons(s[i], \Nil)` is a \list<int> that does not unify with the \list<integer> the
+            # function returns (Frama-C 33: annot-error "Failure"); ACSL makes int a subtype of integer, so the cast is
+            # exact (https://raw.githubusercontent.com/acsl-language/acsl/master/speclang_modern.tex, "implicit coercions")
+            el = term(a, ctx)
+            out = f"\\Cons({'(integer)' + el if a.get('op') == 'at' else el}, {out})"
         return out
     if e.get("op") == "+":
         a, b = e["args"]

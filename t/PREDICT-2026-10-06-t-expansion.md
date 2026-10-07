@@ -2446,3 +2446,39 @@ Each is a wrong program with a proof.
 - **t's own suites,** with Dafny: of the 6 tasks with survivors, Dafny proves one in 5. rate_limit is a float task,
   which Dafny refuses. Of the autonomy suite's 2, Dafny proves nearest_index's tie (pid_step is a float routine). The
   seven gaps named at registration stand.
+
+## T55 registered (2026-10-07 13:54Z, after hand probes and before the clean-clone run): t's own weak specs, strengthened
+
+**The change.** T54's self-audit named seven of t's specs that admit a different program. Six are rewritten so that
+they pin the result down; the bodies are unchanged:
+- **count_pos_for:** `r == npos(s, len(s))`, a recursive count in count_matches' shape.
+- **filter_pos:** `r == pos(s, len(s))`, a recursive filter in double_all's shape, keeping `len(r) <= len(s)`
+  (Frama-C sizes the output buffer from it).
+- **evens:** `r == [x for x in s if x % 2 == 0]`.
+- **index_map:** every element maps to an index holding it, at or after every occurrence (so the last one), within
+  the sequence.
+- **rate_limit and pid_step:** the limit a saturated step or command takes.
+
+tree_insert's search-tree order needs an induction lemma over insertion that the kernels do not find unaided, so it
+stays a named gap. Frama-C's sequence display now casts an element read from a C array to `integer`. Without the cast,
+`\Cons(s[i], \Nil)` is a `\list<int>` and does not unify with `\list<integer>` (ACSL's implicit coercions do not
+reach inside a list).
+
+**Measured before this registration, stated plainly.**
+- **The audit (interpreter):** all six read 0 survivors. count_pos_for kills 35 of 35 behaviour-changing mutants,
+  filter_pos 20 of 20, evens 6 of 6, index_map 16 of 16, pid_step 74 of 74 and rate_limit 32 of 32.
+- **The kernels (hand probe, all seven):**
+  - count_pos_for stays verified/refuted in all seven, and evens and index_map keep their cells.
+  - rate_limit and pid_step stay timeouts in SPARK and Frama-C.
+  - filter_pos stays verified/refuted in six. In Frama-C its real body now steps out (31 of 32 goals; the loop
+    invariant's preservation fails even at 1,000,000 steps): WP lacks the frame fact that the recursive logic
+    function's value is unchanged by a write to the output buffer. This is the gap that keeps double_all at timeout.
+- **Byte identity:** only the six tasks' lowerings move. The twin changes for count_pos_for and evens. evens'
+  refusal in Frama-C and Rocq now names the comprehension in its spec. AlgoVeri does not move. Suite passes, Python
+  3.10 compiles.
+
+**Bars**, for the clean-clone tables at this registration's commit:
+(1) Frama-C 68 (filter_pos timeout); every other kernel's count unchanged; all seven 64 of 114.
+(2) `t/AUTONOMY.md` unchanged (pid_step stays a timeout in SPARK and Frama-C).
+(3) `t/AUDIT-TASKS.md`: 1 of 114 tasks admits a survivor (tree_insert). `t/AUDIT-AUTONOMY.md`: 1 of 25
+(nearest_index, a tie).
