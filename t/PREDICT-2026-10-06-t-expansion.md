@@ -1154,3 +1154,12 @@ three should discharge.
 **What would falsify the design of the audit:** gnatprove refusing a prover for these files (a tool error, not a
 verdict), which would make that column unmeasurable rather than disagreeing.
 
+T22's Frama-C half, registered 2026-10-07 01:49Z before its runs. WP's goals go to Alt-Ergo (pinned) and, through Why3 1.8.2,
+to Z3 4.16.0 and CVC5 1.3.2 (registered with `why3 config detect`; Why3 does not recognize either exact version, so
+its nearest drivers are used, which the read will say). A new `T_FRAMAC_PROVER` switch selects one; its default stays
+Alt-Ergo. One-task check: `clamp` verifies with its twin refuted under all three.
+
+**Bars**, against Frama-C's 49 cells verified with the twin refuted under Alt-Ergo:
+(5) Under Z3, at least 40 stay verified with the twin refuted; under CVC5, at least 40.
+(6) No real program verified under Alt-Ergo is REFUTED under Z3 or CVC5.
+
