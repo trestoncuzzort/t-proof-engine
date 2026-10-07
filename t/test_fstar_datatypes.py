@@ -69,14 +69,13 @@ def test_certificate_uses_the_files_names():
     ok("(t_total Dt_Tree_Leaf)" in cert and "(total " not in cert, "the renamed spec fun, at the ground witness")
 
 
-def test_refused_by_name():
-    for name in ("bag_size", "checked_tail"):
-        task = load(name)
-        try:
-            lower_fstar.lower(task, task["body"])
-            ok(False, f"{name} refuses")
-        except NotImplementedError as e:
-            ok("a datatype field of type 'seq'" in str(e), f"{name}: a seq field refuses by name")
+def test_seq_fields():
+    # PREDICT T42: a seq field is `Seq.seq int`; such a type is no eqtype, so `==` is propositional only
+    src = fstar("bag_size")
+    ok("| Dt_Bag_Bag : f_items:Seq.seq int -> f_active:bool -> dt_Bag" in src, "a seq field")
+    ok("(Seq.length (dt_Bag_f_items b))" in src, "its length")
+    src = fstar("checked_tail")
+    ok("(r == (Dt_Res_Ok (Seq.slice s 1 (Seq.length s))))" in src, "== in a Prop on a datatype holding a seq")
 
 
 if __name__ == "__main__":

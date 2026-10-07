@@ -2567,10 +2567,10 @@ def _dt_check(task: dict) -> None:
                     raise NotImplementedError(
                         "spark: a recursive datatype (SPEC.md 'Datatypes (v3): recursion'): an Ada record cannot hold "
                         "itself without access types, which this lowering does not build")
-                if t not in ("int", "bool") and _dt_of(t) not in names:
+                if t not in ("int", "bool", "seq") and _dt_of(t) not in names:    # seq: PREDICT T42
                     raise NotImplementedError(
-                        f"spark: a datatype field of type {t!r} (SPEC.md 'Datatypes (v2): fields'): only int, bool and "
-                        "datatype fields are lowered yet")
+                        f"spark: a datatype field of type {t!r} (SPEC.md 'Datatypes (v2): fields'): only int, bool, seq "
+                        "and datatype fields are lowered yet")
 
 
 def _dt_decls(task: dict) -> str:
@@ -2623,6 +2623,9 @@ def _dt_aggregate(e: dict) -> str:
         return "True" if e["bool"] else "False"
     if e.get("op") == "neg" and "int" in e["args"][0]:
         return f"Big_Integer'({-e['args'][0]['int']})"
+    if e.get("op") == "seq":
+        # PREDICT T42: a ground seq field, the certificate's own seq literal
+        return _cert_lit([x["int"] if "int" in x else -x["args"][0]["int"] for x in e["args"]])
     c = e["ctor"]
     fields = _dt_fields(c["dtype"], c["name"])
     assoc = [f"Tag => {_actor(c['dtype'], c['name'])}"] + [
@@ -6875,6 +6878,8 @@ def _lower(task: dict, body: list, witness: dict | None = None) -> str:
         m_seq, m_nested, methods_return = _methods_need(task)
         needs_nested_seq = needs_nested_seq or m_nested
         needs_seq = needs_seq or m_seq or m_nested
+    if any(fd["type"] == "seq" for d in task.get("datatypes", []) for k in d["ctors"] for fd in k.get("fields", [])):
+        needs_seq = True                                   # PREDICT T42: a datatype's seq field names Seq
 
     # The seq and range preambles put fixed Ada names in scope; a t
     # identifier capitalizing onto one of them would be captured silently,

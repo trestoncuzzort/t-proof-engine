@@ -64,13 +64,20 @@ def test_certificate_binds_parameters():
 
 
 def test_refused_by_name():
-    for name, word in (("tree_sum", "recursive datatype"), ("bag_size", "a datatype field of type 'seq'")):
+    for name, word in (("tree_sum", "recursive datatype"),):
         task = load(name)
         try:
             lower_spark.lower(task, task["body"])
             ok(False, f"{name} refuses")
         except NotImplementedError as e:
             ok(word in str(e), f"{name} refuses by name: {e}")
+
+
+def test_seq_field():
+    # PREDICT T42: a seq field is a `Seq` component, and the seq preamble is emitted for it
+    src = spark("bag_size")
+    ok("F_Bag_items : Seq;" in src and "subtype Seq is Seqs.Sequence;" in src, "a Seq component, its preamble")
+    ok("Len (B.F_Bag_items)" in src, "its length")
 
 
 if __name__ == "__main__":

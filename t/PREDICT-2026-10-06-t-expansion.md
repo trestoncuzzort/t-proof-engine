@@ -2032,3 +2032,43 @@ Lean from 80 to 81. every_other kept verified/refuted.
 
 Single-kernel blockers now: Frama-C keeps double_all, grid_row_sums and swap_rows from all seven, and Rocq keeps
 some_negative.
+
+## T41 and T42 registered (2026-10-07 08:11Z, after hand probes and before the clean-clone runs)
+
+**T41: Rocq, a loop over a datatype state.** some_negative was Rocq's only gap to all seven: its loop invariant is a
+`match` on the `Opt` state, which the generic search never splits. Receipt 3366ce62013e (Rocq's reasoning with
+inductives, as T34).
+- For a datatype task, `t_dis` and `t_side` each gain a LAST alternative, `solve [ t_dt_cases; t_vc0 ]`. It is tried
+  only when every earlier one fails, so no goal an earlier one closed changes how it closes.
+- The value certificate missed the twin's computed value: `_fv` did not see a return used as a `match` scrutinee.
+  `_fv` now walks constructors, field reads and matches.
+
+**T42: seq fields in Rocq, F* and SPARK.**
+- **Rocq:** a seq field is one `((Z -> Z) * Z)` value, read through `fst` and `snd`. A datatype holding one gets no
+  decider, and `==` on it refuses by name, since Leibniz equality on a function is not t's extensional seq
+  equality. `t_dt_cases` also splits a variable read through a field's projection, then reduces the projections.
+  Before that, bag_size's `dt_Bag_f_active b` was no `match` on `b`, so nothing split it.
+- **F\*:** a seq field is `Seq.seq int`. The type is then no eqtype, so `==` is propositional only, and a computed
+  `==` refuses by name.
+- **SPARK:** a seq field is a `Seq` component, and the seq preamble is emitted for it.
+
+Receipts fc51eb6283ec and f33fe37e88f8, as T35 and T36.
+
+**Measured before this registration, stated plainly.**
+- **Rocq, the 12 datatype tasks:**
+  - some_negative and bag_size now COUNT, beside the nine.
+  - checked_tail refuses by name: `==` on a datatype holding a seq.
+  - AlgoVeri's discrete_log_naive moves from unproved/unproved to unproved/refuted.
+- **F\* and SPARK:** bag_size and checked_tail COUNT in both.
+- **Byte identity:**
+  - Every datatype task's Rocq lowering changes (the alternative and the case tactic), and so does
+    discrete_log_naive's. The nine earlier tasks were re-verified: unchanged.
+  - The F* and SPARK pairs of bag_size and checked_tail change, from refusals.
+- **Suite:** the whole suite passes (737).
+
+**Bars**, for the clean-clone matrix and AlgoVeri table at this registration's commit:
+(1) some_negative reads verified/refuted in Rocq, so it is in all seven: all seven go from 58 to 59, and Rocq from 75
+to 77 with bag_size.
+(2) bag_size reads verified/refuted in Rocq, F* and SPARK, so it is in six (all but Frama-C). checked_tail reads it in
+F* and SPARK, so it is in five (Rocq and Frama-C refuse by name). F* goes from 73 to 75, and SPARK from 65 to 67.
+(3) discrete_log_naive's Rocq cell reads unproved/refuted. No other cell moves.

@@ -5301,6 +5301,8 @@ def _post_sf_for(task: dict) -> str:
         text = POST_SF
     if _nonrec_sfs(task):
         text = _add_nr_alt(text)
+    if task.get("datatypes"):
+        text = _add_dt_alt(text)                          # PREDICT T41
     spec = [task.get("ensures"), task.get("body"), task.get("lemmas")]
     ex, fa = _has_quant(spec, "exists"), _has_quant(spec, "forall")
     loop_fa = _has_quant(task.get("body"), "forall") and _any_while_deep(task.get("body") or [])
@@ -5360,6 +5362,23 @@ def _add_nr_alt(text: str) -> str:
     alt = ("\n                          | solve [ t_nf; first [ solve [ t_vc0 ]"
            " | solve [ repeat t_dm1; lia ] ] ] ]")
     return text[:j - 2] + alt + text[j:]
+
+
+def _add_dt_alt(text: str) -> str:
+    """PREDICT T41: for a task with datatypes, `t_dis` and `t_side` each gain a LAST alternative that splits every
+    matched variable and decided datatype equality first (`t_dt_cases`), then searches as before. A loop whose state
+    is a datatype (some_negative's `Opt`) carries its invariant as a `match` on that state, which the generic search
+    never splits. Last, so every goal an earlier alternative closes is closed exactly as before."""
+    head = "Ltac t_dis := first ["
+    tail = '\n              || fail "unsolved t verification condition".'
+    i = text.index(head)
+    j = text.index(tail, i)
+    assert text[j - 2:j] == " ]", "t_dis block shape changed"
+    text = text[:j - 2] + "\n                          | solve [ t_dt_cases; t_vc0 ] ]" + text[j:]
+    head = "Ltac t_side := first ["
+    i = text.index(head)
+    j = text.index(" ].\n", i)
+    return text[:j] + "\n                     | solve [ t_dt_cases; t_vc0 ]" + text[j:]
 
 
 def _has_nonlinear_mul(task: dict) -> bool:
@@ -5688,6 +5707,9 @@ class Ctx:
         both the SAME opaque-Definition-plus-reading-tactic shape as
         t_upd/t_fill (PRELUDE)."""
         local = local or {}
+        if "field" in e:
+            x = self._field_txt(e, env, local)            # PREDICT T42: a seq field, one (function, length) value
+            return f"(fst {x})", f"(snd {x})"
         if "comp" in e:
             return self.comp_fn(e["comp"], env, local)
         if e.get("op") in ("rev", "sort"):
@@ -5996,7 +6018,11 @@ class Ctx:
         for arm in m["arms"]:
             bs = [_ck(b) for b in arm["binders"]]
             env2 = {k: v for k, v in env.items() if k not in bs and k[:-4] not in bs}
-            local2 = dict(local, **self._arm_types(d, arm))
+            types = self._arm_types(d, arm)
+            for b in bs:
+                if types.get(b) == "seq":
+                    env2[b], env2[b + "_len"] = f"(fst {b})", f"(snd {b})"   # PREDICT T42: a seq field's two halves
+            local2 = dict(local, **types)
             pat = " ".join([_rctor(d, arm["ctor"])] + bs)
             arms.append(f"{pat} => {render(arm['body'], env2, local2)}")
         return f"(match {scr} with {' | '.join(arms)} end)"
@@ -6007,6 +6033,9 @@ class Ctx:
         return f"({_rdt(d)}_f_{f['name']} {self.px(f['of'], env, local)})"
 
     def _dt_arg(self, a: dict, t, env: dict, local: dict) -> str:
+        if t == "seq":
+            fn, ln = self.seq_fn(a, env, local)           # PREDICT T42: one (function, length) value
+            return f"({fn}, {ln})"
         if t == "bool":
             return self.bx(a, env, local)
         if _dt_of(t) is not None:
@@ -6245,6 +6274,9 @@ class Ctx:
                 and _dt_of(self.ty(e["args"][0], local)) is not None):
             # PREDICT T34: a datatype's equality decided by its `decide equality` decider
             d = _dt_of(self.ty(e["args"][0], local))
+            if _dt_has_seq(d):
+                raise NotImplementedError("rocq lowering: `==` on a datatype holding a seq (PREDICT T42): a seq is a "
+                                          "function here, its equality extensional, not decidable")
             a, b = (self.px(x, env, local) for x in e["args"])
             core = f"(if {_rdt(d)}_eq_dec {a} {b} then true else false)"
             return core if e["op"] == "==" else f"(negb {core})"
@@ -6395,6 +6427,9 @@ class Ctx:
             return self._match_txt(e, env, local, lambda b, en, lo: self.prop(b, en, lo))
         if (e.get("op") in ("==", "!=") and len(e.get("args", [])) == 2
                 and _dt_of(self.ty(e["args"][0], local)) is not None):
+            if _dt_has_seq(_dt_of(self.ty(e["args"][0], local))):
+                raise NotImplementedError("rocq lowering: `==` on a datatype holding a seq (PREDICT T42): Leibniz "
+                                          "equality on its function half is not t's extensional seq equality")
             a, b = (self.px(x, env, local) for x in e["args"])
             return f"({a} = {b})" if e["op"] == "==" else f"({a} <> {b})"
         if e.get("op") == "in" and self.ty(e["args"][1], local or {}) == "seq":
@@ -7210,10 +7245,27 @@ def _dt_check(task: dict) -> None:
         for k in d["ctors"]:
             for fd in k.get("fields", []):
                 t = fd["type"]
-                if t not in ("int", "bool") and _dt_of(t) is None:
+                if t not in ("int", "bool", "seq") and _dt_of(t) is None:     # seq: PREDICT T42
                     raise NotImplementedError(
                         f"rocq lowering: a datatype field of type {t!r} (SPEC.md 'Datatypes (v2): fields'): only int, "
-                        "bool and datatype fields are lowered yet")
+                        "bool, seq and datatype fields are lowered yet")
+
+
+def _dt_frty(t) -> str:
+    """PREDICT T42: a field's Rocq type, a seq field one value `((Z -> Z) * Z)` (function and length)."""
+    return "((Z -> Z) * Z)" if t == "seq" else rty(t)
+
+
+def _dt_has_seq(d: str, seen: frozenset = frozenset()) -> bool:
+    """PREDICT T42: `d` holds a seq (directly or through a datatype field): its equality is not decidable here."""
+    for k in _DTS[d]["ctors"]:
+        for fd in k.get("fields", []):
+            if fd["type"] == "seq":
+                return True
+            fd_d = _dt_of(fd["type"])
+            if fd_d is not None and fd_d != d and fd_d not in seen and _dt_has_seq(fd_d, seen | {d}):
+                return True
+    return False
 
 
 def _dt_default(d: str, seen: frozenset = frozenset()) -> str:
@@ -7227,7 +7279,7 @@ def _dt_default(d: str, seen: frozenset = frozenset()) -> str:
                     break
                 args.append(_dt_default(fd_d, seen | {d}))
             else:
-                args.append(default_term(fd["type"]))
+                args.append("((fun _ : Z => 0), 0)" if fd["type"] == "seq" else default_term(fd["type"]))
         else:
             return f"({_rctor(d, k['name'])}{''.join(' ' + a for a in args)})" if args else _rctor(d, k["name"])
     raise NotImplementedError(f"rocq lowering: datatype {d} has no constructor buildable without itself")
@@ -7242,13 +7294,15 @@ def _dt_decls(task: dict) -> str:
         name = d["name"]
         arms = []
         for k in d["ctors"]:
-            bs = "".join(f" (f_{fd['name']} : {rty(fd['type'])})" for fd in k.get("fields", []))
+            bs = "".join(f" (f_{fd['name']} : {_dt_frty(fd['type'])})" for fd in k.get("fields", []))
             arms.append(f"  | {_rctor(name, k['name'])}{bs}")
         out.append(f"Inductive {_rdt(name)} : Type :=\n" + "\n".join(arms) + ".\n")
-        leaf = "Z.eq_dec | apply Bool.bool_dec" + "".join(f" | apply {x}" for x in decs)
-        out.append(f"Definition {_rdt(name)}_eq_dec (t_a t_b : {_rdt(name)}) : {{t_a = t_b}} + {{t_a <> t_b}}.\n"
-                   f"Proof. decide equality; first [ apply {leaf} ]. Defined.\n")
-        decs.append(f"{_rdt(name)}_eq_dec")
+        if not _dt_has_seq(name):
+            # PREDICT T42: a datatype holding a seq (a function) has no decider; `==` on it refuses by name
+            leaf = "Z.eq_dec | apply Bool.bool_dec" + "".join(f" | apply {x}" for x in decs)
+            out.append(f"Definition {_rdt(name)}_eq_dec (t_a t_b : {_rdt(name)}) : {{t_a = t_b}} + {{t_a <> t_b}}.\n"
+                       f"Proof. decide equality; first [ apply {leaf} ]. Defined.\n")
+            decs.append(f"{_rdt(name)}_eq_dec")
         fields: dict = {}
         for k in d["ctors"]:
             for i, fd in enumerate(k.get("fields", [])):
@@ -7262,17 +7316,25 @@ def _dt_decls(task: dict) -> str:
                 arms.append(f"{_rctor(name, k['name'])} {pat} => t_p{i}")
             if len(sites) < len(d["ctors"]):
                 fd_d = _dt_of(ft)
-                arms.append(f"_ => {_dt_default(fd_d) if fd_d else default_term(ft)}")
-            out.append(f"Definition {_rdt(name)}_f_{f} (t_x : {_rdt(name)}) : {rty(ft)} :=\n"
+                arms.append(f"_ => {_dt_default(fd_d) if fd_d else '((fun _ : Z => 0), 0)' if ft == 'seq' else default_term(ft)}")
+            out.append(f"Definition {_rdt(name)}_f_{f} (t_x : {_rdt(name)}) : {_dt_frty(ft)} :=\n"
                        f"  match t_x with {' | '.join(arms)} end.\n")
     eq_arms = "".join(
         f"  | |- context [{x} ?a ?b] => destruct ({x} a b)\n"
         f"  | H : context [{x} ?a ?b] |- _ => destruct ({x} a b)\n" for x in decs)
+    # PREDICT T42: a variable read through a field's projection is split too, and the projections then reduce
+    # (bag_size: `dt_Bag_f_active b` is no `match` on `b`, so nothing split it)
+    projs = [f"{_rdt(d['name'])}_f_{f}" for d in task.get("datatypes", [])
+             for f in dict.fromkeys(fd["name"] for k in d["ctors"] for fd in k.get("fields", []))]
+    proj_arms = "".join(
+        f"  | |- context [{x} ?y] => is_var y; destruct y\n"
+        f"  | H : context [{x} ?y] |- _ => is_var y; destruct y\n" for x in projs)
+    reduce = f"cbn [{' '.join(projs)}] in *" if projs else "cbn beta iota in *"
     out.append("(* PREDICT T34: split each decided datatype equality and each match on a variable, then reduce *)\n"
                "Ltac t_dt_cases :=\n  repeat match goal with\n" + eq_arms +
                "  | |- context [match ?x with _ => _ end] => is_var x; destruct x\n"
-               "  | H : context [match ?x with _ => _ end] |- _ => is_var x; destruct x\n"
-               "  end; cbn beta iota in *.\n")
+               "  | H : context [match ?x with _ => _ end] |- _ => is_var x; destruct x\n" + proj_arms +
+               f"  end; {reduce}.\n")
     return "\n".join(out) + "\n"
 
 
@@ -7297,6 +7359,10 @@ def _dt_gterm(e: dict) -> str:
         c = e["ctor"]
         args = "".join(" " + _dt_gterm(a) for a in c["args"])
         return f"({_rctor(c['dtype'], c['name'])}{args})" if args else _rctor(c["dtype"], c["name"])
+    if e.get("op") == "seq":
+        # PREDICT T42: a ground seq field, its function and its length
+        vals = [x["int"] if "int" in x else -x["args"][0]["int"] for x in e["args"]]
+        return f"(({_seq_lambda(vals)}), {_zlit(len(vals))})"
     raise NotImplementedError(f"rocq lowering: no ground datatype term for {e!r}")
 
 
@@ -10955,6 +11021,16 @@ def _fv(e, bound: set) -> set:
         out = set()
         for a in e["call"]["args"]:
             out |= _fv(a, bound)
+        return out
+    if "ctor" in e:
+        return set().union(*[_fv(a, bound) for a in e["ctor"]["args"]])   # PREDICT T41
+    if "field" in e:
+        return _fv(e["field"]["of"], bound)
+    if "match" in e:
+        m = e["match"]
+        out = _fv(m["scrutinee"], bound)
+        for arm in m["arms"]:
+            out |= _fv(arm["body"], bound | set(arm["binders"]))
         return out
     out = set()
     for a in e.get("args", []):

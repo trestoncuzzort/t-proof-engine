@@ -93,13 +93,28 @@ def test_certificate_grounds_constructors():
 
 
 def test_refused_by_name():
-    for name in ("bag_size", "checked_tail"):
-        task = load(name)
-        try:
-            lower_rocq.lower(task, task["body"])
-            ok(False, f"{name} refuses")
-        except NotImplementedError as e:
-            ok("a datatype field of type 'seq'" in str(e), f"{name}: a seq field refuses by name")
+    # PREDICT T42: a seq field lowers (bag_size); `==` on a datatype holding one refuses by name (checked_tail)
+    task = load("checked_tail")
+    try:
+        lower_rocq.lower(task, task["body"])
+        ok(False, "checked_tail refuses")
+    except NotImplementedError as e:
+        ok("on a datatype holding a seq" in str(e), f"checked_tail refuses by name: {e}")
+
+
+def test_seq_field():
+    src = rocq("bag_size")
+    ok("| dt_Bag_Bag (f_items : ((Z -> Z) * Z)) (f_active : bool)." in src, "a seq field is one (function, length)")
+    ok("(snd (dt_Bag_f_items b))" in src, "its length read by snd")
+    ok("dt_Bag_eq_dec" not in src, "no decider for a datatype holding a function")
+
+
+def test_loop_state_alternative():
+    # PREDICT T41: a datatype task's t_dis and t_side split matched variables as their last alternative
+    src = rocq("some_negative")
+    ok("| solve [ t_dt_cases; t_vc0 ] ]" in src, "t_dis's last alternative")
+    ok(src.count("solve [ t_dt_cases; t_vc0 ]") >= 2, "and t_side's")
+    ok("t_dt_cases; t_vc0" not in rocq("clamp"), "not for a task without datatypes")
 
 
 if __name__ == "__main__":

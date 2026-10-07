@@ -1741,10 +1741,23 @@ def _dt_check(task: dict) -> None:
     for d in task.get("datatypes", []):
         for k in d["ctors"]:
             for fd in k.get("fields", []):
-                if fd["type"] not in ("int", "bool") and _dt_of(fd["type"]) is None:
+                if fd["type"] not in ("int", "bool", "seq") and _dt_of(fd["type"]) is None:   # seq: PREDICT T42
                     raise NotImplementedError(
                         f"fstar lowering: a datatype field of type {fd['type']!r} (SPEC.md 'Datatypes (v2): fields'): "
-                        "only int, bool and datatype fields are lowered yet")
+                        "only int, bool, seq and datatype fields are lowered yet")
+
+
+def _dt_has_seq(d: str, seen: frozenset = frozenset()) -> bool:
+    """PREDICT T42: whether `d` (or a datatype it holds) has a seq field, so is not an F* eqtype (`Seq.seq int` has
+    no decidable `=`): its `==` is propositional only."""
+    for k in _DTS[d]["ctors"]:
+        for fd in k.get("fields", []):
+            if fd["type"] == "seq":
+                return True
+            fd_d = _dt_of(fd["type"])
+            if fd_d is not None and fd_d != d and fd_d not in seen and _dt_has_seq(fd_d, seen | {d}):
+                return True
+    return False
 
 
 def _dt_default(d: str, seen: frozenset = frozenset()) -> str:
@@ -2473,6 +2486,10 @@ class Ctx:
         already require."""
         if "var" in e and (local.get(e["var"]) or self.tys.get(e["var"])) == "seq":
             return env.get(e["var"], e["var"])
+        if "field" in e:
+            return self._field_txt(e, env, local)          # PREDICT T42: a seq field
+        if "match" in e:
+            return self._match_txt(e, env, local, self.sx)
         if "comp" in e:
             return self.comp_call(e, env, local)
         if "_seq" in e:
@@ -3099,6 +3116,9 @@ class Ctx:
             x, st = e["args"]
             return f"(FSet.mem {self.zx(x, env, local)} {self.stx(st, env, local)})"
         if op in ("==", "!=") and _dt_of(self.ty(e["args"][0], local)) is not None:
+            if _dt_has_seq(_dt_of(self.ty(e["args"][0], local))):
+                raise NotImplementedError("fstar lowering: `==` computed on a datatype with a seq field (PREDICT T42): "
+                                          "Seq.seq int is not an eqtype")
             a, b = (self.dx(x, env, local) for x in e["args"])   # PREDICT T35: an eqtype's decidable equality
             return f"({a} = {b})" if op == "==" else f"({a} <> {b})"
         if op in ("==", "!=") and self.ty(e["args"][0], local) == "set":
