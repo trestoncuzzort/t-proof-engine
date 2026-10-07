@@ -1124,3 +1124,13 @@ The call's precondition is the definedness obligation.
 (2) No other cell moves.
 (3) All seven goes from 47 to 48.
 
+### T21 read (2026-10-07 01:38Z): max/min of one argument in SPARK and F*. All seven goes from 47 to 48.
+
+The matrix was regenerated from a clean clone of t-proof-engine at 25e3491 (`t/AGREEMENT.md`).
+(1) **Bar 1 held:** `largest` reads verified with the twin refuted in SPARK and in F*.
+(2) **Bar 2 held:** no other cell moved; exactly these two moved against the installed table.
+(3) **Bar 3 held:** all seven goes from 47 to 48.
+
+Per kernel: Dafny 88, Verus 80, Rocq 62, Lean 61, F* 59, SPARK 56, Frama-C 49. Every kernel still refutes the twin
+of every real it verifies (100%).
+

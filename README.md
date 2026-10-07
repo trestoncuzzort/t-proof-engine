@@ -24,12 +24,12 @@ Measured from a clean clone of this repository on 2026-10-06 over the 88 committ
 | Verus | 80 | 1 | 7 |
 | Rocq | 62 | 0 | 26 |
 | Lean 4 | 61 | 3 | 24 |
-| F\* | 58 | 2 | 28 |
-| SPARK | 55 | 3 | 30 |
+| F\* | 59 | 2 | 27 |
+| SPARK | 56 | 3 | 29 |
 | Frama-C | 49 | 1 | 38 |
 
 - In every kernel, the twin of every proved program is refuted (100%).
-- 47 of the 88 tasks are proved, with the twin refuted, in all seven kernels.
+- 48 of the 88 tasks are proved, with the twin refuted, in all seven kernels.
 - Most refusals are of constructs added to the language on 2026-10-06, which the other kernels are being taught
   now.
 - [t/ALGOVERI.md](t/ALGOVERI.md): 21 of AlgoVeri's contracts in seven kernels. Dafny verifies all 21 with the twin
