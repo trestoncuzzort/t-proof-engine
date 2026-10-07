@@ -3024,7 +3024,7 @@ stub) and runs it on every domain point of the matching t task, comparing with t
 **Measured before this registration, stated plainly** (hand runs):
 - **The audit:** 18 of 18 specs admit no survivor; 541 one-edit mutants, every behaviour-changing one killed.
 - **PX4 itself against the transcription** (17 compared, the index search being internal to `interpolateNXY`):
-  - 16 agree on every point (5,505 points).
+  - 16 agree on every point (4,745 points).
   - `AlphaFilter<double>` differs in the last bits wherever `alpha` is not a binary32 value (alpha = 0.1). Its
     `_alpha` member is a `float` even when the filter's type is double. Rerunning t's interpreter with `alpha`
     rounded to binary32 reproduces PX4 on every one of the 400 points.
