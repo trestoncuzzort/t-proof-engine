@@ -3051,3 +3051,36 @@ stub) and runs it on every domain point of the matching t task, comparing with t
 cell of a float timeout.
 (2) `t/PX4-DIFF.md` reads 16 agreeing on every point and AlphaFilter agreeing once its binary32 narrowing is applied.
 (3) `t/SHIP-FLIGHT.md` reads 14 for every int32 input and `sq` within ±2^15.
+
+### T67 read (2026-10-07 21:37Z): bars 1 and 2 held; bar 3's count was misstated in the registration
+
+Clean clone at ebc9340, unit tup-t-clean42, tables installed as `t/FLIGHT.md`, `t/PX4-DIFF.md`, `t/SHIP-FLIGHT.md`.
+
+- **(1) held.**
+  - 12 PX4 routines are verified with the twin refuted in all seven kernels: constrain, min, max, min3, max3,
+    isInRange, sign, signNoZero, signFromBool, sq, `negate<int16_t>`, and interpolateNXY's index search.
+  - The integer `wrap` is verified in F* only.
+  - At double:
+    - constrain and the alpha update: verified in SPARK and Frama-C;
+    - lerp: SPARK verified, Frama-C timeout;
+    - interpolate: a timeout in both.
+  - One cell moved, within the bar's one-cell allowance. Frama-C's slew update, verified in the hand run, timed out
+    here, so the slew update is now a timeout in both.
+  - Each kernel refutes the twin of every program it verifies.
+- **(2) held.**
+  - 16 routines agree with PX4's own compiled C++ on every point: 4,745 points.
+  - `AlphaFilter<double>` agrees on all 400 once its binary32 `alpha` is applied.
+  - 5,145 points in all.
+- **(3) missed as written.**
+  - The registration said 14 routines ship for every int32 input.
+  - The clean table reads 13, and so did the hand table it was meant to summarize (`SHIP-FLIGHT.md` from the hand
+    run: 13, 1, 1, 3). The registration miscounted; the measurement did not move.
+  - The part about `sq` held: it ships within ±2^15.
+  - The integer `wrap` has no envelope. lerp, slew and interpolate have contracts open at machine width.
+  - This is the second miscount in T67's registration after the point total. From T68 on, counts in a
+    registration are pasted from the hand table's own summary lines, not retyped.
+
+What this establishes: twelve functions from PX4's shipping autopilot, restated statement by statement, are proved
+in seven independent kernels against contracts with no surviving mutant. PX4's own C++ computes what the proved
+program computes on every point compared. The float functions are proved only in the two industrial toolchains,
+and three of them do not yet prove at machine width.

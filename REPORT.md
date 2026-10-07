@@ -22,7 +22,10 @@ each with a kernel proof of the wrong program, and 25 of them are repaired mecha
 kernel-proved for the program as written. Each kernel refuses by name what it cannot express, rather than
 weakening it. The language now carries the constructs embedded control code needs: in-place
 arrays, parallel loops whose race freedom is checked by rule, and IEEE-754 doubles. A suite of 25 autonomy routines
-is checked the same way.
+is checked the same way. So are eighteen functions from PX4-Autopilot's flight code,
+restated statement by statement. Twelve are proved in all seven kernels. PX4's own compiled C++ computes what the
+proved programs compute on all 5,145 points compared. For one filter this holds once PX4's single-precision
+coefficient is applied.
 
 ## 1. The problem
 
@@ -98,6 +101,34 @@ What keeps the others out is measured, not guessed:
 - floats, which five kernels refuse by name;
 - the heap routines sample_push (ring-buffer `mod`) and saturate_all, proved in Dafny and Frama-C and not yet
   elsewhere.
+
+**Real flight code** (PREDICT T67; `t/flight/`, `t/FLIGHT.md`, `t/PX4-DIFF.md`, `t/SHIP-FLIGHT.md`, clean clone
+at ebc9340). The routines above were written for this repository. To test the method on code nobody wrote for it,
+eighteen functions from PX4-Autopilot (BSD-3, commit dd804e4b) are restated in t statement by statement:
+- mathlib's clamps, signs, minima and maxima, `sq` and `negate<int16_t>`;
+- matrix's integer `wrap`;
+- the index search of `interpolateNXY`;
+- at double: `constrain`, `lerp`, `interpolate`, `SlewRate::update` and `AlphaFilter`'s update.
+
+PX4 ships no contracts, so they are this repository's, each audited to zero survivors. The question a
+transcription raises is whether t's program is PX4's program. `t/flight/px4_diff.py` answers it by running PX4: it
+compiles PX4's own headers at the pinned commit and calls each function on every domain point of its task, compared
+with t's interpreter. 16 functions agree on all 4,745 points. `AlphaFilter<double>` differs in the last bits until
+the interpreter rounds `alpha` to binary32: PX4 stores the filter's coefficient as a `float` even when the filter is
+`double`, and with that applied all 400 points agree.
+
+| measure | count |
+|---|---|
+| functions verified, twin refuted, in all seven kernels | 12 |
+| integer `wrap` (non-linear) | F\* only |
+| float functions, verified in SPARK and Frama-C | constrain, the alpha update |
+| float functions, verified in one | lerp (SPARK) |
+| float functions, a timeout in both | interpolate, the slew update |
+| shipping for every int32 input / within an envelope | 13 / `sq` within ±2^15 |
+
+The envelope for `sq` is a fact about PX4's `int` instantiation: squaring a 32-bit `int` above 46,340 overflows.
+The interpolation contract needs a minimum gap between its breakpoints, which PX4 does not state: a small
+`x_high - x_low` overflows the slope.
 
 **Solver change** (PREDICT T22): over 298 cells verified under the default solver, no second solver refuted a verified
 program. Proof strength is solver-specific: under Z3, 31 of the 49 programs Alt-Ergo proves in Frama-C time out.
