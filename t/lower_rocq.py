@@ -5303,6 +5303,8 @@ def _post_sf_for(task: dict) -> str:
         text = _add_nr_alt(text)
     if task.get("datatypes"):
         text = _add_dt_alt(text)                          # PREDICT T41
+    if any(p["type"] == "bool" for p in task.get("params", [])):
+        text = _add_bool_alt(text)                        # PREDICT T52
     spec = [task.get("ensures"), task.get("body"), task.get("lemmas")]
     ex, fa = _has_quant(spec, "exists"), _has_quant(spec, "forall")
     loop_fa = _has_quant(task.get("body"), "forall") and _any_while_deep(task.get("body") or [])
@@ -5362,6 +5364,20 @@ def _add_nr_alt(text: str) -> str:
     alt = ("\n                          | solve [ t_nf; first [ solve [ t_vc0 ]"
            " | solve [ repeat t_dm1; lia ] ] ] ]")
     return text[:j - 2] + alt + text[j:]
+
+
+def _add_bool_alt(text: str) -> str:
+    """PREDICT T52: for a task with a bool parameter, `t_dis` gains a LAST alternative that splits every bool in
+    context, then searches as before. A condition built from bool parameters (`gps_fix && imu_ok`, the autonomy
+    suite's arm_check) is decided only once each is a constructor (measured: arm_check and debounce were unproved and
+    prove with the split). Last, so every goal an earlier alternative closes is closed exactly as before."""
+    head = "Ltac t_dis := first ["
+    tail = '\n              || fail "unsolved t verification condition".'
+    i = text.index(head)
+    j = text.index(tail, i)
+    assert text[j - 2:j] == " ]", "t_dis block shape changed"
+    return (text[:j - 2] + "\n                          | solve [ repeat match goal with b : bool |- _ => destruct b end; "
+            "t_vc0 ] ]" + text[j:])
 
 
 def _add_dt_alt(text: str) -> str:

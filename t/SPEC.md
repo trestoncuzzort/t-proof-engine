@@ -2946,8 +2946,13 @@ a value that rounds, the largest finite doubles (an overflow twin's witness) and
   being the definedness obligation. A literal is written as the exact decimal value of its double, so no rounding
   is left to the compiler. `Long_Float'Min`/`'Max` are used. `sqrt`, `real(f)` and a run-time `float(n)` refuse by
   name until built.
-- **Refused by name:** the other six. Dafny has no IEEE type; Verus, Lean, Rocq and F* have no float theory
-  installed here; Frama-C's `double` is the next landing.
+- **Frama-C (PREDICT T51):** C's `double`. ACSL computes on reals (its manual's "Floating-point" section), so
+  every t float operation in a specification is written with its rounding made explicit, `((double)(a op b))`.
+  In code the operation is C's own, preceded by `\is_finite` of that rounded value (and a nonzero divisor). Each
+  float parameter is `requires \is_finite(p)`. A literal is the exact decimal value of its double (WP did not read a
+  hexadecimal one, measured), and a certificate declares a float witness the same way.
+- **Refused by name:** the other five. Dafny has no IEEE type; Verus, Lean, Rocq and F* have no float theory
+  installed here.
 
 ## The twins
 

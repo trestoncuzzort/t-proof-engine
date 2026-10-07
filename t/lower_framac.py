@@ -3996,11 +3996,49 @@ def typ(e: dict, env: dict, funs: dict):
         # again); `at` on a plain "seq" stays "int", unchanged.
         bt = typ(e["args"][0], env, funs)
         return "seq" if is_nested_seq_type(bt) else "int"
+    if op == "float":
+        return "float"                           # SPEC.md "Floats (v1)" (PREDICT T51)
+    if op in ("neg", "div", "min", "max", "abs") or op in ARITH:
+        if args_float(e, env, funs):
+            return "float"
     if op in ("len", "neg") or op in ARITH or op in DIVMOD:
         return "int"
     if op in ("min", "max", "abs", "gcd", "pow", "isqrt", "sum"):
         return "int"                             # SPEC.md "The library (v1)" (PREDICT T11)
     return "bool"                                # cmp, and, or, not, implies, in
+
+
+def args_float(e: dict, env: dict, funs: dict) -> bool:
+    """SPEC.md "Floats (v1)": an arithmetic or library node over floats (its first operand decides, as check_wf
+    refuses a mix)."""
+    a = e.get("args") or []
+    if not a:
+        return False
+    try:
+        return typ(a[0], env, funs) == "float"
+    except (KeyError, TypeError, ValueError):
+        return False                          # a call `code_ats` cannot type here (no funs) is not a float one
+
+
+def float_lit(v: float) -> str:
+    """SPEC.md "Floats (v1)" (PREDICT T51): a double as the exact decimal value it has, `d.ddde±x`. C reads it back as
+    that same double (it is one), and ACSL reads it as that same real. A hexadecimal literal was the first choice,
+    but WP warned "Unexpected constant literal" on `0x0.0p+0` and could prove nothing about it (measured)."""
+    from decimal import Decimal
+    sign, digits, exp = Decimal(v).as_tuple()
+    ds = "".join(str(d) for d in digits) or "0"
+    return f"{'-' if sign else ''}{ds[0]}.{ds[1:] or '0'}e{exp + len(ds) - 1}"
+
+
+def _float_const(e: dict) -> float:
+    """float(literal) rounded as t rounds it; a non-literal argument is refused by name."""
+    a0 = e["args"][0]
+    from fractions import Fraction
+    if "int" in a0:
+        return float(a0["int"])
+    if "rat" in a0:
+        return float(Fraction(*a0["rat"]))
+    raise NotImplementedError("framac: float() of a non-literal is not lowered yet (SPEC.md 'Floats (v1)')")
 
 
 def is_nested_seq_type(t) -> bool:
@@ -4470,6 +4508,15 @@ def term(e: dict, ctx: Ctx) -> str:
         return str(e["int"])
     if "bool" in e:
         return "\\true" if e["bool"] else "\\false"
+    if e.get("op") == "float":
+        return float_lit(_float_const(e))         # SPEC.md "Floats (v1)" (PREDICT T51)
+    if e.get("op") in ("+", "-", "*", "div") and args_float(e, ctx.env, ctx.funs):
+        # ACSL computes on reals; t's float operation is the RNE-rounded double, made explicit by the cast
+        o = "/" if e["op"] == "div" else e["op"]
+        return f"((double)({term(e['args'][0], ctx)} {o} {term(e['args'][1], ctx)}))"
+    if e.get("op") in ("sqrt",) or (e.get("op") == "toreal" and e["args"] and typ(e["args"][0], ctx.env, ctx.funs)
+                                    == "float"):
+        raise NotImplementedError(f"framac: {e['op']} on a float is not lowered yet (SPEC.md 'Floats (v1)')")
     old_read = _old_array_read(e)
     if old_read is not None:
         # SPEC.md "Heap (v1)" (PREDICT T50): `old(a)[i]` is a's element in the entry state, with i read NOW (a loop
@@ -4792,6 +4839,11 @@ def defs(e: dict, ctx: Ctx):
         n = term(args[0], ctx)
         return _conj([defs(args[0], ctx), defs(args[1], ctx),
                       f"(({n}) >= 0)"])
+    if op in ("+", "-", "*", "div") and args_float(e, ctx.env, ctx.funs):
+        # SPEC.md "Floats (v1)" (PREDICT T51): the rounded result finite, a divisor nonzero
+        y = term(args[1], ctx)
+        return _conj([defs(args[0], ctx), defs(args[1], ctx), (f"(({y}) != 0)" if op == "div" else None),
+                      f"\\is_finite({term(e, ctx)})"])
     if op in DIVMOD:
         y = term(args[1], ctx)
         return _conj([defs(args[0], ctx), defs(args[1], ctx),
@@ -5309,6 +5361,12 @@ def cexpr(e: dict, env: dict, funs: dict, task_name: str,
     (Q)`) inside an ACSL annotation, which Frama-C rejects as MALFORMED
     ("invalid operands to binary -; unexpected bool and bool") rather
     than a smoke or proof failure."""
+    if e.get("op") == "float":
+        return float_lit(_float_const(e))         # SPEC.md "Floats (v1)" (PREDICT T51): the exact double
+    if e.get("op") == "div" and args_float(e, env, funs):
+        # C's own double division (RNE), its divisor and finiteness asserted first by code_ats ("fin")
+        return (f"({cexpr(e['args'][0], env, funs, task_name, _div_style)} / "
+                f"{cexpr(e['args'][1], env, funs, task_name, _div_style)})")
     if "int" in e:
         return str(e["int"])
     if "bool" in e:
@@ -5910,6 +5968,14 @@ def code_ats(e: dict, env: dict, guard: tuple = ()) -> list:
         # SPEC.md "Reductions (v1)": max(s)/min(s) DEFINED IFF len(s) > 0
         out.append(("pos", seq_var(args[0], env), guard))
         return out
+    if op in ("+", "-", "*", "div") and args_float(e, env, {}):
+        # SPEC.md "Floats (v1)" (PREDICT T51): defined iff the rounded result is finite (and a divisor nonzero)
+        out += code_ats(args[0], env, guard)
+        out += code_ats(args[1], env, guard)
+        if op == "div":
+            out.append(("nz", args[1], guard))
+        out.append(("fin", e, guard))
+        return out
     if op in DIVMOD:
         out += code_ats(args[0], env, guard)
         out += code_ats(args[1], env, guard)
@@ -5977,6 +6043,9 @@ def at_asserts(e: dict, ctx: Ctx, indent: str, funs=None,
         elif tag == "ge0":
             (nx,) = rest
             body = f"({term(nx, ctx)}) >= 0"
+        elif tag == "fin":
+            (node,) = rest
+            body = f"\\is_finite({term(node, ctx)})"     # SPEC.md "Floats (v1)"
         elif tag == "pos":
             (sv,) = rest
             body = f"{sv}_n > 0"
@@ -8210,7 +8279,7 @@ def stmts(body: list, ctx: Ctx, task_name: str, indent: str,
                 out.append(f"{indent}struct {sname} {v['name']} = "
                            f"{cexpr(v['init'], ctx.env, ctx.funs, task_name)};")
             else:
-                out.append(f"{indent}int {v['name']} = "
+                out.append(f"{indent}{'double' if v['type'] == 'float' else 'int'} {v['name']} = "
                            f"{cexpr(v['init'], ctx.env, ctx.funs, task_name)};")
                 # THE FRAME-FACT GAP (see this function's own docstring
                 # comment above): a scalar local's defining expression is
@@ -9320,6 +9389,13 @@ def _cev(e: dict, st: dict):
             raise _CertSkip(f"undefined {op} in replay")
         r = x % abs(y)
         return r if op == "mod" else (x - r) // y
+    if op == "float":
+        return _float_const(e)                      # SPEC.md "Floats (v1)": the double t rounds the literal to
+    if op == "div" and isinstance(_cev(args[0], st), float):
+        y = _cev(args[1], st)
+        if y == 0.0:
+            raise _CertSkip("float division by zero in replay")
+        return _cev(args[0], st) / y               # Python's float division is IEEE's (RNE), as C's
     if op == "neg":
         return -_cev(args[0], st)
     if op == "not":
@@ -9924,6 +10000,19 @@ def _tty(v):
     return ("int", v)
 
 
+def _float_local_names(body) -> set:
+    """SPEC.md "Floats (v1)": the float-typed locals a body declares, at any depth."""
+    out: set = set()
+    for s in body or []:
+        if "var" in s and isinstance(s["var"], dict) and s["var"]["type"] == "float":
+            out.add(s["var"]["name"])
+        for k in ("if", "while", "par"):
+            if k in s and isinstance(s[k], dict):
+                for kk in ("then", "else", "body"):
+                    out |= _float_local_names(s[k].get(kk))
+    return out
+
+
 def _value_certificate(task: dict, twin_body: list, w: dict,
                        env: dict, funs: dict, used: set) -> str | None:
     """The VALUE-kind certificate function's source text, or None with the
@@ -9981,8 +10070,8 @@ def _value_certificate(task: dict, twin_body: list, w: dict,
     elif _dt_of(rett) is not None:
         if not isinstance(twin_val, str):
             return None                # PREDICT T40: a datatype twin value is its t text
-    elif not isinstance(twin_val, (bool, int)):
-        return None                    # no-value twins have no ground replay
+    elif not isinstance(twin_val, (bool, int, float)):
+        return None                    # no-value twins have no ground replay (a float: SPEC.md "Floats (v1)")
     if CERT_FN in used or CERT_GOAL in used:
         return None                    # a task name would collide or forge
     struct_name = None
@@ -10146,6 +10235,9 @@ def _value_certificate(task: dict, twin_body: list, w: dict,
                 decls.append(f"  struct dt_{_dt_of(p['type'])} {p['name']} = "
                              f"{cexpr(ast, env, funs, task['name'])};")
                 st[p["name"]] = interp.ev(ast, {}, {}, interp.St())
+            elif p["type"] == "float":
+                decls.append(f"  double {p['name']} = {float_lit(float(v))};")   # SPEC.md "Floats (v1)", exact
+                st[p["name"]] = float(v)
             else:
                 decls.append(f"  int {p['name']} = {_int_lit(int(v))};")
                 st[p["name"]] = v
@@ -10173,7 +10265,9 @@ def _value_certificate(task: dict, twin_body: list, w: dict,
                 return None            # flattening scopes would collide
             dt_names = {ret: _dt_of(rett)} if _dt_of(rett) else {}
             dt_names.update(_dt_local_types(twin_body))                 # PREDICT T40
-            decls += [f"  {'struct dt_' + dt_names[n] if n in dt_names else 'struct ' + struct_name if is_pair and n == ret else 'int'}"
+            fl_names = {ret} if rett == "float" else set()
+            fl_names |= _float_local_names(twin_body)                   # SPEC.md "Floats (v1)"
+            decls += [f"  {'struct dt_' + dt_names[n] if n in dt_names else 'struct ' + struct_name if is_pair and n == ret else 'double' if n in fl_names else 'int'}"
                      f" {n};" for n in names]
             _cert_stmts(twin_body, Ctx(env, funs, ret=None, label="Here"),
                         st, task["name"], body_out, [0])
@@ -11306,8 +11400,7 @@ def _lower(task: dict, body: list, witness: dict | None = None,
     task, body = tshape.desugar_par(task, body)          # PREDICT T47: a parallel loop as its sequential `for`
     task, body = tshape.desugar_exits(task, body)        # PREDICT T44: break/continue rewritten; `while true` stays
     # SPEC.md "Heap (v1)": carried natively since PREDICT T50 (C pointers)
-    tshape.abstain_on_floats(task, body, "framac")           # SPEC.md "Floats (v1)" (PREDICT T48)
-    tshape.abstain_unless_carried(task, body, "framac", carried={"comp", "exit", "array"},
+    tshape.abstain_unless_carried(task, body, "framac", carried={"comp", "exit", "array", "float"},
                                   lib=framac_lib.FRAMAC_LIB)   # PREDICT T11: the library in Frama-C
     _comp_refusal(task, body)                              # PREDICT T19: maps assigned to a buffer, the rest by name
     _dt_check(task, body)                                  # PREDICT T37: datatype parameters; the rest by name
@@ -11878,6 +11971,9 @@ def _lower(task: dict, body: list, witness: dict | None = None,
         if _dt_of(p["type"]) is not None and p["name"] not in _DT_FLAT:
             # PREDICT T37: a t value is always built by one of its constructors (a flattened one has one, T43)
             clauses.append(f"  requires dt_{_dt_of(p['type'])}_ok({p['name']});")
+    for p in task["params"]:
+        if p["type"] == "float":
+            clauses.append(f"  requires \\is_finite({p['name']});")   # SPEC.md "Floats (v1)": a t float is finite
     all_seqs = list(seqs)
     mods = set(task.get("modifies", []))                   # SPEC.md "Heap (v1)": the arrays the function writes
     for s in seqs:
@@ -12122,7 +12218,7 @@ def _lower(task: dict, body: list, witness: dict | None = None,
         elif _dt_of(p["type"]) is not None:
             cparams.append(f"struct dt_{_dt_of(p['type'])} {p['name']}")   # PREDICT T37: by value
         else:
-            cparams.append(f"int {p['name']}")
+            cparams.append(f"{'double' if p['type'] == 'float' else 'int'} {p['name']}")   # Floats (v1)
     if rett == "seq":
         cparams += [f"int *{ret}", f"int {ret}_n"]
     elif nested_return_rows is not None:
@@ -12231,12 +12327,12 @@ def _lower(task: dict, body: list, witness: dict | None = None,
                if tracked_exact else
                f"  int {LEN};\n" if capacity_mode else
                "" if nested_return_rows is not None else
-               ("" if rett == "seq" else f"  int {ret};\n"))
+               ("" if rett == "seq" else f"  {'double' if rett == 'float' else 'int'} {ret};\n"))
     cfun_ret_ty = (f"struct dt_{_dt_of(rett)}" if _dt_of(rett) is not None else   # PREDICT T40
                   f"struct {struct_name}" if pair_ty is not None else
                   "void" if rett == "seq" and not capacity_mode
                   else "void" if nested_return_rows is not None
-                  else "int")
+                  else "double" if rett == "float" else "int")
     fn_text = ("/*@\n" + "\n".join(clauses) + "\n*/\n"
                + f"{cfun_ret_ty} {name}_t({', '.join(cparams)}) {{\n"
                + ret_decl

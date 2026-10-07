@@ -2259,3 +2259,57 @@ Both tables were regenerated from a clean clone at 905e457, with no proof run be
 (2) **Held:** no other cell moved. All seven stays 62 of 114.
 (3) **Held:** the AlgoVeri table did not move.
 
+## T51 and T52 registered (2026-10-07 11:34Z, after hand probes and before the clean-clone runs)
+
+**T51: floats in Frama-C.** Receipt 68e1c50d765a (ACSL's manual: annotation arithmetic is exact on reals, a
+`(double)` cast rounds to nearest even, `\\is_finite`).
+- **Types:** a t float is a C `double`, and each float parameter is `requires \\is_finite(p)`.
+- **In a specification,** every float operation is written with its rounding made explicit, `((double)(a op b))`.
+- **In code,** the operation is C's own, preceded by `\\is_finite` of the rounded value (and a nonzero divisor).
+- **Literals** are exact decimal values (`1.000e3`). WP warned "Unexpected constant literal" on a hexadecimal one and
+  proved nothing about it (measured).
+- **Certificates** declare float witnesses the same way and replay with the interpreter's float arithmetic.
+- **sat_scale** now writes `-lim` (an exact negation) where it wrote `float(0) - lim`, a rounded subtraction the
+  provers did not see through. SPARK re-verified it.
+
+**T52: the autonomy suite** (`t/autonomy/`, NORTH-STAR.md target 2). 25 routines of a navigation, guidance and
+control stack (`t/autonomy/README.md`), with their own table, `t/AUTONOMY.md`. Each is well-formed, has a twin whose
+witness falsifies its ensures, and hands back to Python agreeing with t (`test_autonomy.py`). Four fixes came from its
+first run:
+- **Rocq's keyword list** (receipt a991b51f25db, the reference manual's lists): `by` (a box's y coordinate) made
+  aabb_overlap and crosstrack_side MALFORMED. The list gains by, is, of, where, using, exists2, SProp, Axiom,
+  CoFixpoint, Hypothesis, Parameter and Variable.
+- **Rocq, bool parameters** (receipt bd2ed2ab30c9): `t_dis` gains a last alternative, only for a task with a bool
+  parameter, that destructs every bool and searches again. arm_check and debounce were unproved.
+- **Comprehension shapes up to the bound variable's name,** in Dafny, Verus, F* and SPARK, as Lean's already were. An
+  ensures `[x for x in s if p(x)]` and an invariant `[y for y in s[0..i] if p(y)]` were two functions, and Dafny could
+  not equate them (readings_in_band).
+- **Verus:** a certificate whose comprehension has a free variable the witness grounds has no spec fn, and is now
+  refused by name instead of raising KeyError. The twin stands without a certificate.
+
+**Measured before this registration, stated plainly.**
+- **Frama-C floats:** deadband verified with its twin refuted. sat_scale and rate_limit time out. sat_scale proves
+  8 of 8 goals with no step limit, but Alt-Ergo steps out at the matrix's 20000 steps.
+- **The autonomy suite, all 25 in all seven kernels** (`cli.py verify t/autonomy`, 3 jobs), verified with the twin
+  refuted:
+
+| kernel | Frama-C | SPARK | Dafny | F* | Verus | Lean | Rocq |
+|---|---|---|---|---|---|---|---|
+| routines | 21 | 19 | 18 | 17 | 14 | 14 | 14 |
+
+  13 of the 25 are in all seven. Every routine a kernel proves has its twin refuted, except readings_in_band's in
+  Verus (no certificate). The routines kept out:
+  - grid_cell and low_pass_step: nonlinear integer division, proved by F* alone;
+  - pid_step: floats, timing out in SPARK and Frama-C;
+  - crosstrack_side: a product, unproved in Lean;
+  - the float and array routines, wherever a kernel refuses floats or the heap.
+- **Byte identity:** in the 114 tasks only the float tasks' Frama-C lowerings change (and sat_scale's SPARK one, from
+  its edit). Nothing in AlgoVeri changes.
+- **Suite:** passes; every module compiles under Python 3.10.
+
+**Bars**, for the clean-clone tables at this registration's commit:
+(1) The matrix: Frama-C reads verified/refuted on deadband (69), timeout on sat_scale and rate_limit. SPARK keeps
+sat_scale verified/refuted (73). No other cell moves; all seven stays 62.
+(2) `t/AUTONOMY.md`: Frama-C 21, SPARK 19, Dafny 18, F* 17, Verus 14, Lean 14, Rocq 14; all seven 13 of 25.
+(3) The AlgoVeri table does not move.
+
