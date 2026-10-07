@@ -2998,3 +2998,11 @@ must reach each call.
 **Bars**, for the clean-clone tables at this registration's commit:
 (1) The matrix: Lean 89 and Rocq 84 (tree_insert); every other kernel unchanged; all seven 66.
 (2) AlgoVeri: Lean's insert and search read unproved / refuted; no verified/refuted count moves.
+
+### T66 read (2026-10-07 21:03Z): both bars held.
+
+Regenerated from a clean clone at 8807045, and installed.
+(1) **Held:** Lean 89 and Rocq 84 (tree_insert verified/refuted in both); every other kernel unchanged; all seven 66.
+tree_insert's stronger contract (T60) now costs nothing in Rocq or Lean.
+(2) **Held:** AlgoVeri's bst insert and search read unproved / refuted in Lean (refused before); no verified/refuted
+count moves.

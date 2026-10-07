@@ -69,14 +69,14 @@ invariants, early exits, recursion, methods and lemmas. Since 2026-10-07 it also
 
 ## 4. Results
 
-**The matrix** (114 tasks; `t/AGREEMENT.md`, clean clone at 8d3a3a5):
+**The matrix** (114 tasks; `t/AGREEMENT.md`, clean clone at 8807045):
 
 | kernel | proved, twin refuted | carried, not proved | refused by name |
 |---|---|---|---|
 | Dafny | 111 | 0 | 3 |
 | Verus | 104 | 3 | 7 |
-| Lean 4 | 88 | 4 | 22 |
-| Rocq | 83 | 3 | 28 |
+| Lean 4 | 89 | 4 | 21 |
+| Rocq | 84 | 2 | 28 |
 | F\* | 84 | 4 | 26 |
 | SPARK | 79 | 5 | 30 |
 | Frama-C | 71 | 1 | 42 |
@@ -173,8 +173,8 @@ Run on t's own suites, the audit found seven of its own specs too weak, each of 
 All seven were rewritten to pin their results down (PREDICT T55, T60; tree_insert now states the bounded search-tree
 order). Each kills every behaviour-changing mutant, and the suite's audit reads 1,578 of 1,578 killed. The stronger filter_pos first cost Frama-C one cell: WP has no frame fact
 for a recursive logic function over memory, and the loop invariant stepped out. Reading such a function at the entry
-state when its memory is never written removes the need for that fact (T65), and the cell is back. The stronger tree_insert costs Rocq and Lean
-one cell each. A stronger contract is harder to prove, and the matrix now counts the harder one.
+state when its memory is never written removes the need for that fact (T65), and the cell is back. The stronger tree_insert first cost Rocq and Lean one
+cell each; an induction kept general over the changing bounds won both back (T66). A stronger contract is harder to prove, and the matrix now counts the harder one.
 
 **Repair: from a measured gap to a proved contract** (PREDICT T61; `t/contract_repair.py`, `t/REPAIR-*.md`, `t/repairs/`).
 A gap the audit measures can be repaired mechanically:

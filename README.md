@@ -33,8 +33,8 @@ Measured from a clean clone of this repository on 2026-10-07 over the 114 commit
 |---|---|---|---|
 | Dafny | 111 | 0 | 3 |
 | Verus | 104 | 3 | 7 |
-| Lean 4 | 88 | 4 | 22 |
-| Rocq | 83 | 3 | 28 |
+| Lean 4 | 89 | 4 | 21 |
+| Rocq | 84 | 2 | 28 |
 | F\* | 84 | 4 | 26 |
 | SPARK | 79 | 5 | 30 |
 | Frama-C | 71 | 1 | 42 |
