@@ -2903,3 +2903,33 @@ Regenerated from a clean clone at da18d3e, and installed (`t/SHIP-TASKS.md`, `t/
   are now sorted (da18d3e), and the installed tables are from the second run.
 (2) **Held:** root_floor, stop_distance_ok and throttle_limit, whose 32-bit builds disagree inside int32, read "no
 envelope found", "within ±2^14" and "within ±2^29"; none reads "ships for every int32 input".
+
+## T64 registered (2026-10-07 19:10Z, after hand runs and before the clean-clone run): R4c, bounds inferred for the width proof
+
+**The change.** Where an overflow guard is open, `t/ship.py` now infers bounding loop invariants before searching
+for an envelope:
+- **Candidates:** `v <= w`, `w <= v`, or (only when the tighter bound fails) `v <= w + 1`, between an int the loop
+  assigns and another int in scope (a parameter, a local, a sequence's length, 0).
+- **Filter:** kept when true at every loop-head state the interpreter observes (R1b's states).
+- **Placement:** inserted into the matching C loop's annotation as named invariants `t_bJ`.
+- **Pruning:** Houdini (Flanagan and Leino) drops any whose own goal fails, until the rest are proved together.
+- **Envelope stage:** the candidates also include `-(w * 2^k) <= v <= w * 2^k`, an accumulator bounded by a counter
+  times the envelope.
+
+The matrix's proofs are unchanged; the invariants exist only in the width proof's C file.
+
+**Measured before this registration, stated plainly:**
+- **Tasks:**
+  - 47 ship for every int32 input (from 45): count_matches and count_pos_for, each held by
+    `0 <= c <= i <= s_n`;
+  - 7 within an envelope, 17 with none found.
+- **Autonomy:** unchanged (16, 5, 2).
+- **What the inference cannot reach:**
+  - an overflow inside a library C helper (t_sum_c, t_pow_c, t_gcd_c), outside the task's own loops;
+  - a contract already open (double_all's frame gap);
+  - non-linear division (grid_cell, low_pass_step).
+- **Suite:** the three new tests pass.
+
+**Bars**, for the clean-clone tables at this registration's commit:
+(1) Both tables reproduce: tasks 47, 7, 17; autonomy 16, 5, 2.
+(2) Every invariant a table lists was proved in that run (Houdini's survivors, with every goal closed).
