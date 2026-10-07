@@ -51,7 +51,7 @@ def _wp(src: str, work: Path) -> tuple[int, int, list]:
     if not m:
         raise RuntimeError("no WP summary: " + (out.strip().splitlines() or ["?"])[-1][:200])
     done, total = map(int, m[-1])
-    return done, total, [g for _s, g in _GOAL.findall(out)]
+    return done, total, sorted({g for _s, g in _GOAL.findall(out)})   # provers finish in any order
 
 
 def _with_envelope(src: str, task: dict, k: int) -> str:
