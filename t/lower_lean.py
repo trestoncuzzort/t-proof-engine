@@ -3050,7 +3050,7 @@ class Lower:
             c = node["comp"]
             nm = f"t_comp{k}" if "seq" in c else f"t_compr{k}"
             if c["cond"] == {"bool": True}:
-                ga_names += [f"{nm}_length", f"{nm}_get"] + ([f"{nm}_get0"] if "lo" in c else [])
+                ga_names += [f"{nm}_length", f"{nm}_get"] + ([f"{nm}_get0"] if "lo" in c else []) + [f"{nm}_getn"]
             else:
                 ga_names += [f"{nm}_length"] + ([f"{nm}_all"] if c["body"] == {"var": c["var"]} else [])
             self.lib_fns += [nm]
@@ -6999,6 +6999,17 @@ class Lower:
                     f"      simp only [hl, he, Nat.sub_self, List.getElem?_cons_zero, Option.getD_some]\n"
                     f"      all_goals (first | rfl | (rw [he2]) | simp [he2])\n")
                 thms += [f"{nm}_length", f"{nm}_get"]
+                # PREDICT T32: the element at a Nat index too. grind normalizes a literal `(0 : Int).toNat` to `0`, which
+                # `_get`'s pattern `[t_i.toNat]!` then never matches (measured: doubled_head's `u[0]` unproved); this
+                # pattern ranges over the Nat itself. Proved from `_get` at `(t_i : Int)`, rewriting only the cast.
+                at_nat = "(t_s[t_i]!)" if "seq" in c else "(t_a + (t_i : Int))"
+                out.append(
+                    f"theorem {nm}_getn {head} (t_n : Nat) :\n"
+                    f"    ∀ (t_i : Nat), t_i < t_n → ({call} t_n)[t_i]! = {body_at(at_nat)} := by\n"
+                    f"  intro t_i h1\n"
+                    f"  have h := {nm}_get {'t_s' if 'seq' in c else 't_a'}{fargs} t_n (t_i : Int) (by omega) (by omega)\n"
+                    f"  simpa only [Int.toNat_natCast] using h\n")
+                thms.append(f"{nm}_getn")
                 if "lo" in c:
                     # a range from 0, the common case, as its own corollary with `0 + t_i` already simplified (measured,
                     # diffs: grind did not equate s[((0 + w) + 1).toNat]! with s[(w + 1).toNat]! through the toNat)

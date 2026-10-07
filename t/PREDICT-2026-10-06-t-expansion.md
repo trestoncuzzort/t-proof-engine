@@ -1602,3 +1602,36 @@ disjoint from these:
 (2) set_first reads verified/refuted in all seven. rev_equal reads the same in six, with Rocq's real unproved.
 doubled_head reads the same in six, with Lean's real unproved.
 (3) No other cell moves against T29's and T30's tables. Frama-C gains 4 (palindrome and the three).
+
+## T32 registered (2026-10-07 05:17Z, after hand probes and before the clean-clone runs): a map's element at a Nat index (Lean)
+
+T31's hand probe left doubled_head unproved in Lean alone. Its spec needs `t_comp1_get` at index 0, and the lemma's
+pattern is `(t_comp1 t_s t_n)[t_i.toNat]!`. grind normalizes the goal's `(0 : Int).toNat` to `0`, so the pattern never
+matches. With the instance stated by hand, the file verifies. Receipt 4ba739e6c40b: the Lean reference's E-matching
+chapter, where patterns match modulo congruence and nothing equates a literal with `?t_i.toNat`.
+
+**Design.** Each map comprehension also gets `t_compK_getn`: the element at a Nat index, `∀ (t_i : Nat), t_i < t_n →
+(t_compK t_s t_n)[t_i]! = body[t_s[t_i]!]` (over a range, `t_a + (t_i : Int)`). It is proved from `_get` at
+`(t_i : Int)` by `simpa only [Int.toNat_natCast]`, which rewrites only the cast, and it is handed to grind beside the
+others. A filter gets nothing new.
+
+**Measured before this registration, stated plainly.**
+- **Lean, `cli verify`, the eight tasks whose Lean text changes:**
+  - doubled_head reads verified/refuted.
+  - all_positive, diffs, doubled, every_other, has_negative and squares stay verified/refuted.
+  - odd_positions stays unproved/refuted.
+- **odd_positions is a named gap, the same mismatch one step further.** Its strided slice is a range map over
+  `s[1..len(s)]`. grind normalizes the slice to `List.take (len + -1).toNat (List.drop 1 s)`, which
+  `t_seq_slice_get`'s pattern (`drop a.toNat`, `take (b - a).toNat`) does not match. A Nat-indexed slice lemma was
+  probed: grind registers its pattern but never instantiates it, because the element sits in an implication whose
+  antecedents grind does not discharge. More E-matching rounds did not change that. It is not part of this
+  registration.
+- **Byte identity:** of the 104 tasks and 27 AlgoVeri programs, exactly 16 lowerings change, the Lean pairs of those
+  eight tasks.
+- **Suite:** the whole suite passes (713).
+
+**Bars**, for the clean-clone matrix of 104 that reads T30 and T31 too. This replaces T31 bar (2)'s Lean clause for
+doubled_head:
+(1) doubled_head reads verified/refuted in Lean, so with T31 it is verified/refuted in all seven.
+(2) The other seven tasks keep their Lean verdicts.
+(3) No other cell moves for this change.

@@ -2328,7 +2328,11 @@ its shape admits generated beside it and proved by induction: a map's
 length and its element at an int index (and, for a range from 0, the
 element with `0 + i` already simplified, which grind did not do under
 `toNat`), a filter's length bound and that every element satisfies it; a
-partial body owes its definedness at every index of the source. Rocq since
+partial body owes its definedness at every index of the source. Since
+2026-10-07 (PREDICT T32) a map also has its element at a `Nat` index,
+proved from the int one by the cast alone: grind normalizes a literal
+`(0 : Int).toNat` to `0`, which the int lemma's pattern never matches, so
+`u[0]` of a map local went unproved. Rocq since
 2026-10-06 (PREDICT T14): its sequences are a function from `Z` with a length,
 so a map is its own pair and needs no recursive function: over a seq,
 `(fun k => body[x := s k], len s)`; over a range, `(fun k => body[i := lo + k],

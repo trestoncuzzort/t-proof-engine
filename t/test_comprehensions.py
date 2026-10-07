@@ -124,6 +124,14 @@ def test_kernel_text():
     # test_spark_comp.py)
     for kernel in ("fstar", "spark"):
         ok("filtered comprehension is not lowered yet" in lowered("evens", kernel), "%s refuses a filter by name" % kernel)
+    # PREDICT T32: a map's element at a Nat index too, so grind matches a literal index it has normalized
+    lean = lowered("doubled_head", "lean")
+    ok("theorem t_comp1_getn (t_s : List Int) (t_n : Nat) :" in lean
+       and "∀ (t_i : Nat), t_i < t_n → (t_comp1 t_s t_n)[t_i]! = ((2 : Int) * (t_s[t_i]!))" in lean
+       and "simpa only [Int.toNat_natCast] using h" in lean, "the Nat-indexed map lemma, from _get by the cast alone")
+    ok("grind [t_comp1_length, t_comp1_get, t_comp1_getn]" in lean, "and grind is handed it")
+    ok("t_compr1_getn" in lowered("squares", "lean"), "a range map has one too")
+    ok("t_comp1_getn" not in lowered("evens", "lean"), "a filter has none")
 
 
 def test_hand_back():
