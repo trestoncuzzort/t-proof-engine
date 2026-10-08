@@ -101,7 +101,7 @@ negative. `px4_wrap_bin` proves the result is a valid bin, congruent to `bin`, f
 PX4's own: its test `ObstacleMathTest.WrapBin` (src/lib/collision_prevention/ObstacleMathTest.cpp:184) expects a
 negative bin "wrapped back to the end" (-1 to 71), and checks no bin below -72.
 
-**Proposed fixes** (`fixes/`). A task there restates the change proposed to PX4 for a finding, with the finding's
+**Proposed fixes** (`fixes/`), filed upstream as PX4 PR #29030 (`wrap_bin`) and #29031 (SUMD). A task there restates the change proposed to PX4 for a finding, with the finding's
 contract and without the `requires` PX4's callers did not establish. `px4_diff.py --fixed-tree DIR` compiles the
 patched PX4 checkout's own code and runs it against the task on every domain point.
 
