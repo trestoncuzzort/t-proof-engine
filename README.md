@@ -91,20 +91,23 @@ Measured from a clean clone of this repository on 2026-10-07 over the 114 commit
     applied ([t/PX4-DIFF.md](t/PX4-DIFF.md)).
   - At machine width, 18 ship for every int32 input and 4 within a proved envelope
     ([t/SHIP-FLIGHT.md](t/SHIP-FLIGHT.md)).
-  - **Fixes filed upstream.** Seven pull requests to PX4, each passing PX4's `make check_format` and full
+  - **Fixes filed upstream.** Eight pull requests to PX4, each passing PX4's `make check_format` and full
     `make tests` (212/212) before filing:
     [#29030](https://github.com/PX4/PX4-Autopilot/pull/29030) (collision prevention's bin index),
     [#29031](https://github.com/PX4/PX4-Autopilot/pull/29031) (SUMD 32-channel buffer),
     [#29032](https://github.com/PX4/PX4-Autopilot/pull/29032), [#29033](https://github.com/PX4/PX4-Autopilot/pull/29033),
     [#29034](https://github.com/PX4/PX4-Autopilot/pull/29034) (MAVLink parameter bounds),
-    [#29035](https://github.com/PX4/PX4-Autopilot/pull/29035) (mission jump index) and
-    [#29036](https://github.com/PX4/PX4-Autopilot/pull/29036) (commander parameter narrowing).
-  - **The defects, in the kernels.** For every one of the seven, t states the function with its contract.
+    [#29035](https://github.com/PX4/PX4-Autopilot/pull/29035) (mission jump index),
+    [#29036](https://github.com/PX4/PX4-Autopilot/pull/29036) (commander parameter narrowing) and
+    [#29037](https://github.com/PX4/PX4-Autopilot/pull/29037) (body-frame obstacle loop; PX4's own new test fails 50
+    assertions without it).
+  - **The defects, in the kernels.** For every one of the eight, t states the function with its contract.
     `t/refute_at.py` has every kernel refute the original at the input a real message carries, and the fixed
     version is proved ([t/FLIGHT-FINDINGS-REAL.md](t/FLIGHT-FINDINGS-REAL.md)):
-    - all eight originals (#29036 holds two) are refuted in all seven kernels at their real inputs;
+    - eight of the nine originals (#29036 holds two) are refuted in all seven kernels at their real inputs, and the
+      body-frame obstacle loop in five (its certificate holds a 360-entry array);
     - six fixes are proved in all seven kernels (arm/disarm, set mode, DO_JUMP, SERIAL_CONTROL, stream interval,
-      SUMD), `wrap_bin`'s in six, and REQUEST_EVENT's in three: Dafny needs more than the fixed budget.
+      SUMD), `wrap_bin`'s and the obstacle loop's in six, and REQUEST_EVENT's in three: Dafny needs more than the fixed budget.
     - **PX4's own statements, before and after.** For the MAVLink and commander handlers, which need a running
       module, `t/flight/px4_stmt.py` cuts PX4's lines from its source at the pinned commit and at each fix's
       commit, compiles them, and runs every input. The original lines agree with the finding, and the fixed lines
