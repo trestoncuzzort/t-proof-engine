@@ -124,7 +124,7 @@ patched PX4 checkout's own code and runs it against the task on every domain poi
 | px4_serial_control_fixed | a `count` larger than the `data` field is not handed on | `MavlinkReceiver::handle_message_serial_control` (PR #29032) |
 | px4_do_jump_index_fixed | an index outside `[0, INT16_MAX]` is rejected | `MavlinkMissionManager::parse_mavlink_mission_item` (PR #29035) |
 | px4_set_mode_field_fixed | a mode field outside `(-1, 256)` is rejected | `Commander::handle_command` (PR #29036) |
-| px4_fusion_source_fixed | a source, instance or enable flag its integer cannot hold is denied | `EKF2::handleSensorFusionCommand` (not yet filed) |
+| px4_fusion_source_fixed | a source, instance or enable flag its integer cannot hold is denied | `EKF2::handleSensorFusionCommand` (PR #29039) |
 | px4_obstacle_body_fixed | the body-frame loop stops at the 72 distances, as the global-frame loop does | `CollisionPrevention::_addObstacleSensorData` (PR #29037) |
 
 The SUMD pair states `sumd_decode`'s storing loop over a packet buffer of any even size. PX4's buffer is
@@ -152,13 +152,14 @@ fix's commit on the pull request's branch. It compiles them with stand-ins for t
 message struct with MAVLink's field types, the enum values, and a passthrough that records what it is handed. It
 then runs every input of the t task, plus the real one, read at run time so the compiler cannot fold an out-of-range
 conversion. The original lines agree with the finding, and the fixed lines with the fix, at every input, in all
-twelve comparisons (`t/PX4-STMT.md`). At the real inputs, PX4's original lines arm on 257, set mode 8 on 264,
-look up 41 events against a 20-event buffer, jump to item 3 on 65539, give `INT_MIN` for 2^31 us, and read past `data` at 71; the fixed lines reject, reject, look
-up 20, reject, clamp, and hand on nothing. REQUEST_EVENT's stand-in buffer holds no event, so every lookup misses,
-the case of a request for sequences long gone.
+fourteen comparisons (`t/PX4-STMT.md`). At the real inputs, PX4's original lines arm on 257, set mode 8 on 264,
+select GPS for sensor source 256, look up 41 events against a 20-event buffer, jump to item 3 on 65539, give
+`INT_MIN` for 2^31 us, and read past `data` at 71. The fixed lines reject, reject, deny, look up 20, reject, clamp,
+and hand on nothing. REQUEST_EVENT's stand-in buffer holds no event, so every lookup misses, the case of a request
+for sequences long gone.
 The results are for x86-64. On ARM, a float-to-int conversion past `INT_MAX` saturates instead of giving
-`INT_MIN`, so the original stream interval reads differently there (PR #29034 describes both). The other five
-convert nothing outside the 32-bit range.
+`INT_MIN`, so the original stream interval reads differently there (PR #29034 describes both). The other six
+convert nothing outside the 32-bit range; the EKF2 source's ARM reading is in PR #29039.
 
 `t/refute_at.py` refutes each finding at the real input in the table. The kernels' verdicts are in
 `t/FLIGHT-FINDINGS.md`.

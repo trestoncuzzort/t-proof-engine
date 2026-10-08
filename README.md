@@ -91,27 +91,30 @@ Measured from a clean clone of this repository on 2026-10-07 over the 114 commit
     applied ([t/PX4-DIFF.md](t/PX4-DIFF.md)).
   - At machine width, 18 ship for every int32 input and 4 within a proved envelope
     ([t/SHIP-FLIGHT.md](t/SHIP-FLIGHT.md)).
-  - **Fixes filed upstream.** Eight pull requests to PX4, each passing PX4's `make check_format` and full
+  - **Fixes filed upstream.** Nine pull requests to PX4, each passing PX4's `make check_format` and full
     `make tests` (212/212) before filing:
     [#29030](https://github.com/PX4/PX4-Autopilot/pull/29030) (collision prevention's bin index),
     [#29031](https://github.com/PX4/PX4-Autopilot/pull/29031) (SUMD 32-channel buffer),
     [#29032](https://github.com/PX4/PX4-Autopilot/pull/29032), [#29033](https://github.com/PX4/PX4-Autopilot/pull/29033),
     [#29034](https://github.com/PX4/PX4-Autopilot/pull/29034) (MAVLink parameter bounds),
     [#29035](https://github.com/PX4/PX4-Autopilot/pull/29035) (mission jump index),
-    [#29036](https://github.com/PX4/PX4-Autopilot/pull/29036) (commander parameter narrowing) and
+    [#29036](https://github.com/PX4/PX4-Autopilot/pull/29036) (commander parameter narrowing),
     [#29037](https://github.com/PX4/PX4-Autopilot/pull/29037) (body-frame obstacle loop; PX4's own new test fails 50
-    assertions without it).
-  - **The defects, in the kernels.** For every one of the eight, t states the function with its contract.
+    assertions without it) and
+    [#29039](https://github.com/PX4/PX4-Autopilot/pull/29039) (EKF2 sensor-enable command: a NaN source, MAVLink's
+    unused value, selected GPS and switched its fusion off, measured on x86 and ARM).
+  - **The defects, in the kernels.** For every one of the nine, t states the function with its contract.
     `t/refute_at.py` has every kernel refute the original at the input a real message carries, and the fixed
     version is proved ([t/FLIGHT-FINDINGS-REAL.md](t/FLIGHT-FINDINGS-REAL.md)):
-    - eight of the nine originals (#29036 holds two) are refuted in all seven kernels at their real inputs, and the
+    - nine of the ten originals (#29036 holds two) are refuted in all seven kernels at their real inputs, and the
       body-frame obstacle loop in five (its certificate holds a 360-entry array);
-    - six fixes are proved in all seven kernels (arm/disarm, set mode, DO_JUMP, SERIAL_CONTROL, stream interval,
-      SUMD), `wrap_bin`'s and the obstacle loop's in six, and REQUEST_EVENT's in three: Dafny needs more than the fixed budget.
+    - eight fixes are proved in all seven kernels (arm/disarm, set mode, DO_JUMP, SERIAL_CONTROL, stream interval,
+      SUMD, the obstacle loop, the EKF2 source), `wrap_bin`'s in six, and REQUEST_EVENT's in three: Dafny needs more
+      than the fixed budget.
     - **PX4's own statements, before and after.** For the MAVLink and commander handlers, which need a running
       module, `t/flight/px4_stmt.py` cuts PX4's lines from its source at the pinned commit and at each fix's
       commit, compiles them, and runs every input. The original lines agree with the finding, and the fixed lines
-      with the fix, in 12 of 12 comparisons ([t/PX4-STMT.md](t/PX4-STMT.md)). PX4's original lines arm the vehicle
+      with the fix, in 14 of 14 comparisons ([t/PX4-STMT.md](t/PX4-STMT.md)). PX4's original lines arm the vehicle
       on a parameter of 257; the fixed lines reject it.
     The first defect, `wrap_bin`, was found by a proof attempt. Its contract, the one PX4's own unit test states,
     holds only for `bin >= -bin_count`, and PX4's compiled code returns -1 at the kernels' input.

@@ -94,7 +94,7 @@ PAIRS = {
         "params": ["first", "last", "capacity"], "keep": lambda v: v["capacity"] <= 65535,
     },
     "fusion_source": {
-        "file": "src/modules/ekf2/EKF2.cpp", "pr": None, "pinned": "df387bdec263fb4190eca5f061ce63091a6a758f",
+        "file": "src/modules/ekf2/EKF2.cpp", "pr": 29039, "pinned": "df387bdec263fb4190eca5f061ce63091a6a758f",
         "fix_commit": "484d183bc95934fe669ca4b64e5ffb063c958719",
         "orig": ("const uint8_t sensor_type = static_cast<uint8_t>(cmd.param1);", "}"),
         "fixed": ("// The source, instance and enable flag are integers carried in floats.", "}#2"),
