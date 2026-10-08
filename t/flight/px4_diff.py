@@ -118,6 +118,7 @@ FIX_NOT_DIFFED = {
     "px4_do_jump_index_fixed": STMT,
     "px4_serial_control_fixed": STMT,
     "px4_set_mode_field_fixed": STMT,
+    "px4_obstacle_body_fixed": "CollisionPrevention::_addObstacleSensorData needs the collision-prevention module; checked by PX4's own test, CollisionPreventionTest.addObstacleSensorData_bodyframe_fine_increment: it fails 50 assertions on the original code and passes with the fix (PR #29037)",
     "px4_sumd_receive_fixed": "sumd_decode is a byte-at-a-time state machine; the patched sumd.cpp was "
                   "run on a valid 32-channel frame and PX4's recorded stream under UBSan (README)"}
 FINDINGS = HERE / "findings"
@@ -132,6 +133,7 @@ FINDING_NOT_RUN = {
     "px4_do_jump_index_any": STMT,
     "px4_serial_control_any": STMT,
     "px4_set_mode_field_any": STMT,
+    "px4_obstacle_body_any": "CollisionPrevention::_addObstacleSensorData needs the collision-prevention module; checked by PX4's own test, CollisionPreventionTest.addObstacleSensorData_bodyframe_fine_increment: it fails 50 assertions on the original code and passes with the fix (PR #29037)",
     "px4_sumd_receive_any": "PX4's own sumd.cpp, built with UBSan, reports the out-of-bounds write "
                    "and read at index 64 on a valid 32-channel frame (README)"}
 # parameters PX4's own signature narrows to binary32 (`float`) before use, though the template is at double

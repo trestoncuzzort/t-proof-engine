@@ -95,6 +95,7 @@ PX4's own code at the refuting input.
 | px4_serial_control_any | `MavlinkReceiver::handle_message_serial_control`, the passthrough branch (src/modules/mavlink/mavlink_receiver.cpp:2114) | `count <= len(data)`, which the shell branch of the same handler checks (line 2137) | 71 bytes handed on from the 70-byte `data` field for `count` = 71 |
 | px4_do_jump_index_any | `MavlinkMissionManager::parse_mavlink_mission_item`, DO_JUMP (src/modules/mavlink/mavlink_mission.cpp:1723) | an index that fits `int16_t` | `param1` = 65539 stored as a jump to item 3 |
 | px4_set_mode_field_any | `Commander::handle_command`, DO_SET_MODE (src/modules/commander/Commander.cpp:931) | a mode field that fits `uint8_t` | base mode 264 accepted as mode 8 |
+| px4_obstacle_body_any | `CollisionPrevention::_addObstacleSensorData`, the body-frame branch (src/lib/collision_prevention/CollisionPrevention.cpp:281) | `j < BIN_COUNT`, which the global-frame branch above it has | 360 reads from the 72-element `distances` at a 1 degree increment |
 
 `wrap_bin`'s result indexes the collision-prevention obstacle map. That map is four arrays of 72 bins:
 `_obstacle_map_body_frame.distances`, `_data_timestamps`, `_data_maxranges` and `_data_fov`.
@@ -122,6 +123,7 @@ patched PX4 checkout's own code and runs it against the task on every domain poi
 | px4_serial_control_fixed | a `count` larger than the `data` field is not handed on | `MavlinkReceiver::handle_message_serial_control` (PR #29032) |
 | px4_do_jump_index_fixed | an index outside `[0, INT16_MAX]` is rejected | `MavlinkMissionManager::parse_mavlink_mission_item` (PR #29035) |
 | px4_set_mode_field_fixed | a mode field outside `(-1, 256)` is rejected | `Commander::handle_command` (PR #29036) |
+| px4_obstacle_body_fixed | the body-frame loop stops at the 72 distances, as the global-frame loop does | `CollisionPrevention::_addObstacleSensorData` (PR #29037) |
 
 The SUMD pair states `sumd_decode`'s storing loop over a packet buffer of any even size. PX4's buffer is
 `SUMD_MAX_CHANNELS * 2` = 64 bytes and accepts `2 <= length <= 32`. The tasks take the buffer's length as given and
