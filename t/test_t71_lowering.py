@@ -74,6 +74,11 @@ class StatementCut(unittest.TestCase):
         import px4_stmt
         self.assertEqual(px4_stmt.cut(self.TEXT, "if (x)", "}"), "\tif (x) {\n\t\tf(x,\n\t\t  y);\n\t}")
 
+    def test_cut_to_the_second_closing_brace(self):
+        import px4_stmt
+        text = "\tint a = 1;\n\tif (a) {\n\t\ta = 2;\n\t}\n\tfor (;;) {\n\t}\n\treturn;\n"
+        self.assertEqual(px4_stmt.cut(text, "int a = 1;", "}#2"), "\tint a = 1;\n\tif (a) {\n\t\ta = 2;\n\t}\n\tfor (;;) {\n\t}")
+
     def test_cut_one_line_and_a_missing_marker(self):
         import px4_stmt
         self.assertEqual(px4_stmt.cut(self.TEXT, "return;", None), "\treturn;")

@@ -111,7 +111,7 @@ Measured from a clean clone of this repository on 2026-10-07 over the 114 commit
     - **PX4's own statements, before and after.** For the MAVLink and commander handlers, which need a running
       module, `t/flight/px4_stmt.py` cuts PX4's lines from its source at the pinned commit and at each fix's
       commit, compiles them, and runs every input. The original lines agree with the finding, and the fixed lines
-      with the fix, in 10 of 10 comparisons ([t/PX4-STMT.md](t/PX4-STMT.md)). PX4's original lines arm the vehicle
+      with the fix, in 12 of 12 comparisons ([t/PX4-STMT.md](t/PX4-STMT.md)). PX4's original lines arm the vehicle
       on a parameter of 257; the fixed lines reject it.
     The first defect, `wrap_bin`, was found by a proof attempt. Its contract, the one PX4's own unit test states,
     holds only for `bin >= -bin_count`, and PX4's compiled code returns -1 at the kernels' input.

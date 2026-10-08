@@ -112,7 +112,7 @@ FIX_OF = {"px4_wrap_bin_fixed": "px4_wrap_bin", "px4_wrap_bin_fixed_72": "px4_wr
 STMT = "the handler's own statements, before and after the fix, compiled and run on every input: px4_stmt.py, PX4-STMT.md"
 # fixes and findings checked against PX4 by another route than this harness's per-point call, with the route named
 FIX_NOT_DIFFED = {
-    "px4_request_event_fixed": "SendProtocol::handle_request_event needs a Mavlink instance; checked in PX4's own build",
+    "px4_request_event_fixed": STMT,
     "px4_arm_param_fixed": STMT,
     "px4_stream_interval_fixed": STMT,
     "px4_do_jump_index_fixed": STMT,
@@ -127,7 +127,7 @@ FINDINGS = HERE / "findings"
 FINDING_OF = {"px4_wrap_bin_any": "px4_wrap_bin"}
 PROBES = {"px4_wrap_bin_any": [{"bin": -73, "bin_count": 72}]}
 FINDING_NOT_RUN = {
-    "px4_request_event_any": "SendProtocol::handle_request_event needs a Mavlink instance; checked in PX4's own build",
+    "px4_request_event_any": STMT,
     "px4_arm_param_any": STMT,
     "px4_stream_interval_any": STMT,
     "px4_do_jump_index_any": STMT,

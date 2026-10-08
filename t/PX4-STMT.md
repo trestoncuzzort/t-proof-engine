@@ -8,6 +8,8 @@ Each handler's lines, cut verbatim from PX4's source at the pinned commit (`orig
 | #29036 | fixed | px4_arm_param_fixed | 96d9bbbb1e9a | 3 | 89 | 89 | -1 at 257 |
 | #29036 | original | px4_set_mode_field_any | dd804e4b9c49 | 1 | 92 | 92 | 8 at 264 |
 | #29036 | fixed | px4_set_mode_field_fixed | 96d9bbbb1e9a | 15 | 92 | 92 | -1 at 264 |
+| #29033 | original | px4_request_event_any | dd804e4b9c49 | 18 | 77 | 77 | 41 at (0, 40, 20) |
+| #29033 | fixed | px4_request_event_fixed | 0e222f30c7f3 | 34 | 77 | 77 | 20 at (0, 40, 20) |
 | #29034 | original | px4_stream_interval_any | dd804e4b9c49 | 1 | 46 | 46 | -2147483648 at 2147483648 |
 | #29034 | fixed | px4_stream_interval_fixed | 997da58b2d7b | 2 | 46 | 46 | 2147483647 at 2147483648 |
 | #29035 | original | px4_do_jump_index_any | dd804e4b9c49 | 6 | 95 | 95 | 3 at 65539 |

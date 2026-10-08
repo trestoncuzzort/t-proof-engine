@@ -66,6 +66,33 @@ PAIRS = {
                        "  return mode_fields_valid ? base_mode : -1; }\n"),
         "finding": "findings/px4_set_mode_field_any.t", "fix": "fixes/px4_set_mode_field_fixed.t", "param": "p",
     },
+    "request_event": {
+        "file": "src/modules/mavlink/mavlink_events.cpp", "pr": 29033,
+        "fix_commit": "0e222f30c7f3c74c92d57d94c810f9a06c202235",
+        "orig": ("const uint16_t end_sequence = request_event.last_sequence + 1;", "}"),
+        "fixed": ("const uint16_t end_sequence = request_event.last_sequence + 1;", "}#2"),
+        # an event buffer of the given capacity holding no event (every lookup misses, as for a sequence long gone);
+        # the result is the number of lookups, t's `lookups`
+        "wrap": ("#define PX4_DEBUG(...)\n"
+                 "enum { MAV_EVENT_ERROR_REASON_UNAVAILABLE = 0 };\n"
+                 "struct Event {};\n"
+                 "struct mavlink_request_event_t { uint16_t first_sequence; uint16_t last_sequence; };\n"
+                 "struct mavlink_message_t { uint8_t sysid; uint8_t compid; };\n"
+                 "struct mavlink_response_event_error_t { uint8_t target_system; uint8_t target_component;"
+                 " uint16_t sequence; uint16_t sequence_oldest_available; uint8_t reason; };\n"
+                 "static long long lookups = 0;\n"
+                 "struct EventBuffer { int cap; bool get_event(uint16_t, Event &) const { lookups++; return false; }\n"
+                 "  uint16_t get_oldest_sequence_after(uint16_t s) const { return s; } int capacity() const { return cap; } };\n"
+                 "struct Chan { int get_channel() const { return 0; } };\n"
+                 "static void mavlink_msg_response_event_error_send_struct(int, const mavlink_response_event_error_t *) {}\n"
+                 "static void send_event(const Event &) {}\n"
+                 "static long long run(long long first, long long last, long long capacity) {\n"
+                 "  const EventBuffer _buffer{(int)capacity}; const Chan _mavlink{}; const mavlink_message_t msg{1, 1};\n"
+                 "  mavlink_request_event_t request_event{(uint16_t)first, (uint16_t)last}; Event e; lookups = 0;\n"
+                 "{LINES}\n  return lookups; }\n"),
+        "finding": "findings/px4_request_event_any.t", "fix": "fixes/px4_request_event_fixed.t",
+        "params": ["first", "last", "capacity"], "keep": lambda v: v["capacity"] <= 65535,
+    },
     "stream_interval": {
         "file": "src/modules/mavlink/mavlink_main.cpp", "pr": 29034,
         "fix_commit": "997da58b2d7b931ab89e5e0bf887c6303c1fac41",
@@ -151,10 +178,13 @@ def cut(text: str, start: str, end: str | None) -> str:
     if end is None:
         return lines[i]
     indent = len(lines[i]) - len(lines[i].lstrip("\t"))
+    want = int(end[2:]) if end.startswith("}#") else 1                 # "}#2": the second such closing brace
     for j in range(i + 1, len(lines)):
-        if end == "}":
+        if end == "}" or end.startswith("}#"):
             if lines[j].strip() == "}" and len(lines[j]) - len(lines[j].lstrip("\t")) <= indent:
-                return "\n".join(lines[i:j + 1])
+                want -= 1
+                if want == 0:
+                    return "\n".join(lines[i:j + 1])
         elif end in lines[j]:
             return "\n".join(lines[i:j + 1])
     raise ValueError(f"end marker {end!r} not found after {start!r}")
@@ -162,7 +192,12 @@ def cut(text: str, start: str, end: str | None) -> str:
 
 def run_cpp(lines: str, wrap: str, inputs: list[int], two: bool, px4: Path) -> list[tuple]:
     body = wrap.replace("{LINES}", lines)
-    if two:
+    if inputs and isinstance(inputs[0], tuple):
+        k = len(inputs[0])
+        vs = ", ".join(f"v{i}" for i in range(k))
+        main = (f"int main() {{ long long {vs}; while (scanf(\"{' '.join(['%lld'] * k)}\", "
+                + ", ".join(f"&v{i}" for i in range(k)) + f") == {k}) printf(\"%lld\\n\", run({vs})); return 0; }}\n")
+    elif two:
         main = ("int main() { long long x; while (scanf(\"%lld\", &x) == 1) { long long q = 0;"
                 " long long r = run(x, &q); printf(\"%lld %lld\\n\", r, q); } return 0; }\n")
     else:
@@ -175,7 +210,7 @@ def run_cpp(lines: str, wrap: str, inputs: list[int], two: bool, px4: Path) -> l
                             f"-I{px4}/stub", str(cpp), "-o", str(exe)], capture_output=True, text=True, timeout=300)
         if p.returncode != 0:
             raise RuntimeError("compile error: " + "\n".join(p.stderr.splitlines()[:5]))
-        out = subprocess.run([str(exe)], input="\n".join(map(str, inputs)) + "\n", capture_output=True, text=True,
+        out = subprocess.run([str(exe)], input="\n".join(" ".join(map(str, v)) if isinstance(v, tuple) else str(v) for v in inputs) + "\n", capture_output=True, text=True,
                              timeout=120).stdout.split("\n")
     return [tuple(int(v) for v in ln.split()) for ln in out if ln.strip()]
 
@@ -198,12 +233,23 @@ def t_result(task: dict, env0: dict):
 def check(name: str, spec: dict, px4: Path) -> dict:
     finding = tasks_io.load_task(str(HERE / spec["finding"]))
     fix = tasks_io.load_task(str(HERE / spec["fix"]))
-    real = json.loads((HERE / "findings" / "real_inputs.json").read_text())[finding["name"]]["input"][spec["param"]]
-    if "domain" in spec:
+    real_in = json.loads((HERE / "findings" / "real_inputs.json").read_text())[finding["name"]]["input"]
+    if "params" in spec:                           # several integer parameters, fed as one tuple per input
+        ps = spec["params"]
+        real = tuple(real_in[q] for q in ps)
+        dom = sorted({tuple(env0[q] for q in ps) for env0, _ in interp.Reference(finding).points
+                      if all(isinstance(env0[q], int) for q in ps) and spec.get("keep", lambda t: True)(
+                          {q: env0[q] for q in ps})} | {real})
+        spec = dict(spec, param=None, env=lambda at, ps=ps: dict(zip(ps, at)))
+    else:
+        real = real_in[spec["param"]]
+    if "params" in spec:
+        pass
+    elif "domain" in spec:
         dom = spec["domain"]
     else:
         dom = sorted({env0[spec["param"]] for env0, _ in interp.Reference(finding).points} | {real})
-    if spec["param"] == "p":                       # a float parameter carries these integers exactly
+    if spec.get("param") == "p":                       # a float parameter carries these integers exactly
         dom = [v for v in dom if abs(v) <= 2 ** 24]
     two = name == "stream_interval"
     rows = []

@@ -3318,3 +3318,9 @@ all seven kernels, its fix verifies in all seven, and PX4's lines agree at all 9
 What this establishes: every pull request filed to PX4 now carries a machine-checked account of its defect, and
 every fix but two carries a seven-kernel proof. For the five MAVLink and commander defects, PX4's own compiled lines
 behave as the t finding says before the fix and as the t fix says after it, at every input tested.
+
+Added after the reading, by hand (2026-10-08 07:55Z): REQUEST_EVENT's handler joins `px4_stmt.py` (several
+integer inputs per case; the fix's lines cut to the second closing brace). PX4's original lines agree with the
+finding and the fixed lines with the fix at all 77 inputs, wrapped ranges included: 41 lookups against 20 at the real
+input before, 20 after. Twelve of twelve comparisons now agree; every filed MAVLink and commander fix is checked
+against PX4's own compiled statements.

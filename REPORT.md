@@ -151,7 +151,7 @@ obstacle map negatively. The report to PX4 is drafted, not filed.
 - Six fixes are proved in all seven kernels, `wrap_bin`'s and the obstacle loop's in six, and REQUEST_EVENT's in three (Dafny proves it only
   above the fixed resource budget, so the cell reads as a timeout).
 - For the MAVLink and commander handlers, `t/flight/px4_stmt.py` compiles PX4's own lines before and after each
-  fix and runs every input: 10 of 10 comparisons agree with the finding or the fix (`t/PX4-STMT.md`).
+  fix and runs every input: 12 of 12 comparisons agree with the finding or the fix (`t/PX4-STMT.md`).
 
 The envelope for `sq` is a fact about PX4's `int` instantiation: squaring a 32-bit `int` above 46,340 overflows.
 The interpolation contract needs a minimum gap between its breakpoints, which PX4 does not state: a small
