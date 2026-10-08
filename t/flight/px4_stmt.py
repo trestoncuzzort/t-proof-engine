@@ -93,6 +93,32 @@ PAIRS = {
         "finding": "findings/px4_request_event_any.t", "fix": "fixes/px4_request_event_fixed.t",
         "params": ["first", "last", "capacity"], "keep": lambda v: v["capacity"] <= 65535,
     },
+    "fusion_source": {
+        "file": "src/modules/ekf2/EKF2.cpp", "pr": None, "pinned": "df387bdec263fb4190eca5f061ce63091a6a758f",
+        "fix_commit": "484d183bc95934fe669ca4b64e5ffb063c958719",
+        "orig": ("const uint8_t sensor_type = static_cast<uint8_t>(cmd.param1);", "}"),
+        "fixed": ("// The source, instance and enable flag are integers carried in floats.", "}#2"),
+        # VEHICLE_CMD_ESTIMATOR_SENSOR_ENABLE with source p, instance unused (NaN) and enable 1; the result is the
+        # source whose fusion flag the handler would set (FUSION_SOURCE_*), or -1 for none
+        "wrap": ("struct FusionSensor { bool enabled; bool available; };\n"
+                 "static constexpr int MAX_AGP_INSTANCES = 2;\n"
+                 "struct FC { FusionSensor gps, of, ev, agp[MAX_AGP_INSTANCES], baro, rng, mag, aspd, rngbcn; };\n"
+                 "static FC _fc;\n"
+                 "struct vehicle_command_s { float param1, param2, param3;\n"
+                 "  static constexpr uint8_t FUSION_SOURCE_GPS = 0, FUSION_SOURCE_OF = 1, FUSION_SOURCE_EV = 2,"
+                 " FUSION_SOURCE_AGP = 3, FUSION_SOURCE_BARO = 4, FUSION_SOURCE_RNG = 5, FUSION_SOURCE_MAG = 6,"
+                 " FUSION_SOURCE_ASPD = 7, FUSION_SOURCE_RNGBCN = 8; };\n"
+                 "struct vehicle_command_ack_s { uint8_t result; static constexpr uint8_t VEHICLE_CMD_RESULT_DENIED = 2,"
+                 " VEHICLE_CMD_RESULT_UNSUPPORTED = 3; };\n"
+                 "static long long run(long long p) { const vehicle_command_s cmd{(float)p, NAN, 1.f};\n"
+                 "  vehicle_command_ack_s ack{}; long long out = -1;\n"
+                 "  [&]() {\n{LINES}\n"
+                 "    const FusionSensor *all[] = {&_fc.gps, &_fc.of, &_fc.ev, &_fc.agp[0], &_fc.baro, &_fc.rng, &_fc.mag,"
+                 " &_fc.aspd, &_fc.rngbcn};\n"
+                 "    for (int k = 0; k < 9; k++) if (sensor == all[k]) out = k; }();\n"
+                 "  return out; }\n"),
+        "finding": "findings/px4_fusion_source_any.t", "fix": "fixes/px4_fusion_source_fixed.t", "param": "p",
+    },
     "stream_interval": {
         "file": "src/modules/mavlink/mavlink_main.cpp", "pr": 29034,
         "fix_commit": "997da58b2d7b931ab89e5e0bf887c6303c1fac41",
@@ -253,7 +279,7 @@ def check(name: str, spec: dict, px4: Path) -> dict:
         dom = [v for v in dom if abs(v) <= 2 ** 24]
     two = name == "stream_interval"
     rows = []
-    for which, task, commit, repo in (("original", finding, PX4_COMMIT, "PX4/PX4-Autopilot"),
+    for which, task, commit, repo in (("original", finding, spec.get("pinned", PX4_COMMIT), "PX4/PX4-Autopilot"),
                                       ("fixed", fix, spec["fix_commit"], FORK)):
         lines = cut(source(spec["file"], commit, repo), *spec["orig" if which == "original" else "fixed"])
         wrap = spec.get("wrap_fixed", spec["wrap"]) if which == "fixed" else spec["wrap"]

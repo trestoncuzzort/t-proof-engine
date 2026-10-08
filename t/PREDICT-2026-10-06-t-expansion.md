@@ -3325,7 +3325,7 @@ finding and the fixed lines with the fix at all 77 inputs, wrapped ranges includ
 input before, 20 after. Twelve of twelve comparisons now agree; every filed MAVLink and commander fix is checked
 against PX4's own compiled statements.
 
-## T72 registered (2026-10-08 08:20Z, after hand runs and before a clean-clone run): Lean states the divisions an entry state passes through
+## T72 registered (2026-10-08 07:59Z, after hand runs and before a clean-clone run): Lean states the divisions an entry state passes through
 
 **What changes.** `lower_lean` adds a last alternative to each loop invariant's entry proof when the body divides:
 `0 <= a / b` for each division, by `Int.ediv_nonneg` with its hypotheses by `omega`, each `have` under `try`. `grind`
