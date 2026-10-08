@@ -104,6 +104,10 @@ CALLS = {
                          "size_t n = b.pop_front(dst.data(), (size_t)buf_max_len); "
                          "return std::make_pair((long long)n, (long long)b._start); }()", "pair"),
 }
+FIXES = HERE / "fixes"
+# a task under fixes/ restates the change proposed to PX4 for a finding; with --fixed-tree, the patched PX4 checkout's
+# own code is compiled and run against it, through the call of the function it replaces
+FIX_OF = {"px4_wrap_bin_fixed": "px4_wrap_bin", "px4_wrap_bin_fixed_72": "px4_wrap_bin_72"}
 FINDINGS = HERE / "findings"
 # a task under findings/ restates a PX4 function with the contract it needs and without the `requires` PX4's callers
 # do not establish; the kernels refute it, and PX4's own code is run at the refuting input and at the probes below
@@ -180,12 +184,13 @@ def program(task: dict, ref, call: str | None = None, pts: list | None = None) -
     return src, expect, inputs
 
 
-def _compile_run(src: str, px4: Path) -> tuple[list[str] | None, str]:
+def _compile_run(src: str, px4: Path, stub: Path | None = None) -> tuple[list[str] | None, str]:
+    stub = stub or px4 / "stub"
     with tempfile.TemporaryDirectory(prefix="t-px4-") as d:
         cpp, exe = Path(d) / "p.cpp", Path(d) / "p"
         cpp.write_text(src)
         p = subprocess.run(["g++", "-std=c++17", "-O1", "-ffp-contract=off", "-w", f"-I{px4}/src/lib",
-                            f"-I{px4}/src/lib/matrix", f"-I{px4}/stub", *ACCESS, str(cpp)]
+                            f"-I{px4}/src/lib/matrix", f"-I{stub}", *ACCESS, str(cpp)]
                            + [str(px4 / f) for f in SOURCES] + ["-o", str(exe)],
                            capture_output=True, text=True, timeout=300)
         if p.returncode != 0:
@@ -218,6 +223,26 @@ def finding(path: Path, px4: Path) -> dict:
     ok = len(got) == len(expect) and all(r["t"] == r["px4"] and r["breaks_contract"] for r in rows)
     return {"name": name, "px4_call": CALLS[call][0], "rows": rows,
             "status": "PX4 breaks the contract here, as t's body does" if ok else "NOT REPRODUCED"}
+
+
+def diff_fix(path: Path, tree: Path, stub: Path) -> dict:
+    """A fixes/ task against the patched PX4 checkout `tree`: every domain point, as diff_task does."""
+    task = tasks_io.load_task(str(path))
+    name, call = task["name"], FIX_OF[task["name"]]
+    harness._set_ctx(task)
+    ref = interp.Reference(task)
+    src, expect, inputs = program(task, ref, call, ref.points[:POINTS])
+    out, err = _compile_run(src, tree, stub)
+    if out is None:
+        return {"name": name, "status": err}
+    bad = [i for i, (e, g) in enumerate(zip(expect, out)) if e != g.strip()]
+    res = {"name": name, "points": len(expect), "px4_call": CALLS[call][0]}
+    if bad or len(out) != len(expect):
+        i = bad[0] if bad else len(out)
+        res.update(status="DIFFERS", first={"input": inputs[i] if i < len(inputs) else None})
+    else:
+        res["status"] = "agrees"
+    return res
 
 
 def diff_task(path: Path, px4: Path) -> dict:
@@ -266,8 +291,15 @@ def diff_task(path: Path, px4: Path) -> dict:
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(prog="px4_diff.py", description=__doc__.split("\n\n")[0])
     ap.add_argument("--table", metavar="PATH")
+    ap.add_argument("--fixed-tree", metavar="DIR", help="a PX4 checkout with the proposed fixes applied: run "
+                    "fixes/ against it and nothing else")
     args = ap.parse_args(argv)
     px4 = fetch_px4()
+    if args.fixed_tree:
+        fixed = [diff_fix(p, Path(args.fixed_tree), px4 / "stub") for p in sorted(FIXES.glob("*.t"))]
+        for r in fixed:
+            print(f"fix {r['name']}: {r['status']}" + (f" ({r['points']} points)" if r.get("points") else ""))
+        return 1 if any(r["status"] != "agrees" for r in fixed) else 0
     results = [diff_task(p, px4) for p in sorted(HERE.glob("*.t"))]
     found = [finding(p, px4) for p in sorted(FINDINGS.glob("*.t"))]
     for r in results:

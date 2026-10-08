@@ -100,6 +100,15 @@ negative. `px4_wrap_bin` proves the result is a valid bin, congruent to `bin`, f
 PX4's own: its test `ObstacleMathTest.WrapBin` (src/lib/collision_prevention/ObstacleMathTest.cpp:184) expects a
 negative bin "wrapped back to the end" (-1 to 71), and checks no bin below -72.
 
+**Proposed fixes** (`fixes/`). A task there restates the change proposed to PX4 for a finding, with the finding's
+contract and without the `requires` PX4's callers did not establish. `px4_diff.py --fixed-tree DIR` compiles the
+patched PX4 checkout's own code and runs it against the task on every domain point.
+
+| t task | the fix | PX4 call |
+|---|---|---|
+| px4_wrap_bin_fixed | `wrap_bin` shifts a negative remainder back into `[0, bin_count)` | `ObstacleMath::wrap_bin(bin, bin_count)` |
+| px4_wrap_bin_fixed_72 | the same, at `CollisionPrevention`'s `BIN_COUNT` = 72 | `ObstacleMath::wrap_bin(bin, 72)` |
+
 **Checked against PX4 itself.** `px4_diff.py` fetches PX4's headers at the pinned commit (the platform header is
 replaced by a two-macro stub), compiles each function's own C++, and runs it on every domain point of its t task. It
 compares each result with t's interpreter. The table is `t/PX4-DIFF.md`.

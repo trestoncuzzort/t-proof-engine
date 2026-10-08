@@ -49,3 +49,18 @@ def test_every_finding_is_refuted_and_tied_to_px4():
         assert audit.classify(task)["status"] == "real-violates-spec", p.name
         assert task["name"] in px4_diff.FINDING_OF and px4_diff.FINDING_OF[task["name"]] in px4_diff.CALLS, p.name
         assert f"| {task['name']} |" in readme, task["name"]
+
+
+FIXES = sorted((HERE / "flight" / "fixes").glob("*.t"))
+
+
+def test_every_fix_is_audited_and_tied_to_px4():
+    readme = (HERE / "flight" / "README.md").read_text()
+    assert FIXES
+    for p in FIXES:
+        task = tasks_io.load_task(str(p))
+        assert check_wf.check_wf(task) == [], p
+        res = audit.classify(task)
+        assert res["status"] == "ok" and not res["survivors"], (p.name, res.get("survivors"))
+        assert task["name"] in px4_diff.FIX_OF and px4_diff.FIX_OF[task["name"]] in px4_diff.CALLS, p.name
+        assert f"| {task['name']} |" in readme, task["name"]
