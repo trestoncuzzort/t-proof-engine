@@ -88,6 +88,7 @@ PX4's own code at the refuting input.
 | t task | PX4 function | the `requires` dropped | what PX4 returns without it |
 |---|---|---|---|
 | px4_wrap_bin_any | `ObstacleMath::wrap_bin` | `bin >= -bin_count` | -1 at `bin` = -73, `bin_count` = 72 |
+| px4_sumd_receive_any | `sumd_decode`'s storing of channel bytes (src/lib/rc/sumd.cpp:196) | `2 * length <= len(sumd_data) - 2`, one byte of headroom the frame-length check does not leave | a write one past the buffer: `sumd_data[64]` for a valid 32-channel frame |
 
 `wrap_bin`'s result indexes the collision-prevention obstacle map. That map is four arrays of 72 bins:
 `_obstacle_map_body_frame.distances`, `_data_timestamps`, `_data_maxranges` and `_data_fov`.
@@ -108,6 +109,15 @@ patched PX4 checkout's own code and runs it against the task on every domain poi
 |---|---|---|
 | px4_wrap_bin_fixed | `wrap_bin` shifts a negative remainder back into `[0, bin_count)` | `ObstacleMath::wrap_bin(bin, bin_count)` |
 | px4_wrap_bin_fixed_72 | the same, at `CollisionPrevention`'s `BIN_COUNT` = 72 | `ObstacleMath::wrap_bin(bin, 72)` |
+| px4_sumd_receive_fixed | channel byte k is stored at `sumd_data[k]`, not `k + 1` | `sumd_decode` (checked by sanitizer run, below) |
+
+The SUMD pair states `sumd_decode`'s storing loop over a packet buffer of any even size. PX4's buffer is
+`SUMD_MAX_CHANNELS * 2` = 64 bytes and accepts `2 <= length <= 32`. The tasks take the buffer's length as given and
+store each byte's position as its value, so the contract pins where every byte lands. The interpreter finds the
+out-of-bounds store at the smallest buffer, and the kernels prove the fixed loop for every size. PX4's own
+`sumd.cpp` was compiled with UBSan and fed a valid 32-channel frame. It reports the write and the read at index 64,
+and channel 32 decodes from the CRC byte. With the fix there are no reports and channel 32 is correct, and PX4's
+recorded stream (`test_data/sumd_data.txt`, 498 frames) decodes identically before and after.
 
 **Checked against PX4 itself.** `px4_diff.py` fetches PX4's headers at the pinned commit (the platform header is
 replaced by a two-macro stub), compiles each function's own C++, and runs it on every domain point of its t task. It

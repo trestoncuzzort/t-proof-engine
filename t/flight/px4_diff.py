@@ -108,11 +108,16 @@ FIXES = HERE / "fixes"
 # a task under fixes/ restates the change proposed to PX4 for a finding; with --fixed-tree, the patched PX4 checkout's
 # own code is compiled and run against it, through the call of the function it replaces
 FIX_OF = {"px4_wrap_bin_fixed": "px4_wrap_bin", "px4_wrap_bin_fixed_72": "px4_wrap_bin_72"}
+# fixes and findings checked against PX4 by another route than this harness's per-point call, with the route named
+FIX_NOT_DIFFED = {"px4_sumd_receive_fixed": "sumd_decode is a byte-at-a-time state machine; the patched sumd.cpp was "
+                  "run on a valid 32-channel frame and PX4's recorded stream under UBSan (README)"}
 FINDINGS = HERE / "findings"
 # a task under findings/ restates a PX4 function with the contract it needs and without the `requires` PX4's callers
 # do not establish; the kernels refute it, and PX4's own code is run at the refuting input and at the probes below
 FINDING_OF = {"px4_wrap_bin_any": "px4_wrap_bin"}
 PROBES = {"px4_wrap_bin_any": [{"bin": -73, "bin_count": 72}]}
+FINDING_NOT_RUN = {"px4_sumd_receive_any": "PX4's own sumd.cpp, built with UBSan, reports the out-of-bounds write "
+                   "and read at index 64 on a valid 32-channel frame (README)"}
 # parameters PX4's own signature narrows to binary32 (`float`) before use, though the template is at double
 NARROWED = {"px4_alpha_update": ["alpha"], "px4_slew_update": ["dt"]}
 
@@ -296,12 +301,13 @@ def main(argv=None) -> int:
     args = ap.parse_args(argv)
     px4 = fetch_px4()
     if args.fixed_tree:
-        fixed = [diff_fix(p, Path(args.fixed_tree), px4 / "stub") for p in sorted(FIXES.glob("*.t"))]
+        fixed = [diff_fix(p, Path(args.fixed_tree), px4 / "stub") for p in sorted(FIXES.glob("*.t"))
+                 if p.stem not in FIX_NOT_DIFFED]
         for r in fixed:
             print(f"fix {r['name']}: {r['status']}" + (f" ({r['points']} points)" if r.get("points") else ""))
         return 1 if any(r["status"] != "agrees" for r in fixed) else 0
     results = [diff_task(p, px4) for p in sorted(HERE.glob("*.t"))]
-    found = [finding(p, px4) for p in sorted(FINDINGS.glob("*.t"))]
+    found = [finding(p, px4) for p in sorted(FINDINGS.glob("*.t")) if p.stem not in FINDING_NOT_RUN]
     for r in results:
         print(f"{r['name']}: {r['status']}" + (f" ({r['points']} points)" if r.get("points") else "")
               + (f" first: {json.dumps(r['first'])}" if r.get("first") else ""))
