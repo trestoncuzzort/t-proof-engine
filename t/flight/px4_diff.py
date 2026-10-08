@@ -108,11 +108,15 @@ FIXES = HERE / "fixes"
 # a task under fixes/ restates the change proposed to PX4 for a finding; with --fixed-tree, the patched PX4 checkout's
 # own code is compiled and run against it, through the call of the function it replaces
 FIX_OF = {"px4_wrap_bin_fixed": "px4_wrap_bin", "px4_wrap_bin_fixed_72": "px4_wrap_bin_72"}
+# the handler needs a running module, so its own statements are cut from PX4's source and run instead
+STMT = "the handler's own statements, before and after the fix, compiled and run on every input: px4_stmt.py, PX4-STMT.md"
 # fixes and findings checked against PX4 by another route than this harness's per-point call, with the route named
 FIX_NOT_DIFFED = {
     "px4_request_event_fixed": "SendProtocol::handle_request_event needs a Mavlink instance; checked in PX4's own build",
-    "px4_arm_param_fixed": "Commander::handle_command needs the commander module; checked in PX4's own build",
-    "px4_stream_interval_fixed": "Mavlink::configure_stream needs a Mavlink instance; checked in PX4's own build",
+    "px4_arm_param_fixed": STMT,
+    "px4_stream_interval_fixed": STMT,
+    "px4_do_jump_index_fixed": STMT,
+    "px4_serial_control_fixed": STMT,
     "px4_sumd_receive_fixed": "sumd_decode is a byte-at-a-time state machine; the patched sumd.cpp was "
                   "run on a valid 32-channel frame and PX4's recorded stream under UBSan (README)"}
 FINDINGS = HERE / "findings"
@@ -122,8 +126,10 @@ FINDING_OF = {"px4_wrap_bin_any": "px4_wrap_bin"}
 PROBES = {"px4_wrap_bin_any": [{"bin": -73, "bin_count": 72}]}
 FINDING_NOT_RUN = {
     "px4_request_event_any": "SendProtocol::handle_request_event needs a Mavlink instance; checked in PX4's own build",
-    "px4_arm_param_any": "Commander::handle_command needs the commander module; checked in PX4's own build",
-    "px4_stream_interval_any": "Mavlink::configure_stream needs a Mavlink instance; checked in PX4's own build",
+    "px4_arm_param_any": STMT,
+    "px4_stream_interval_any": STMT,
+    "px4_do_jump_index_any": STMT,
+    "px4_serial_control_any": STMT,
     "px4_sumd_receive_any": "PX4's own sumd.cpp, built with UBSan, reports the out-of-bounds write "
                    "and read at index 64 on a valid 32-channel frame (README)"}
 # parameters PX4's own signature narrows to binary32 (`float`) before use, though the template is at double
