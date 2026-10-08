@@ -91,11 +91,21 @@ Measured from a clean clone of this repository on 2026-10-07 over the 114 commit
     applied ([t/PX4-DIFF.md](t/PX4-DIFF.md)).
   - At machine width, 18 ship for every int32 input and 4 within a proved envelope
     ([t/SHIP-FLIGHT.md](t/SHIP-FLIGHT.md)).
-  - **A PX4 defect, found by the method.** `ObstacleMath::wrap_bin`'s contract, the one PX4's own unit test
-    states, holds only for `bin >= -bin_count`. All seven kernels refute it without that bound, and PX4's compiled
-    code returns -1 at their input ([t/FLIGHT-FINDINGS.md](t/FLIGHT-FINDINGS.md)). The collision-prevention sensor
-    path does not establish the bound: a field of view the code never range-checks indexes the obstacle map
-    negatively ([t/flight/README.md](t/flight/README.md)).
+  - **Fixes filed upstream.** Seven pull requests to PX4, each passing PX4's `make check_format` and full
+    `make tests` (212/212) before filing:
+    [#29030](https://github.com/PX4/PX4-Autopilot/pull/29030) (collision prevention's bin index),
+    [#29031](https://github.com/PX4/PX4-Autopilot/pull/29031) (SUMD 32-channel buffer),
+    [#29032](https://github.com/PX4/PX4-Autopilot/pull/29032), [#29033](https://github.com/PX4/PX4-Autopilot/pull/29033),
+    [#29034](https://github.com/PX4/PX4-Autopilot/pull/29034) (MAVLink parameter bounds),
+    [#29035](https://github.com/PX4/PX4-Autopilot/pull/29035) (mission jump index) and
+    [#29036](https://github.com/PX4/PX4-Autopilot/pull/29036) (commander parameter narrowing).
+  - **The defects, in the kernels.** For five of the seven, t states the function with its contract.
+    `t/refute_at.py` has every kernel refute the original at the input a real message carries, and the fixed
+    version is proved ([t/FLIGHT-FINDINGS-REAL.md](t/FLIGHT-FINDINGS-REAL.md)):
+    - four originals are refuted in all seven kernels, and SUMD's in six;
+    - the arm/disarm and stream-interval fixes are proved in all seven, and `wrap_bin`'s in six.
+    The first defect, `wrap_bin`, was found by a proof attempt. Its contract, the one PX4's own unit test states,
+    holds only for `bin >= -bin_count`, and PX4's compiled code returns -1 at the kernels' input.
   - **Real code tested the toolchain too.** Nine lowering gaps that the 114-task suite never reached surfaced on
     PX4's code (PREDICT T68, T69). Each was fixed with no published cell lost.
     - Two were semantic faults: Lean and F\* each lowered a `return` two `if`s deep to a different program (Lean on

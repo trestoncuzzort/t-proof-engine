@@ -141,6 +141,17 @@ view, starting from `round((yaw - fov/2) / 5)`. The field of view reaches that l
 value above about 12.65 rad (for example a value in degrees where radians are expected) indexes the 72-bin
 obstacle map negatively. The report to PX4 is drafted, not filed.
 
+**Upstream.** Seven fixes have been filed to PX4 as pull requests #29030-#29036. Each passed PX4's own
+`make check_format` and `make tests` (212/212) before filing.
+- Two came from proof attempts: `wrap_bin`, and SUMD's one-byte overrun on a valid 32-channel frame.
+- The rest came from reading the code at the same boundary, where outside values become indices, loop bounds or
+  narrowed integers.
+- For five, t states the function and its contract, and `t/refute_at.py` has every kernel refute the original at
+  the input a real message carries (`t/FLIGHT-FINDINGS-REAL.md`): `wrap_bin`, REQUEST_EVENT, ARM_DISARM and the
+  stream interval in all seven, SUMD in six.
+- The arm/disarm and stream-interval fixes are proved in all seven kernels, `wrap_bin`'s in six, and REQUEST_EVENT's
+  and SUMD's in two so far.
+
 The envelope for `sq` is a fact about PX4's `int` instantiation: squaring a 32-bit `int` above 46,340 overflows.
 The interpolation contract needs a minimum gap between its breakpoints, which PX4 does not state: a small
 `x_high - x_low` overflows the slope.
