@@ -141,12 +141,12 @@ view, starting from `round((yaw - fov/2) / 5)`. The field of view reaches that l
 value above about 12.65 rad (for example a value in degrees where radians are expected) indexes the 72-bin
 obstacle map negatively. The report to PX4 is drafted, not filed.
 
-**Upstream.** Nine fixes have been filed to PX4 as pull requests #29030-#29037 and #29039. Each passed PX4's own
+**Upstream.** Ten fixes have been filed to PX4 as pull requests #29030-#29037, #29039 and #29040. Each passed PX4's own
 `make check_format` and `make tests` (212/212) before filing.
 - Two came from proof attempts: `wrap_bin`, and SUMD's one-byte overrun on a valid 32-channel frame.
 - The rest came from reading the code at the same boundary, where outside values become indices, loop bounds or
   narrowed integers.
-- For all nine, t states the function and its contract, and `t/refute_at.py` has every kernel refute the original
+- For nine of them, t states the function and its contract, and `t/refute_at.py` has every kernel refute the original
   at the input a real message carries (`t/FLIGHT-FINDINGS-REAL.md`): nine of the ten findings in all seven kernels, the obstacle loop in five.
 - Eight fixes are proved in all seven kernels, `wrap_bin`'s in six, and REQUEST_EVENT's in three (Dafny proves it only
   above the fixed resource budget, so the cell reads as a timeout).

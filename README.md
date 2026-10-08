@@ -91,7 +91,7 @@ Measured from a clean clone of this repository on 2026-10-07 over the 114 commit
     applied ([t/PX4-DIFF.md](t/PX4-DIFF.md)).
   - At machine width, 18 ship for every int32 input and 4 within a proved envelope
     ([t/SHIP-FLIGHT.md](t/SHIP-FLIGHT.md)).
-  - **Fixes filed upstream.** Nine pull requests to PX4, each passing PX4's `make check_format` and full
+  - **Fixes filed upstream.** Ten pull requests to PX4, each passing PX4's `make check_format` and full
     `make tests` (212/212) before filing:
     [#29030](https://github.com/PX4/PX4-Autopilot/pull/29030) (collision prevention's bin index),
     [#29031](https://github.com/PX4/PX4-Autopilot/pull/29031) (SUMD 32-channel buffer),
@@ -102,8 +102,10 @@ Measured from a clean clone of this repository on 2026-10-07 over the 114 commit
     [#29037](https://github.com/PX4/PX4-Autopilot/pull/29037) (body-frame obstacle loop; PX4's own new test fails 50
     assertions without it) and
     [#29039](https://github.com/PX4/PX4-Autopilot/pull/29039) (EKF2 sensor-enable command: a NaN source, MAVLink's
-    unused value, selected GPS and switched its fusion off, measured on x86 and ARM).
-  - **The defects, in the kernels.** For every one of the nine, t states the function with its contract.
+    unused value, selected GPS and switched its fusion off, measured on x86 and ARM) and
+    [#29040](https://github.com/PX4/PX4-Autopilot/pull/29040) (EKF2 external wind estimate: a NaN direction made the
+    wind states NaN, and a second of flight with airspeed fusion made the velocity NaN; PX4's own new test shows both).
+  - **The defects, in the kernels.** For nine of the ten, t states the function with its contract.
     `t/refute_at.py` has every kernel refute the original at the input a real message carries, and the fixed
     version is proved ([t/FLIGHT-FINDINGS-REAL.md](t/FLIGHT-FINDINGS-REAL.md)):
     - nine of the ten originals (#29036 holds two) are refuted in all seven kernels at their real inputs, and the
