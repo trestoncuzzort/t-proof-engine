@@ -10,6 +10,7 @@ harness.real_witness gives. Each kernel's own certificate builder then lowers th
 everywhere in t, REFUTED is minted only by the kernel accepting the certificate.
 
   python3 t/refute_at.py TASK.t --at '{"count": 71, "data": [0, ...]}' [--kernels dafny,framac] [--json]
+  python3 t/refute_at.py --all DIR --table TABLE.md     # every task in DIR/real_inputs.json, at its real input
 
 An argument written as a list is a seq (or array). A value written {"fill": N, "len": L} is a seq of L copies of N,
 so a 70-byte field need not be spelled out.
@@ -88,18 +89,46 @@ def refute(task: dict, w: dict, kernels: list[str]) -> dict:
 
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(prog="refute_at.py", description=__doc__.split("\n\n")[0])
-    ap.add_argument("task", metavar="TASK.t")
-    ap.add_argument("--at", required=True, help="the input, a JSON object of parameter values")
+    ap.add_argument("task", metavar="TASK.t", nargs="?")
+    ap.add_argument("--at", help="the input, a JSON object of parameter values")
+    ap.add_argument("--all", metavar="DIR", help="every task named in DIR/real_inputs.json, at its input")
+    ap.add_argument("--table", metavar="PATH", help="with --all: write the verdicts as a markdown table")
     ap.add_argument("--kernels", default=",".join(b for b, _l, _s in run_par.BACKENDS))
     ap.add_argument("--json", action="store_true")
     args = ap.parse_args(argv)
+    kernels = args.kernels.split(",")
+    if args.all:
+        manifest = json.loads((Path(args.all) / "real_inputs.json").read_text())
+        rows = []
+        for name, entry in manifest.items():
+            task = tasks_io.load_task(str(Path(args.all) / f"{name}.t"))
+            env0 = {k: _value(v) for k, v in entry["input"].items()}
+            w = witness_at(task, env0)
+            outcomes = refute(task, w, kernels) if w else {k: "not refuted" for k in kernels}
+            n = sum(1 for o in outcomes.values() if o.lower().startswith("refuted"))
+            print(f"{name}: {n}/{len(kernels)} refuted at {entry['input']}", flush=True)
+            rows.append((name, entry, w, outcomes, n))
+        if args.table:
+            lines = ["# PX4 findings refuted at real inputs", "",
+                     "Each finding's own body, at the input a real PX4 message or buffer carries "
+                     "(t/flight/findings/real_inputs.json), lowered with its refutation certificate in every "
+                     "kernel (t/refute_at.py). REFUTED means the kernel accepted the certificate.", "",
+                     "| finding | input | kind | " + " | ".join(kernels) + " | refuted |",
+                     "|---|---|---|" + "---|" * len(kernels) + "---|"]
+            for name, entry, w, outcomes, n in rows:
+                lines.append(f"| {name} | {entry['why']} | {w['_kind'] if w else '-'} | "
+                             + " | ".join(outcomes.get(k, '') for k in kernels) + f" | {n}/{len(kernels)} |")
+            Path(args.table).write_text("\n".join(lines) + "\n")
+        return 0
+    if not args.task or not args.at:
+        ap.error("TASK.t and --at are required without --all")
     task = tasks_io.load_task(args.task)
     env0 = {k: _value(v) for k, v in json.loads(args.at).items()}
     w = witness_at(task, env0)
     if w is None:
         print(f"{task['name']}: the body meets its contract at this input; nothing to refute")
         return 1
-    outcomes = refute(task, w, args.kernels.split(","))
+    outcomes = refute(task, w, kernels)
     if args.json:
         print(json.dumps({"task": task["name"], "witness": harness.witness(w), "kind": w["_kind"],
                           "outcomes": outcomes}))

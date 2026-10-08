@@ -89,6 +89,9 @@ PX4's own code at the refuting input.
 |---|---|---|---|
 | px4_wrap_bin_any | `ObstacleMath::wrap_bin` | `bin >= -bin_count` | -1 at `bin` = -73, `bin_count` = 72 |
 | px4_sumd_receive_any | `sumd_decode`'s storing of channel bytes (src/lib/rc/sumd.cpp:196) | `2 * length <= len(sumd_data) - 2`, one byte of headroom the frame-length check does not leave | a write one past the buffer: `sumd_data[64]` for a valid 32-channel frame |
+| px4_request_event_any | `SendProtocol::handle_request_event`'s loop (src/modules/mavlink/mavlink_events.cpp:182) | a bound on the sequences handled | 41 lookups for events 0..40 against a 20-event buffer; up to 65535 for a wrapped range |
+| px4_arm_param_any | `Commander::handle_command`, COMPONENT_ARM_DISARM (src/modules/commander/Commander.cpp:1101) | narrowing only a value that fits `int8_t` | `param1` = 257 accepted as arm |
+| px4_stream_interval_any | `Mavlink::configure_stream` (src/modules/mavlink/mavlink_main.cpp:1415) | a clamp before the int conversion | a negative interval (`INT_MIN` on x86) for a requested interval of 2^31 us |
 
 `wrap_bin`'s result indexes the collision-prevention obstacle map. That map is four arrays of 72 bins:
 `_obstacle_map_body_frame.distances`, `_data_timestamps`, `_data_maxranges` and `_data_fov`.
@@ -110,6 +113,9 @@ patched PX4 checkout's own code and runs it against the task on every domain poi
 | px4_wrap_bin_fixed | `wrap_bin` shifts a negative remainder back into `[0, bin_count)` | `ObstacleMath::wrap_bin(bin, bin_count)` |
 | px4_wrap_bin_fixed_72 | the same, at `CollisionPrevention`'s `BIN_COUNT` = 72 | `ObstacleMath::wrap_bin(bin, 72)` |
 | px4_sumd_receive_fixed | channel byte k is stored at `sumd_data[k]`, not `k + 1` | `sumd_decode` (checked by sanitizer run, below) |
+| px4_request_event_fixed | sequences beyond the buffer's capacity are answered by one error, then at most `capacity` are looked up | `SendProtocol::handle_request_event` (PX4 PR #29033) |
+| px4_arm_param_fixed | only a value that fits `int8_t` is narrowed | `Commander::handle_command` (PR #29036) |
+| px4_stream_interval_fixed | the interval is clamped to `INT32_MAX` before conversion | `Mavlink::configure_stream` (PR #29034) |
 
 The SUMD pair states `sumd_decode`'s storing loop over a packet buffer of any even size. PX4's buffer is
 `SUMD_MAX_CHANNELS * 2` = 64 bytes and accepts `2 <= length <= 32`. The tasks take the buffer's length as given and
@@ -118,6 +124,15 @@ out-of-bounds store at the smallest buffer, and the kernels prove the fixed loop
 `sumd.cpp` was compiled with UBSan and fed a valid 32-channel frame. It reports the write and the read at index 64,
 and channel 32 decodes from the CRC byte. With the fix there are no reports and channel 32 is correct, and PX4's
 recorded stream (`test_data/sumd_data.txt`, 498 frames) decodes identically before and after.
+
+The three MAVLink and commander pairs state the integer the float parameter denotes (a request for 257.0 is 257).
+Each C++ conversion gets its own semantics: GCC narrows a signed integer modulo 2^8, `uint16_t` sequence arithmetic
+wraps modulo 2^16, and the float-to-`int` conversion past `INT_MAX` is undefined in C++. The stream-interval
+finding uses x86's actual result for it (`INT_MIN`), the case PR #29034 describes; ARM's FPU saturates instead. The
+stream-interval pair also leaves out the float round trip `1e6 / (1e6 / x)`.
+
+`t/refute_at.py` refutes each finding at the real input in the table. The kernels' verdicts are in
+`t/FLIGHT-FINDINGS.md`.
 
 **Checked against PX4 itself.** `px4_diff.py` fetches PX4's headers at the pinned commit (the platform header is
 replaced by a two-macro stub), compiles each function's own C++, and runs it on every domain point of its t task. It

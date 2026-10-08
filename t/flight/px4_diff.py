@@ -109,14 +109,22 @@ FIXES = HERE / "fixes"
 # own code is compiled and run against it, through the call of the function it replaces
 FIX_OF = {"px4_wrap_bin_fixed": "px4_wrap_bin", "px4_wrap_bin_fixed_72": "px4_wrap_bin_72"}
 # fixes and findings checked against PX4 by another route than this harness's per-point call, with the route named
-FIX_NOT_DIFFED = {"px4_sumd_receive_fixed": "sumd_decode is a byte-at-a-time state machine; the patched sumd.cpp was "
+FIX_NOT_DIFFED = {
+    "px4_request_event_fixed": "SendProtocol::handle_request_event needs a Mavlink instance; checked in PX4's own build",
+    "px4_arm_param_fixed": "Commander::handle_command needs the commander module; checked in PX4's own build",
+    "px4_stream_interval_fixed": "Mavlink::configure_stream needs a Mavlink instance; checked in PX4's own build",
+    "px4_sumd_receive_fixed": "sumd_decode is a byte-at-a-time state machine; the patched sumd.cpp was "
                   "run on a valid 32-channel frame and PX4's recorded stream under UBSan (README)"}
 FINDINGS = HERE / "findings"
 # a task under findings/ restates a PX4 function with the contract it needs and without the `requires` PX4's callers
 # do not establish; the kernels refute it, and PX4's own code is run at the refuting input and at the probes below
 FINDING_OF = {"px4_wrap_bin_any": "px4_wrap_bin"}
 PROBES = {"px4_wrap_bin_any": [{"bin": -73, "bin_count": 72}]}
-FINDING_NOT_RUN = {"px4_sumd_receive_any": "PX4's own sumd.cpp, built with UBSan, reports the out-of-bounds write "
+FINDING_NOT_RUN = {
+    "px4_request_event_any": "SendProtocol::handle_request_event needs a Mavlink instance; checked in PX4's own build",
+    "px4_arm_param_any": "Commander::handle_command needs the commander module; checked in PX4's own build",
+    "px4_stream_interval_any": "Mavlink::configure_stream needs a Mavlink instance; checked in PX4's own build",
+    "px4_sumd_receive_any": "PX4's own sumd.cpp, built with UBSan, reports the out-of-bounds write "
                    "and read at index 64 on a valid 32-channel frame (README)"}
 # parameters PX4's own signature narrows to binary32 (`float`) before use, though the template is at double
 NARROWED = {"px4_alpha_update": ["alpha"], "px4_slew_update": ["dt"]}

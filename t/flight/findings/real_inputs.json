@@ -1,0 +1,10 @@
+{
+  "px4_wrap_bin_any": {"input": {"bin": -73, "bin_count": 72},
+                       "why": "a bin one past a full turn below zero; PX4 returns -1"},
+  "px4_sumd_receive_any": {"input": {"sumd_data": {"fill": 0, "len": 64}, "length": 32},
+                           "why": "PX4's 64-byte buffer and a valid 32-channel frame"},
+  "px4_request_event_any": {"input": {"first": 0, "last": 40, "capacity": 20},
+                            "why": "a request for events 0..40 against PX4's default 20-event buffer"},
+  "px4_arm_param_any": {"input": {"p": 257}, "why": "COMPONENT_ARM_DISARM param1 = 257"},
+  "px4_stream_interval_any": {"input": {"x": 2147483648}, "why": "a requested interval of 2^31 us, about 36 minutes"}
+}
