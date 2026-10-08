@@ -9,5 +9,6 @@
   "px4_stream_interval_any": {"input": {"x": 2147483648}, "why": "a requested interval of 2^31 us, about 36 minutes"},
   "px4_serial_control_any": {"input": {"data": {"fill": 0, "len": 70}, "buf": {"fill": 0, "len": 71}, "count": 71},
                              "why": "a SERIAL_CONTROL message whose count, 71, exceeds its 70-byte data field"},
-  "px4_do_jump_index_any": {"input": {"p": 65539}, "why": "a DO_JUMP item with param1 = 65539, stored as a jump to item 3"}
+  "px4_do_jump_index_any": {"input": {"p": 65539}, "why": "a DO_JUMP item with param1 = 65539, stored as a jump to item 3"},
+  "px4_set_mode_field_any": {"input": {"p": 264}, "why": "a DO_SET_MODE base mode of 264, narrowed to mode 8"}
 }

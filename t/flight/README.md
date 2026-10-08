@@ -94,6 +94,7 @@ PX4's own code at the refuting input.
 | px4_stream_interval_any | `Mavlink::configure_stream` (src/modules/mavlink/mavlink_main.cpp:1415) | a clamp before the int conversion | a negative interval (`INT_MIN` on x86) for a requested interval of 2^31 us |
 | px4_serial_control_any | `MavlinkReceiver::handle_message_serial_control`, the passthrough branch (src/modules/mavlink/mavlink_receiver.cpp:2114) | `count <= len(data)`, which the shell branch of the same handler checks (line 2137) | 71 bytes handed on from the 70-byte `data` field for `count` = 71 |
 | px4_do_jump_index_any | `MavlinkMissionManager::parse_mavlink_mission_item`, DO_JUMP (src/modules/mavlink/mavlink_mission.cpp:1723) | an index that fits `int16_t` | `param1` = 65539 stored as a jump to item 3 |
+| px4_set_mode_field_any | `Commander::handle_command`, DO_SET_MODE (src/modules/commander/Commander.cpp:931) | a mode field that fits `uint8_t` | base mode 264 accepted as mode 8 |
 
 `wrap_bin`'s result indexes the collision-prevention obstacle map. That map is four arrays of 72 bins:
 `_obstacle_map_body_frame.distances`, `_data_timestamps`, `_data_maxranges` and `_data_fov`.
@@ -120,6 +121,7 @@ patched PX4 checkout's own code and runs it against the task on every domain poi
 | px4_stream_interval_fixed | the interval is clamped to `INT32_MAX` before conversion | `Mavlink::configure_stream` (PR #29034) |
 | px4_serial_control_fixed | a `count` larger than the `data` field is not handed on | `MavlinkReceiver::handle_message_serial_control` (PR #29032) |
 | px4_do_jump_index_fixed | an index outside `[0, INT16_MAX]` is rejected | `MavlinkMissionManager::parse_mavlink_mission_item` (PR #29035) |
+| px4_set_mode_field_fixed | a mode field outside `(-1, 256)` is rejected | `Commander::handle_command` (PR #29036) |
 
 The SUMD pair states `sumd_decode`'s storing loop over a packet buffer of any even size. PX4's buffer is
 `SUMD_MAX_CHANNELS * 2` = 64 bytes and accepts `2 <= length <= 32`. The tasks take the buffer's length as given and
@@ -146,10 +148,11 @@ fix's commit on the pull request's branch. It compiles them with stand-ins for t
 message struct with MAVLink's field types, the enum values, and a passthrough that records what it is handed. It
 then runs every input of the t task, plus the real one, read at run time so the compiler cannot fold an out-of-range
 conversion. The original lines agree with the finding, and the fixed lines with the fix, at every input, in all
-eight comparisons (`t/PX4-STMT.md`). At the real inputs, PX4's original lines arm on 257, jump to item 3 on 65539,
-give `INT_MIN` for 2^31 us, and read past `data` at 71; the fixed lines reject, reject, clamp, and hand on nothing.
+ten comparisons (`t/PX4-STMT.md`). At the real inputs, PX4's original lines arm on 257, set mode 8 on 264, jump
+to item 3 on 65539, give `INT_MIN` for 2^31 us, and read past `data` at 71; the fixed lines reject, reject, reject,
+clamp, and hand on nothing.
 The results are for x86-64. On ARM, a float-to-int conversion past `INT_MAX` saturates instead of giving
-`INT_MIN`, so the original stream interval reads differently there (PR #29034 describes both). The other three
+`INT_MIN`, so the original stream interval reads differently there (PR #29034 describes both). The other four
 convert nothing outside the 32-bit range.
 
 `t/refute_at.py` refutes each finding at the real input in the table. The kernels' verdicts are in

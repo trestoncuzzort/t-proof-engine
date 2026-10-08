@@ -52,6 +52,20 @@ PAIRS = {
                  "  return arming_action == 1 ? 1 : (arming_action == 0 ? 0 : -1); }\n"),
         "finding": "findings/px4_arm_param_any.t", "fix": "fixes/px4_arm_param_fixed.t", "param": "p",
     },
+    "set_mode": {
+        "file": "src/modules/commander/Commander.cpp", "pr": 29036,
+        "fix_commit": "96d9bbbb1e9a831021bf2013ff8134a5efcf0e08",
+        "orig": ("uint8_t base_mode = (uint8_t)cmd.param1;", None),
+        "fixed": ("static bool mode_field_to_uint8(float value, uint8_t &out)", "}"),
+        # DO_SET_MODE's base mode field; the fix's helper is a file-scope function, called as the handler calls it
+        "wrap": ("struct cmd_s { float param1; };\n"
+                 "static long long run(long long p) { const cmd_s cmd{(float)p};\n{LINES}\n  return base_mode; }\n"),
+        "wrap_fixed": ("{LINES}\nstruct cmd_s { float param1; };\n"
+                       "static long long run(long long p) { const cmd_s cmd{(float)p}; uint8_t base_mode = 0;\n"
+                       "  bool mode_fields_valid = mode_field_to_uint8(cmd.param1, base_mode);\n"
+                       "  return mode_fields_valid ? base_mode : -1; }\n"),
+        "finding": "findings/px4_set_mode_field_any.t", "fix": "fixes/px4_set_mode_field_fixed.t", "param": "p",
+    },
     "stream_interval": {
         "file": "src/modules/mavlink/mavlink_main.cpp", "pr": 29034,
         "fix_commit": "997da58b2d7b931ab89e5e0bf887c6303c1fac41",
@@ -196,7 +210,8 @@ def check(name: str, spec: dict, px4: Path) -> dict:
     for which, task, commit, repo in (("original", finding, PX4_COMMIT, "PX4/PX4-Autopilot"),
                                       ("fixed", fix, spec["fix_commit"], FORK)):
         lines = cut(source(spec["file"], commit, repo), *spec["orig" if which == "original" else "fixed"])
-        got = run_cpp(lines, spec["wrap"], dom, two, px4)
+        wrap = spec.get("wrap_fixed", spec["wrap"]) if which == "fixed" else spec["wrap"]
+        got = run_cpp(lines, wrap, dom, two, px4)
         agree, differ, skipped = 0, [], 0
         for v, g in zip(dom, got):
             px4_val, at = (g[0], g[1]) if two else (g[0], v)
