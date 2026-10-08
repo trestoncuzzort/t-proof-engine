@@ -146,11 +146,12 @@ obstacle map negatively. The report to PX4 is drafted, not filed.
 - Two came from proof attempts: `wrap_bin`, and SUMD's one-byte overrun on a valid 32-channel frame.
 - The rest came from reading the code at the same boundary, where outside values become indices, loop bounds or
   narrowed integers.
-- For five, t states the function and its contract, and `t/refute_at.py` has every kernel refute the original at
-  the input a real message carries (`t/FLIGHT-FINDINGS-REAL.md`): `wrap_bin`, REQUEST_EVENT, ARM_DISARM and the
-  stream interval in all seven, SUMD in six.
-- The arm/disarm and stream-interval fixes are proved in all seven kernels, `wrap_bin`'s in six, and REQUEST_EVENT's
-  and SUMD's in two so far.
+- For all seven, t states the function and its contract, and `t/refute_at.py` has every kernel refute the original
+  at the input a real message carries (`t/FLIGHT-FINDINGS-REAL.md`): all eight findings in all seven kernels.
+- Six fixes are proved in all seven kernels, `wrap_bin`'s in six, and REQUEST_EVENT's in three (Dafny proves it only
+  above the fixed resource budget, so the cell reads as a timeout).
+- For the MAVLink and commander handlers, `t/flight/px4_stmt.py` compiles PX4's own lines before and after each
+  fix and runs every input: 10 of 10 comparisons agree with the finding or the fix (`t/PX4-STMT.md`).
 
 The envelope for `sq` is a fact about PX4's `int` instantiation: squaring a 32-bit `int` above 46,340 overflows.
 The interpolation contract needs a minimum gap between its breakpoints, which PX4 does not state: a small

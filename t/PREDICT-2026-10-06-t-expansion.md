@@ -3299,3 +3299,22 @@ Not registered before it was committed (3c504bf, efca4d3); recorded here so T71'
 (3) `t/PX4-STMT.md`: 8 of 8 comparisons agree at every input.
 (4) `t/FLIGHT.md` unchanged: "Verified with the twin refuted in all seven columns: 18 of 27 tasks".
 (5) No verified cell lost: the Rocq column reads 84, 15 and 1 over `t/tasks/`, `t/autonomy/` and `t/algoveri/`.
+
+### T71 read (2026-10-08 05:40Z): all five bars held
+
+Clean clone at 7a0d8ea, unit tup-t-clean45.
+- **(1) held.** Arm, DO_JUMP, SERIAL_CONTROL, stream interval and SUMD: "verified / refuted" in all seven columns.
+  REQUEST_EVENT verifies in Verus, Rocq and F\*; Dafny proves it only between 5M and 20M resource units against the
+  fixed 500k, so it stays a timeout. `wrap_bin_fixed_72` is in six, with SPARK timing out.
+- **(2) held.** All seven findings are refuted in all seven kernels at their real inputs.
+- **(3) held.** 8 of 8 comparisons agree at every input.
+- **(4) held.** "Verified with the twin refuted in all seven columns: 18 of 27 tasks".
+- **(5) held.** Rocq verifies 84, 15 and 1 over `t/tasks/`, `t/autonomy/` and `t/algoveri/`, each with the twin
+  refuted, as at clean44.
+
+Added after the registration, measured by hand (ff29bb2): DO_SET_MODE (#29036's second part) is refuted at 264 in
+all seven kernels, its fix verifies in all seven, and PX4's lines agree at all 92 inputs, for 10 of 10 comparisons.
+
+What this establishes: every pull request filed to PX4 now carries a machine-checked account of its defect, and
+every fix but two carries a seven-kernel proof. For the five MAVLink and commander defects, PX4's own compiled lines
+behave as the t finding says before the fix and as the t fix says after it, at every input tested.

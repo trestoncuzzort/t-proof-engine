@@ -99,15 +99,21 @@ Measured from a clean clone of this repository on 2026-10-07 over the 114 commit
     [#29034](https://github.com/PX4/PX4-Autopilot/pull/29034) (MAVLink parameter bounds),
     [#29035](https://github.com/PX4/PX4-Autopilot/pull/29035) (mission jump index) and
     [#29036](https://github.com/PX4/PX4-Autopilot/pull/29036) (commander parameter narrowing).
-  - **The defects, in the kernels.** For five of the seven, t states the function with its contract.
+  - **The defects, in the kernels.** For every one of the seven, t states the function with its contract.
     `t/refute_at.py` has every kernel refute the original at the input a real message carries, and the fixed
     version is proved ([t/FLIGHT-FINDINGS-REAL.md](t/FLIGHT-FINDINGS-REAL.md)):
-    - four originals are refuted in all seven kernels, and SUMD's in six;
-    - the arm/disarm and stream-interval fixes are proved in all seven, and `wrap_bin`'s in six.
+    - all eight originals (#29036 holds two) are refuted in all seven kernels at their real inputs;
+    - six fixes are proved in all seven kernels (arm/disarm, set mode, DO_JUMP, SERIAL_CONTROL, stream interval,
+      SUMD), `wrap_bin`'s in six, and REQUEST_EVENT's in three: Dafny needs more than the fixed budget.
+    - **PX4's own statements, before and after.** For the MAVLink and commander handlers, which need a running
+      module, `t/flight/px4_stmt.py` cuts PX4's lines from its source at the pinned commit and at each fix's
+      commit, compiles them, and runs every input. The original lines agree with the finding, and the fixed lines
+      with the fix, in 10 of 10 comparisons ([t/PX4-STMT.md](t/PX4-STMT.md)). PX4's original lines arm the vehicle
+      on a parameter of 257; the fixed lines reject it.
     The first defect, `wrap_bin`, was found by a proof attempt. Its contract, the one PX4's own unit test states,
     holds only for `bin >= -bin_count`, and PX4's compiled code returns -1 at the kernels' input.
-  - **Real code tested the toolchain too.** Nine lowering gaps that the 114-task suite never reached surfaced on
-    PX4's code (PREDICT T68, T69). Each was fixed with no published cell lost.
+  - **Real code tested the toolchain too.** Thirteen lowering gaps that the 114-task suite never reached surfaced on
+    PX4's code (PREDICT T68 to T71). Each was fixed with no published cell lost.
     - Two were semantic faults: Lean and F\* each lowered a `return` two `if`s deep to a different program (Lean on
       PX4's `push_back`, F\* on a smaller probe). No committed task but `push_back` has a `return` that deep, and
       Lean had not verified it.
