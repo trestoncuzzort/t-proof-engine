@@ -3343,3 +3343,12 @@ Suite: 817 passed.
 **Bars**, for a clean clone at this registration's commit:
 (1) `px4_obstacle_body_fixed` verified with the twin refuted in all seven columns.
 (2) No Lean cell lost: Lean verifies 89, 15 and 1 over `t/tasks/`, `t/autonomy/` and `t/algoveri/`, as at clean44.
+
+### T72 read (2026-10-08 08:26Z): both bars held
+
+Clean clone at 3266831, units tup-t-clean46 and tup-t-clean46b.
+- **(1) held.** `px4_obstacle_body_fixed` is verified with the twin refuted in all seven columns.
+- **(2) held.** Lean verifies 89, 15 and 1 over `t/tasks/`, `t/autonomy/` and `t/algoveri/`, each with the twin
+  refuted, the same tasks as at clean44.
+
+(The first unit's Lean runs were refused for want of `--table` on a one-kernel run; clean46b reran them with it.)
