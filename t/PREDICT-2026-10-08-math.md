@@ -25,7 +25,7 @@ input and writes the output. The judge files are the user's uDebug export and ar
 (3) The statement is the spec: each task's README row says whether its `ensures` is the statement's own definition
     or a standard model of it (a recurrence the statement implies), and a model row is named as such.
 
-**Added before the clean-clone run (2026-10-08 19:45Z).** The batch grew to 24 problems by hand: 10007, 10223,
+**Added before the clean-clone run (2026-10-08 18:35Z).** The batch grew to 23 problems by hand: 10007, 10223,
 10268, 10302, 10312, 10334, 10541, 10551, 10931, 11384, 11526, 11847, 11955, 12004, 1224, 12712, 12918, 343, 369,
 495, 496, 575, 991. Every one passes every uDebug file that has a stored output, by hand on this machine, and every
 one verifies in Dafny with `--warn-contradictory-assumptions` and no warning, also by hand. Two Dafny refusals on
