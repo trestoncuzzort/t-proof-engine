@@ -67,6 +67,19 @@ class FstarLongLiterals(unittest.TestCase):
         self.assertEqual(lower_fstar._long_literals({"_seq": [0, 1, 2, 3, 4]}), [])
 
 
+class LeanDivisionFacts(unittest.TestCase):
+    def test_an_entry_state_through_a_division_gets_ediv_nonneg(self):
+        import lower_lean
+        t = _task("flight/fixes/px4_obstacle_body_fixed.t")             # `bound := 360 / inc` before the loop
+        self.assertIn("(0 : Int) ≤ (360 : Int) / inc := Int.ediv_nonneg (by omega) (by omega)",
+                      lower_lean.lower(t, t["body"]))
+
+    def test_a_task_without_division_is_unchanged(self):
+        import lower_lean
+        t = _task("flight/fixes/px4_serial_control_fixed.t")
+        self.assertNotIn("ediv_nonneg", lower_lean.lower(t, t["body"]))
+
+
 class StatementCut(unittest.TestCase):
     TEXT = "a\n\tif (x) {\n\t\tf(x,\n\t\t  y);\n\t}\n\treturn;\n"
 

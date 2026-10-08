@@ -3324,3 +3324,22 @@ integer inputs per case; the fix's lines cut to the second closing brace). PX4's
 finding and the fixed lines with the fix at all 77 inputs, wrapped ranges included: 41 lookups against 20 at the real
 input before, 20 after. Twelve of twelve comparisons now agree; every filed MAVLink and commander fix is checked
 against PX4's own compiled statements.
+
+## T72 registered (2026-10-08 08:20Z, after hand runs and before a clean-clone run): Lean states the divisions an entry state passes through
+
+**What changes.** `lower_lean` adds a last alternative to each loop invariant's entry proof when the body divides:
+`0 <= a / b` for each division, by `Int.ediv_nonneg` with its hypotheses by `omega`, each `have` under `try`. `grind`
+does not E-match the lemma's hypotheses (probe, receipt b4598ab5fa2e). A task without a division lowers byte for byte
+as before.
+
+**Measured before this registration.** Lean lowerings change for 11 of 330 `.t` files. By hand, `--kernels lean`:
+- `px4_obstacle_body_fixed`: unproved before, verified now, twin refuted;
+- `count_evens_skip`, `digit_sum`, `first_even`, `is_prime`: verified, as at clean44;
+- `fast_exponential`, `reverse_in_place`: unproved, as at clean44;
+- `discrete_logarithm`: real verified, twin unproved, as recorded at T24;
+- the request-event pair and the obstacle finding: unchanged verdicts.
+Suite: 817 passed.
+
+**Bars**, for a clean clone at this registration's commit:
+(1) `px4_obstacle_body_fixed` verified with the twin refuted in all seven columns.
+(2) No Lean cell lost: Lean verifies 89, 15 and 1 over `t/tasks/`, `t/autonomy/` and `t/algoveri/`, as at clean44.
