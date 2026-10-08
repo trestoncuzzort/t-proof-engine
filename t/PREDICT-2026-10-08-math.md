@@ -32,3 +32,21 @@ one verifies in Dafny with `--warn-contradictory-assumptions` and no warning, al
 the way were the engine doing its job: 369's first spec could divide by zero, and 10551's first uniqueness lemma
 argued by contradiction, which the vacuity guard reads as "proved for the wrong reason"; both were rewritten, not
 the guard. The bars above are read on a clean clone of the commit that adds this text.
+
+### T73 read (2026-10-08 18:55Z): all three bars held
+
+Clean clone of 3219642 on the lab, `python3 t/cli.py verify problems/uva --jobs 24`, table installed as
+`problems/uva/AGREEMENT.md`; judge runs by hand on this machine against the uDebug export.
+- **(1) held.** All 23 problems pass every uDebug file with a stored output: 179,549 lines. 495's sixth file holds
+  uDebug's placeholder, not an output, and is reported as such.
+- **(2) held.** Every problem is verified with the twin refuted in at least one kernel. Per kernel: Dafny 22,
+  Frama-C 13, Verus 10, SPARK 10, Lean 10, F* 10, Rocq 7. In all seven: 991, 10334, 10931; 495 in six (F*'s twin
+  unproved). Dafny's one miss is 496, whose twin it does not refute; SPARK refutes it. 343 and 496 abstain in most
+  kernels (a seq-returning task with nested quantifiers, methods returning bool over seqs).
+- **(3) held.** README.md labels every row "the statement" or "a model".
+
+What it establishes: a specification written from a problem statement, a proof in at least one independent kernel,
+and the proved code reproducing the judge's outputs, for 23 UVa problems. What limits the kernel counts is mostly
+nonlinear arithmetic: Lean's lowering states `pow` through `toNat` (575's step `pow(2, e+1) = 2·pow(2, e)` is
+unsolved there; Lean 4.33's `grind` proves the ring identities themselves), Rocq's lowering discharges by `lia`, and
+SPARK times out. Those are the next registration.

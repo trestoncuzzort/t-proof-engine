@@ -1,207 +1,88 @@
-# t-proof-engine
+# t-proof-engine: math problems, solved with proofs
 
-**t** is a small specification language. A task is written once in t: a typed signature, preconditions,
-postconditions and a short body. It is then lowered mechanically into **seven proof systems**: Dafny, Verus,
-SPARK, Frama-C, Lean 4, Rocq and F\*. t proves nothing itself and is trusted for nothing. Every verdict comes from
-a kernel. The seven are independent front ends over four distinct proof engines, not seven independent solvers:
-- Z3, behind Dafny (through Boogie), Verus, F*, and SPARK as this engine runs it (`--prover=z3`);
-- Alt-Ergo, behind Frama-C's WP;
-- the Lean kernel;
-- the Rocq kernel, whose compiled proofs `coqchk` re-checks independently.
+A problem's statement becomes a **specification**, its solution is a **program**, and seven independent proof
+systems (Dafny, Verus, SPARK, Frama-C, Lean 4, Rocq, F\*) each check that the program meets the specification for
+**every** input. Then the proved code runs on the judge's own test data, where it has to reproduce the expected
+output byte for byte.
 
-**Solver change, measured** (PREDICT T22's read, 2026-10-07): the SMT-backed legs were re-run under a second solver.
-SPARK ran under CVC5 and Alt-Ergo, Frama-C under Z3 and CVC5, and Dafny under CVC5 through Boogie.
-- Over 298 cells that verify under the default solver, no second solver refuted a verified program.
-- A second solver re-verifies all 56 of SPARK's counted programs, 86 of Dafny's 88 and 33 of Frama-C's 49. The
-  other 16 in Frama-C rest on Alt-Ergo alone.
-- Proof strength is solver-specific: under Z3, 31 of the 49 Frama-C programs that Alt-Ergo proves time out.
-- Dafny's twin side cannot be measured under CVC5: Boogie's model converter crashes on CVC5's real-valued models.
-- Verus and F\* run on Z3 alone.
+A kernel's proof counts only if it also **refutes a broken twin**: a copy of the program one edit away, which the
+kernel must reject at a concrete input. A specification too weak to tell the two apart is reported, never counted.
 
-Each task is also paired with a deliberately broken **twin**, one edit away from the real program, and a concrete
-input at which the twin breaks the specification. A kernel's cell counts only when the kernel proves the real
-program **and** refutes the twin by accepting a certificate at that input. A specification that cannot tell the two
-apart is vacuous and is refused. When a lowering cannot express a construct, that kernel refuses it by name and
-never weakens it.
+## UVa Online Judge math problems, checked against uDebug
 
-## Where it stands
+| UVa | problem | the `ensures` states | proved, twin refuted | matches uDebug |
+|---|---|---|---|---|
+| [343](https://onlinejudge.org/external/3/343.pdf) | What Base Is This? | the statement: the first base pair in the statement's search order, and no earlier pair | 1 of 7: Dafny | 4 of 4 files, 200 lines |
+| [369](https://onlinejudge.org/external/3/369.pdf) | Combinations | the statement: N!/((N-M)! M!) exactly as written | 3 of 7: Dafny, Frama-C, F* | 2 of 2 files, 1,255 lines |
+| [495](https://onlinejudge.org/external/4/495.pdf) | Fibonacci Freeze | the statement: the statement's recurrence, up to F(5000) | 6 of 7: Dafny, Verus, SPARK, Frama-C, Lean, Rocq | 5 of 5 files, 2,989 lines (one more file has no stored output) |
+| [496](https://onlinejudge.org/external/4/496.pdf) | Simply Subsets | the statement: subset and disjointness as quantifiers over the two lists | 1 of 7: SPARK | 2 of 2 files, 675 lines |
+| [575](https://onlinejudge.org/external/5/575.pdf) | Skew Binary | the statement: digit k weighs 2^(k+1) - 1 | 5 of 7: Dafny, Verus, SPARK, Frama-C, F* | 3 of 3 files, 1,165 lines |
+| [991](https://onlinejudge.org/external/9/991.pdf) | Safe Salutations | a model: Catalan numbers count non-crossing handshakes | 7 of 7: Dafny, Verus, SPARK, Frama-C, Lean, Rocq, F* | 1 of 1 files, 19 lines |
+| [1224](https://onlinejudge.org/external/12/1224.pdf) | Tile Code | a model: tilings of 2 x n, halved over flips (Burnside) | 5 of 7: Dafny, Verus, SPARK, Frama-C, Lean | 1 of 1 files, 28 lines |
+| [10007](https://onlinejudge.org/external/100/10007.pdf) | Count the Trees | a model: n! times the n-th Catalan number | 5 of 7: Dafny, Verus, Lean, Rocq, F* | 3 of 3 files, 657 lines |
+| [10223](https://onlinejudge.org/external/102/10223.pdf) | How many nodes? | a model: the smallest n >= 1 with Catalan(n) = x | 1 of 7: Dafny | 1 of 1 files, 100 lines |
+| [10268](https://onlinejudge.org/external/102/10268.pdf) | 498-bis | the statement: the stated derivative sum, computed by Horner's rule | 3 of 7: Dafny, Verus, Frama-C | 5 of 5 files, 679 lines |
+| [10302](https://onlinejudge.org/external/103/10302.pdf) | Summation of Polynomials | the statement: 1^3 + ... + x^3 by the closed form, Nicomachus' theorem as a lemma | 4 of 7: Dafny, Lean, Rocq, F* | 4 of 4 files, 100,716 lines |
+| [10312](https://onlinejudge.org/external/103/10312.pdf) | Expression Bracketing | a model: little Schroeder minus Catalan numbers | 5 of 7: Dafny, Verus, SPARK, Lean, F* | 2 of 2 files, 44 lines |
+| [10334](https://onlinejudge.org/external/103/10334.pdf) | Ray Through Glasses | a model: a(n) = a(n-1) + a(n-2), a(0) = 1, a(1) = 2 | 7 of 7: Dafny, Verus, SPARK, Frama-C, Lean, Rocq, F* | 4 of 4 files, 1,075 lines |
+| [10541](https://onlinejudge.org/external/105/10541.pdf) | Stripe | a model: C(N - sum + 1, K) by stars and bars | 3 of 7: Dafny, Frama-C, F* | 3 of 3 files, 9 lines |
+| [10551](https://onlinejudge.org/external/105/10551.pdf) | Basic Remains | the statement: p mod m in base b, a 1000-digit Horner modulo m | 1 of 7: Dafny | 1 of 1 files, 100 lines |
+| [10931](https://onlinejudge.org/external/109/10931.pdf) | Parity | the statement: the number of 1 bits | 7 of 7: Dafny, Verus, SPARK, Frama-C, Lean, Rocq, F* | 2 of 2 files, 53 lines |
+| [11384](https://onlinejudge.org/external/113/11384.pdf) | Help is needed for Dexter | a model: the bit length of N | 1 of 7: Dafny | 4 of 4 files, 222 lines |
+| [11526](https://onlinejudge.org/external/115/11526.pdf) | H(n) | the statement: the statement's own C++ loop, computed in sqrt(n) blocks | 2 of 7: Dafny, Frama-C | 4 of 4 files, 685 lines |
+| [11847](https://onlinejudge.org/external/118/11847.pdf) | Cut the Silver Bar | a model: floor(log2 n) | 1 of 7: Dafny | 3 of 3 files, 21,100 lines |
+| [11955](https://onlinejudge.org/external/119/11955.pdf) | Binomial Theorem | the statement: x_i = C(k, i) as the statement defines it | 3 of 7: Dafny, Frama-C, F* | 1 of 1 files, 50 lines |
+| [12004](https://onlinejudge.org/external/120/12004.pdf) | Bubble Sort | a model: expected inversions n(n-1)/4 | 5 of 7: Dafny, Verus, SPARK, Frama-C, Lean | 2 of 2 files, 671 lines |
+| [12712](https://onlinejudge.org/external/127/12712.pdf) | Pattern Locker | a model: sum of falling factorials modulo 10^13 + 7 | 1 of 7: Dafny | 3 of 3 files, 45,705 lines |
+| [12918](https://onlinejudge.org/external/129/12918.pdf) | Lucky Thief | a model: (m-1) + (m-2) + ... + (m-n) | 5 of 7: Dafny, SPARK, Frama-C, Lean, Rocq | 4 of 4 files, 1,352 lines |
 
-Measured from a clean clone of this repository on 2026-10-07 over the 114 committed tasks
-([t/AGREEMENT.md](t/AGREEMENT.md)):
+**23 problems.** Every one reproduces uDebug's expected output on every test file that has one (179,549 lines). Every one is proved, with its twin refuted, in at least one kernel; 3 are proved in all seven. Per kernel: Dafny 22, Verus 10, SPARK 10, Frama-C 13, Lean 10, Rocq 7, F* 10. Measured on a clean clone of commit 3219642, 2026-10-08; the full matrix is [`problems/uva/AGREEMENT.md`](problems/uva/AGREEMENT.md).
 
-| kernel | proved, twin refuted | carried, not proved | refused by name |
-|---|---|---|---|
-| Dafny | 111 | 0 | 3 |
-| Verus | 104 | 3 | 7 |
-| Lean 4 | 89 | 4 | 21 |
-| Rocq | 84 | 2 | 28 |
-| F\* | 84 | 4 | 26 |
-| SPARK | 79 | 5 | 30 |
-| Frama-C | 71 | 1 | 42 |
+**"The statement"** rows prove the problem exactly as its text defines it: the formula, the recurrence, or (for
+11526) the C++ loop the statement prints. **"A model"** rows prove the standard mathematical answer, such as the
+Catalan numbers for non-crossing handshakes. That modelling step is not proved; the judge's data tests it.
 
-- In six kernels the twin of every proved program is refuted. SPARK's one exception is relu_all, whose twin times
-  out.
-- 66 of the 114 tasks are proved, with the twin refuted, in all seven kernels.
-- Datatypes with fields (records and non-recursive sums, PREDICT T23) and recursive datatypes (trees, T25) are proved
-  in Dafny, Verus, Lean, Rocq and F* (T34, T35); SPARK and Frama-C carry the non-recursive ones (T36, T37), so
-  color_code, shape_area, manhattan and rect_area are verified with the twin refuted in all seven. A quantifier over a seq's elements is stated in
-  all seven, over a set's in Dafny, Verus and Lean (T26, T30). Finite sets are carried in Lean too, on core Std's
-  extensional tree set (T29). Frama-C gives a seq local its own caller-provided buffer (T31). A datatype field may be
-  a seq in Rocq, F* and SPARK too (T42), and Rocq proves loops over a datatype state (T41). Early exits (`break`,
-  `continue`, `while true`) are proved in all seven through one rewrite (T44), F* and SPARK carry filtered
-  comprehensions (T45), and Frama-C flattens a datatype with a seq field into parameters (T43).
-- Since 2026-10-07 the language has a heap (arrays written in place, `modifies`, `old`; T46), parallel loops whose
-  race freedom is checked by rule (T47) and IEEE floats (T48). Dafny and Frama-C prove the heap and parallel tasks
-  natively (T50); Verus, Lean, Rocq, F* and SPARK through a copy-in/copy-out rewrite (T53), so swap_at, clamp_all
-  and offset_all are proved in all seven. SPARK and Frama-C prove the float tasks (T49, T51). The direction they serve is in [NORTH-STAR.md](NORTH-STAR.md).
-- **The specification audit** (`python3 t/cli.py audit DIR --kernel dafny`, PREDICT T54) runs every one-edit
-  mutant of each body. It reports the ones the spec cannot tell from the real program, and the kernel proves them.
-  Over 316 Dafny-verified DafnyBench programs ([t/AUDIT-DAFNYBENCH.md](t/AUDIT-DAFNYBENCH.md)), Dafny also proves a
-  different program against the same contract in 44. Read by hand, 23 are gaps
-  ([t/dafnybench/CLASSIFIED.md](t/dafnybench/CLASSIFIED.md)), among them four weak specs MutDafny's authors found
-  by hand. In vericoding's Verus track, Verus proves a one-edit wrong program in 14 of 55 verified tasks (13 gaps;
-  two specs are met by a constant), and Dafny in 39 of 425 in its Dafny track (31 gaps); in HumanEval-Dafny, 5 of 39.
-  Across five benchmark corpora that is 72 gaps, each with a proof. ACSL by Example and vericoding's Lean track kill
-  every mutant.
-- **Specification repair** (`python3 t/cli.py repair DIR --kernel dafny --patches PATCHES.md`, PREDICT T61) proposes
-  the clauses that kill an audit's survivors and keeps those the real program meets on the whole domain. Loop
-  invariants are inferred from observed loop-head states, and everything is proved in the kernel. 25 of the 72
-  benchmark gaps are repaired with a proof ([t/repairs/](t/repairs/)). 21 vericoding solutions never read their
-  inputs (one returns `'R'` for every input), and the repair refuses to fit a contract to one
-  ([t/vericoding/CLASSIFIED.md](t/vericoding/CLASSIFIED.md), PREDICT T56). On t's own suites it found seven specs to strengthen, and all seven were (T55, T60): the task suite's audit now
-  kills 1,578 of 1,578 behaviour-changing mutants.
-- **Shipping** (`python3 t/cli.py build DIR --to c`, PREDICT T62) compiles the proven lowerings (the Frama-C C through
-  gcc, the Dafny through its Python backend) and runs them against the interpreter on domain points. Over 9,961 runs
-  no lowering bug shows. Every C disagreement is integer width: the proof's integers are mathematical, the shipped
-  `int` is 32 bits. Three routines overflow an intermediate even inside int32 inputs ([t/BUILD-TASKS-C.md](t/BUILD-TASKS-C.md)).
-- **Shipping at width** (`python3 t/cli.py ship DIR`, PREDICT T63) proves the C again with machine integers and
-  overflow guards, inferring loop bounds where a counter needs one. 63 routines ship for every 32-bit input. 12 ship within a proved operating envelope: abs within
-  ±2^30, a cross-track test within ±2^14 ([t/SHIP-AUTONOMY.md](t/SHIP-AUTONOMY.md)).
-- **Real flight code** ([t/FLIGHT.md](t/FLIGHT.md), PREDICT T67-T69). 27 functions from
-  [PX4-Autopilot](https://github.com/PX4/PX4-Autopilot), the open-source drone autopilot, are restated in t
-  statement by statement (`t/flight/`, BSD-3, file and line for each). They cover:
-  - mathlib;
-  - the `Hysteresis` state machine that arming and landing logic uses;
-  - the collision-prevention bin index;
-  - the `Ringbuffer` under MAVLink's message buffer.
-  - 18 are verified with the twin refuted in all seven kernels.
-  - Each contract kills every one-edit mutant of its body.
-  - `t/flight/px4_diff.py` compiles PX4's own C++ at the pinned commit and runs it on every domain point. 25 of the
-    26 compared functions agree on every point, and `AlphaFilter<double>` agrees once PX4's binary32 `alpha` is
-    applied ([t/PX4-DIFF.md](t/PX4-DIFF.md)).
-  - At machine width, 18 ship for every int32 input and 4 within a proved envelope
-    ([t/SHIP-FLIGHT.md](t/SHIP-FLIGHT.md)).
-  - **Fixes filed upstream.** Ten pull requests to PX4, each passing PX4's `make check_format` and full
-    `make tests` (212/212) before filing:
-    [#29030](https://github.com/PX4/PX4-Autopilot/pull/29030) (collision prevention's bin index),
-    [#29031](https://github.com/PX4/PX4-Autopilot/pull/29031) (SUMD 32-channel buffer),
-    [#29032](https://github.com/PX4/PX4-Autopilot/pull/29032), [#29033](https://github.com/PX4/PX4-Autopilot/pull/29033),
-    [#29034](https://github.com/PX4/PX4-Autopilot/pull/29034) (MAVLink parameter bounds),
-    [#29035](https://github.com/PX4/PX4-Autopilot/pull/29035) (mission jump index),
-    [#29036](https://github.com/PX4/PX4-Autopilot/pull/29036) (commander parameter narrowing),
-    [#29037](https://github.com/PX4/PX4-Autopilot/pull/29037) (body-frame obstacle loop; PX4's own new test fails 50
-    assertions without it) and
-    [#29039](https://github.com/PX4/PX4-Autopilot/pull/29039) (EKF2 sensor-enable command: a NaN source, MAVLink's
-    unused value, selected GPS and switched its fusion off, measured on x86 and ARM) and
-    [#29040](https://github.com/PX4/PX4-Autopilot/pull/29040) (EKF2 external wind estimate: a NaN direction made the
-    wind states NaN, and a second of flight with airspeed fusion made the velocity NaN; PX4's own new test shows both).
-  - **The defects, in the kernels.** For nine of the ten, t states the function with its contract.
-    `t/refute_at.py` has every kernel refute the original at the input a real message carries, and the fixed
-    version is proved ([t/FLIGHT-FINDINGS-REAL.md](t/FLIGHT-FINDINGS-REAL.md)):
-    - nine of the ten originals (#29036 holds two) are refuted in all seven kernels at their real inputs, and the
-      body-frame obstacle loop in five (its certificate holds a 360-entry array);
-    - eight fixes are proved in all seven kernels (arm/disarm, set mode, DO_JUMP, SERIAL_CONTROL, stream interval,
-      SUMD, the obstacle loop, the EKF2 source), `wrap_bin`'s in six, and REQUEST_EVENT's in three: Dafny needs more
-      than the fixed budget.
-    - **PX4's own statements, before and after.** For the MAVLink and commander handlers, which need a running
-      module, `t/flight/px4_stmt.py` cuts PX4's lines from its source at the pinned commit and at each fix's
-      commit, compiles them, and runs every input. The original lines agree with the finding, and the fixed lines
-      with the fix, in 14 of 14 comparisons ([t/PX4-STMT.md](t/PX4-STMT.md)). PX4's original lines arm the vehicle
-      on a parameter of 257; the fixed lines reject it.
-    The first defect, `wrap_bin`, was found by a proof attempt. Its contract, the one PX4's own unit test states,
-    holds only for `bin >= -bin_count`, and PX4's compiled code returns -1 at the kernels' input.
-  - **Real code tested the toolchain too.** Thirteen lowering gaps that the 114-task suite never reached surfaced on
-    PX4's code (PREDICT T68 to T71). Each was fixed with no published cell lost.
-    - Two were semantic faults: Lean and F\* each lowered a `return` two `if`s deep to a different program (Lean on
-      PX4's `push_back`, F\* on a smaller probe). No committed task but `push_back` has a `return` that deep, and
-      Lean had not verified it.
-    - Seven were completeness gaps: Frama-C compared bools as integers, its certificate refused sibling-scoped
-      locals, Rocq refused a renamed `_len` name and flattened sibling scopes, Lean's `grind` dropped a derived
-      index equality, and Rocq's pair proofs and Lean's `min` each needed one more fallback.
-- [t/AUTONOMY.md](t/AUTONOMY.md): 25 navigation, guidance and control routines (`t/autonomy/`). Verified with the
-  twin refuted: Frama-C 21, SPARK 20, Dafny 18, F* 18, Lean 15, Verus 15, Rocq 15; 14 in all seven.
-- Most refusals are of constructs added to the language on 2026-10-06, which the other kernels are being taught
-  now.
-- [t/ALGOVERI.md](t/ALGOVERI.md): 30 of AlgoVeri's contracts in seven kernels, regenerated from a clean clone for
-  T38: five of the BST family and three of the left-leaning red-black tree's, over recursive datatypes and
-  set-ranged quantifiers. Dafny verifies all 30 with the twin refuted; Verus 9, F* 5, SPARK 4, Frama-C 2, Rocq 1,
-  Lean 1. integer_exponential is the first AlgoVeri
-  contract verified with the twin refuted in all seven (T28). T15 and T17 repaired 11 of T13's 13 malformed cells; the
-  other two are named in T13's read.
+## One problem, start to finish: UVa 11526, H(n)
 
-The registrations and reads behind these numbers are in
-[t/PREDICT-2026-10-06-t-expansion.md](t/PREDICT-2026-10-06-t-expansion.md). Each change states, before it runs,
-the count that would falsify it.
+The statement defines H(n) by a C++ loop, `for i in 1..n: res += n / i`, and n reaches 2^31 - 1, so the loop
+itself is too slow. The specification is that loop, as a recursive sum:
 
-## What the language has
+```
+task p11526(n: int) returns (r: int)
+  ensures r == (if n <= 0 then 0 else hs(n, n))
+spec fun hs(n: int, k: int): int
+  decreases k
+= if k <= 0 then 0 else hs(n, k - 1) + n / k
+```
 
-- **Values:** integers, booleans, exact rationals, sequences (literals, concatenation, slices, stepped slices),
-  nested sequences, pairs, strings as code-point sequences with a string library, finite sets, maps and datatypes.
-- **Code:** loops with invariants and `decreases`, `for` loops, early exits, recursion with termination, methods,
-  lemmas, comprehensions and higher-order calls (`fold`, `sort_by`, `max_by`, `min_by`).
-- **Library:** `min`, `max`, `abs`, `gcd`, `pow`, `isqrt`, `sum`, `sort` and `rev`, with membership and
-  `any`/`all` reductions.
-- **Since 2026-10-07:** arrays written in place (`array`, `modifies`, `old`), `parallel for` with race freedom
-  checked by rule, and IEEE-754 doubles (`float`).
+The solution walks n/i in blocks where it is constant, about 2·√n steps. The proof is the reason that is allowed:
+for i <= u <= n/(n/i), n/u equals n/i (`block_const`), so a block contributes q·(length) (`block_sum`). Those rest
+on three facts about integer division, each proved from scratch in the same file: n/b <= n/a when a <= b, q <= n/u
+when u·q <= n, and (n/i)·i <= n. The full source is [`problems/uva/p11526.t`](problems/uva/p11526.t).
 
-[t/SYNTAX.md](t/SYNTAX.md) gives the grammar with one example per construct. [t/SPEC.md](t/SPEC.md) gives the
-semantics and the decisions behind them, and [t/TUTORIAL.md](t/TUTORIAL.md) teaches the language from zero.
+## Run it
 
-## Quick start
+```sh
+python3 t/cli.py verify problems/uva/p11526.t              # each kernel: the program proved, the twin refuted
+python3 t/cli.py verify problems/uva --jobs 8              # every problem, every kernel
+python3 t/judge.py problems/uva/p11526.t --tests DIR       # the proved code on a judge's NNNN.in.txt / .out.txt
+```
 
-[QUICKSTART.md](QUICKSTART.md) is the two-minute version: one routine, seven proofs, and an audit of its spec.
-The `Dockerfile` builds all seven kernels at the versions the tables were measured on. The engine itself is
-standard-library Python (3.10 or later). Each kernel can also be installed separately:
-[t/RUN-ON-LINUX.md](t/RUN-ON-LINUX.md), [t/RUN-ON-MACOS.md](t/RUN-ON-MACOS.md),
-[t/RUN-ON-WINDOWS.md](t/RUN-ON-WINDOWS.md).
+`t/judge.py` translates the task's Dafny lowering to Python once (`dafny translate py`, unbounded integers) and
+calls the proved method for each case. Each problem's `_io.py` reads the input and prints the answer. The uDebug
+test files are not in this repository; export them from uDebug into one folder per problem.
 
-    python3 t/cli.py check  t/tasks/clamp.t                  # well-formedness diagnostics
-    python3 t/cli.py lower  t/tasks/clamp.t --kernel lean    # the Lean source t lowers to
-    python3 t/cli.py twin   t/tasks/clamp.t                  # the twin's operator and witness
-    python3 t/cli.py verify t/tasks/clamp.t                  # every kernel that is installed
-    python3 t/cli.py verify t/tasks --jobs 3 --table AGREEMENT.md   # the whole matrix
-    python3 t/cli.py audit  t/tasks/clamp.t --kernel dafny   # the one-edit mutants the spec lets through
+## What is proved, and what is not
 
-A kernel that is not installed is reported absent, not passed. With fewer than two kernels present, `verify`
-refuses to give a verdict (`T_MIN_KERNELS` sets the floor).
+- **Proved**, in each kernel the table names: for every input the `requires` allows, the result satisfies the
+  `ensures`, and the twin is refuted. Kernels that miss a problem say why in their verify output (most misses are
+  nonlinear arithmetic: products, division and powers that Lean's `omega`, Rocq's `lia` and SPARK's provers do
+  not close yet).
+- **Not proved**: the `_io.py` modules (reading numbers, printing them), Dafny's Python translation and Python
+  itself. The judge's expected outputs test all three on every case above.
+- **A model row** proves the program computes the model; that the model counts what the story describes is the
+  standard mathematics the row names.
 
-Tests use the standard library and pytest. Tests that need a kernel binary skip by name when it is absent:
-
-    cd t && python3 -m pytest -q
-
-## Map
-
-| path | what |
-|---|---|
-| `t/cli.py` | one command: parse, check, format, lower, verify, twin, explain |
-| `t/surface.py`, `t/check_wf.py`, `t/interp.py` | the parser and printer, the well-formedness checker, the reference interpreter |
-| `t/lower_*.py`, `t/verifiers/` | the seven lowerings and the adapters that run each kernel and read its verdict |
-| `t/harness.py`, `t/run_par.py` | twins, witnesses, certificates, and the parallel matrix runner |
-| `t/tasks/`, `t/twins/` | the committed tasks, and 426 real/twin pairs over 213 verified programs |
-| `t/malformed/` | programs every checker must reject, each with its expected error |
-| `t/lsp.py`, `t/editors/` | a language server and an editor extension |
-| `t/AGREEMENT.md`, `t/CONFORMANCE.md` | the matrix of record, and the conformance suite (programs with a known expected verdict, run in every kernel) |
-| `internal/RESEARCH-2026-10-06-*.md` | the landscape of related systems, and what it decided |
-
-## Relation to dawnr
-
-[dawnr](https://github.com/trestoncuzzort/dawnr) is an offline assistant that uses t as its proof tool. dawnr
-grew this engine under its own `t/` directory, so the engine's history before this repository was split out is
-kept here as it was: the commits that touched the engine, filtered from dawnr's history. Engine changes now land
-here first. dawnr carries a pinned copy and records which commit of this repository it carries.
-
-## License
-
-[Research Use License](LICENSE). You may use it for research and education without asking. Commercial use needs
-written permission first ([NOTICE](NOTICE)). Third-party material keeps its own license. That covers the seven
-verifiers, which are not part of this repository, and `t/third_party/codex_seatbelt/` (Apache License 2.0).
+The language, its seven lowerings, the specification audits of public benchmarks and the PX4 flight-code work
+are in [`ENGINE.md`](ENGINE.md); the registration and read for these problems are in
+[`t/PREDICT-2026-10-08-math.md`](t/PREDICT-2026-10-08-math.md).

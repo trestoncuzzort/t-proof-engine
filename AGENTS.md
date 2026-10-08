@@ -1,6 +1,6 @@
 # Working in this repository
 
-`README.md` is the public summary. `t/SPEC.md` is the language of record and `t/SYNTAX.md` is its grammar.
+`README.md` is the public summary: t solving math problems. `ENGINE.md` is the engine record (kernels, audits, PX4). `t/SPEC.md` is the language of record and `t/SYNTAX.md` is its grammar.
 `t/AGREEMENT.md` is the matrix every claim about a kernel is read from. The registrations and reads of the
 current programme are in `t/PREDICT-2026-10-06-t-expansion.md`, and the landscape that set its order is in
 `internal/RESEARCH-2026-10-06-landscape.md`.
