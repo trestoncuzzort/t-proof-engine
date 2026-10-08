@@ -33,7 +33,7 @@ the way were the engine doing its job: 369's first spec could divide by zero, an
 argued by contradiction, which the vacuity guard reads as "proved for the wrong reason"; both were rewritten, not
 the guard. The bars above are read on a clean clone of the commit that adds this text.
 
-### T73 read (2026-10-08 18:55Z): all three bars held
+### T73 read (2026-10-08 18:48Z): all three bars held
 
 Clean clone of 3219642 on the lab, `python3 t/cli.py verify problems/uva --jobs 24`, table installed as
 `problems/uva/AGREEMENT.md`; judge runs by hand on this machine against the uDebug export.
@@ -50,3 +50,9 @@ and the proved code reproducing the judge's outputs, for 23 UVa problems. What l
 nonlinear arithmetic: Lean's lowering states `pow` through `toNat` (575's step `pow(2, e+1) = 2·pow(2, e)` is
 unsolved there; Lean 4.33's `grind` proves the ring identities themselves), Rocq's lowering discharges by `lia`, and
 SPARK times out. Those are the next registration.
+
+Added after the read, by hand (not in the clean table yet): 11231 Black and white painting (the spec counts the 8x8
+boards with a white bottom-right square cell by cell; the body is the closed form ((n-7)(m-7)+c)/2, proved through
+two lemmas: adjacent rows hold complementary colours, and the last row holds (m-k+c)/2) and 264 Count on Cantor (the
+spec is the diagram's zigzag: diagonal by triangular numbers, direction by parity). Both pass every uDebug file and
+verify in Dafny with no warning; their seven-kernel cells wait for the next clean run.
