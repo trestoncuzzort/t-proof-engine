@@ -238,3 +238,17 @@ the spec-float order is transitive by constructive case analysis on the sign/exp
 genuinely intricate lemma in this subsection. With it, the full `constrain` contract is axiom-free and Closed, the
 generator emits this shape, and the twin gets a spec-float refutation certificate. Everything up to that single
 transitivity lemma is done and committed.
+
+## Read 10 (2026-10-10): the transitivity lemma needs a structured proof (brute force times out)
+
+Attempted `sf_lt_trans` (SFcompare Lt-transitivity for finite floats) by destructing the three signs and every
+`Z.compare`/`Pos.compare` subterm, then `lia`. `coqc` exceeded 300s (exit 124): the `repeat destruct (_ ?= _)` over
+three exponents and three mantissas across 8 sign cases is a combinatorial blow-up. So the one remaining clause's
+lemma is confirmed intricate -- not infinite, but it needs a structured proof, two viable shapes:
+(a) per sign-case, convert each `SFcompare = Some Lt` hypothesis to a lexicographic inequality on `(e, m)` via
+    `Z.compare_lt_iff`/`Pos.compare_lt_iff` and discharge with `lia` WITHOUT blind destructs; or
+(b) a monotone integer key `k(s,m,e)` (negatives negated) with `SFcompare = Z.compare (k x) (k y)`, so transitivity
+    falls out of `Z.compare` -- needs the `bounded prec emax m e` fact to make the key injective/monotone.
+Either is a bounded, careful lemma. Until it lands the "above" clause stays open; the other three clauses and the
+whole lemma kit are axiom-free and Closed (Read 8-9). This is the single piece between here and the full axiom-free
+`constrain` contract.
