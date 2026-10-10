@@ -48,4 +48,7 @@ official archive to execute these controls.
 Fifteen affected Python tests pass, including the actual recorded stdio session,
 and all ten JavaScript behavior controls pass. The transcript adds the actual
 checked document version/hash; its kernel verdict, source hash and version
-expectations were retained. Clean-checkout confirmation remains pending.
+expectations were retained. Clean checkout `dee973d` repeated all 15 affected
+tests, including the ten JavaScript cases. Source hashes, command and Node
+archive identity are in `t/evidence/2026-10-10-editor-verdicts.json`. A live VS
+Code walkthrough remains outside this automated measurement.
