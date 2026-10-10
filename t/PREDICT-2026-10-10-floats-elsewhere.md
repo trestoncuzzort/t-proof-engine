@@ -252,3 +252,19 @@ lemma is confirmed intricate -- not infinite, but it needs a structured proof, t
 Either is a bounded, careful lemma. Until it lands the "above" clause stays open; the other three clauses and the
 whole lemma kit are axiom-free and Closed (Read 8-9). This is the single piece between here and the full axiom-free
 `constrain` contract.
+
+## Read 11 (2026-10-10): the transitivity core (sf_lt_trans) is proved axiom-free
+
+The lemma that timed out under brute force (Read 10) is proved cleanly. `t/flight/evidence/sf_lt_trans_axfree.v`
+(coqc exit 0, ZArith/SpecFloat only -- no R) proves `SFcompare` Lt-transitivity for finite nonzero spec-floats via:
+- `lex_chr`: the `(exp, mantissa)` comparison `= Lt  <->  e<e' \/ (e=e' /\ m<m')` -- a clean characterization, no blind destructs.
+- `lex_trans`: lexicographic transitivity from `lex_chr` (four-way case, `lia` + `Pos.lt_trans`).
+- `neg_eq`: a negative float's comparison of `(a,b)` equals the lex of `(b,a)` (via `Z.compare_antisym`/`Pos.compare_antisym`).
+- `sf_lt_trans`: all sign triples -- mixed signs by `discriminate`, same-sign by `lex_trans` (negatives through `neg_eq`).
+
+This retires the "intricate transitivity" risk: it is done, axiom-free, and fast. Remaining to finish the full
+`constrain` contract: lift `sf_lt_trans` to `binary_float` finites including the S754_zero case (zeros compare by
+sign only -- straightforward, just more constructor cases), giving `blt_trans`; then the "above" clause closes by the
+contradiction `Bltb hi v` + `Bltb v lo` => `Bltb hi lo` (blt_trans) vs `Bleb lo hi` => `Bltb hi lo = false`
+(le_not_gt). The other three clauses are already axiom-free and Closed (Read 9). The hard mathematics is finished;
+what's left is constructor bookkeeping.
