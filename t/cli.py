@@ -73,7 +73,6 @@ import run_par                       # noqa: E402
 import surface                       # noqa: E402
 import tasks_io                      # noqa: E402
 import tlib                          # noqa: E402
-from check_wf import check_wf        # noqa: E402
 from verifiers import Outcome        # noqa: E402
 
 KERNELS = [b for b, _, _ in tlib.BACKENDS]
@@ -116,6 +115,32 @@ def wf_error_diag(err) -> dict:
                severity="error", kernel="", message=err.message)
 
 
+def _read_checked(path, args):
+    """Read and validate before the CLI performs any verification work."""
+    path = str(path)
+    positions = {}
+    try:
+        task = (tasks_io.load_task(path) if Path(path).suffix == ".json"
+                else surface.parse_file(path, positions=positions))
+        errors = tlib.check_task(task, positions=positions, file=path)
+        records = [wf_error_diag(e) for e in errors]
+    except surface.SurfaceError as exc:
+        records = [surface_error_diag(exc, path)]
+    except (OSError, UnicodeError) as exc:
+        records = [diag(file=path, rule="read", message=str(exc))]
+    except (ValueError, AssertionError, AttributeError) as exc:
+        records = [diag(file=path, rule="task-shape", message=str(exc))]
+    if records:
+        if args.json:
+            print_json_lines(records)
+        else:
+            for record in records:
+                where = f"{path}:{record['line']}:{record['col']}" if record['line'] else path
+                print(f"{where}: {record['message']}")
+        return None
+    return task
+
+
 # ===========================================================================
 # parse
 # ===========================================================================
@@ -142,25 +167,11 @@ def cmd_parse(args) -> int:
 
 def cmd_check(args) -> int:
     path = str(args.file)
-    positions: dict = {}
-    try:
-        task = surface.parse_file(path, positions=positions)
-    except surface.SurfaceError as exc:
-        d = surface_error_diag(exc, path)
-        if args.json:
-            print_json_lines([d])
-        else:
-            print(str(exc))
+    if _read_checked(path, args) is None:
         return 1
-    errors = check_wf(task, positions=positions, file=path)
-    if args.json:
-        print_json_lines(wf_error_diag(e) for e in errors)
-    elif errors:
-        for e in errors:
-            print(str(e))
-    else:
+    if not args.json:
         print(f"{path}: well-formed, no errors")
-    return 1 if errors else 0
+    return 0
 
 
 # ===========================================================================
@@ -203,14 +214,8 @@ def _lower_one(task: dict, kernel: str) -> str:
 
 def cmd_lower(args) -> int:
     path = str(args.file)
-    positions: dict = {}
-    try:
-        task = surface.parse_file(path, positions=positions)
-    except surface.SurfaceError as exc:
-        if args.json:
-            print_json_lines([surface_error_diag(exc, path)])
-        else:
-            print(str(exc))
+    task = _read_checked(path, args)
+    if task is None:
         return 1
 
     kernels = KERNELS if args.kernel == "all" else [args.kernel]
@@ -258,14 +263,8 @@ def cmd_lower(args) -> int:
 # ===========================================================================
 
 def _verify_file(args, path: Path) -> int:
-    positions: dict = {}
-    try:
-        task = surface.parse_file(str(path), positions=positions)
-    except surface.SurfaceError as exc:
-        if args.json:
-            print_json_lines([surface_error_diag(exc, str(path))])
-        else:
-            print(str(exc))
+    task = _read_checked(path, args)
+    if task is None:
         return 1
 
     kernels = args.kernels.split(",") if args.kernels else None
@@ -288,7 +287,7 @@ def _verify_file(args, path: Path) -> int:
             msg = tlib.explain(entry)
         else:
             r, t = entry["real"], entry["twin"]
-            flip = r == Outcome.VERIFIED and t == Outcome.REFUTED
+            flip = r == Outcome.VERIFIED and t == Outcome.REFUTED and not entry.get("provisional")
             all_ok &= flip
             sev = "verdict"
             msg = tlib.explain(entry)
@@ -304,9 +303,6 @@ def _verify_file(args, path: Path) -> int:
 
 
 def _verify_dir(args, path: Path) -> int:
-    if args.out:
-        harness.OUT = Path(args.out)
-    harness.OUT.mkdir(parents=True, exist_ok=True)
     table_path = Path(args.table) if args.table else HERE / "AGREEMENT.md"
 
     tasks = tasks_io.load_dir(path)
@@ -315,8 +311,15 @@ def _verify_dir(args, path: Path) -> int:
     # both run and leave one row for two tasks (2026-10-06: AlgoVeri's polymul_naive and polymul_karatsuba both
     # declared poly_multiply). Refused before anything is lowered.
     seen: dict = {}
+    invalid = False
     for p in tasks:
-        seen.setdefault(tasks_io.load_task(p)["name"], []).append(Path(p).name)
+        task = _read_checked(p, args)
+        if task is None:
+            invalid = True
+        else:
+            seen.setdefault(task["name"], []).append(Path(p).name)
+    if invalid:
+        return 1
     dup = {n: fs for n, fs in seen.items() if len(fs) > 1}
     if dup:
         for n, fs in sorted(dup.items()):
@@ -345,6 +348,9 @@ def _verify_dir(args, path: Path) -> int:
         print(refusal, file=sys.stderr)
         return 2
 
+    if args.out:
+        harness.OUT = Path(args.out)
+    harness.OUT.mkdir(parents=True, exist_ok=True)
     flake_n = args.flake if args.flake is not None else 3
     jobs_arg = args.jobs
     rows, wits, all_ok = run_par.lower_and_dispatch(tasks, present, jobs_arg, flake_n)
@@ -387,6 +393,9 @@ def _verify_dir(args, path: Path) -> int:
 
 
 def cmd_verify(args) -> int:
+    if args.flake is not None and args.flake < 1:
+        print("cli.py verify: --flake must be a positive integer", file=sys.stderr)
+        return 2
     path = Path(args.target)
     if path.is_dir():
         return _verify_dir(args, path)
@@ -399,13 +408,8 @@ def cmd_verify(args) -> int:
 
 def cmd_twin(args) -> int:
     path = str(args.file)
-    try:
-        task = surface.parse_file(path)
-    except surface.SurfaceError as exc:
-        if args.json:
-            print_json_lines([surface_error_diag(exc, path)])
-        else:
-            print(str(exc))
+    task = _read_checked(path, args)
+    if task is None:
         return 1
 
     twin_body, op, w = tlib.twin(task)
