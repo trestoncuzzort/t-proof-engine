@@ -221,3 +221,20 @@ rejected the reals version in Read 5/6). Remaining for the full contract: `Beqb`
 implication clauses, `le_not_gt` (`Bleb a b = true -> Bltb b a = false`) for the "within" clause, and one small order
 chain (`lo<=hi` and `hi<v` => `Bltb v lo = false`) for the "above" clause -- all the same constructive SF style.
 Then the generator emits this shape and a spec-float refutation certificate for the twin.
+
+## Read 9 (2026-10-10): 3 of 4 contract clauses axiom-free and Closed; only "above" (transitivity) left
+
+`t/flight/evidence/constrain_spec3_axfree.v` (`Print Assumptions constrain_spec3` = "Closed under the global
+context") proves the bounds clause, the "within" clause (`lo<=v<=hi -> r==v`) and the "below" clause (`v<lo -> r==lo`)
+of PX4 `constrain`, all axiom-free at the spec-float level. The lemma kit is small and all-Closed: `cmp_some`,
+`bleb_refl`, `beqb_refl`, `le_not_lt`, `le_not_gt` -- the last two both one `Bcompare_swap` rewrite plus a three-way
+case, since `Bcompare = SFcompare` makes the swap a spec-float fact.
+
+The only remaining clause is "above" (`v>hi -> r==hi`): it needs `lo<=hi` and `hi<v` to force `Bltb v lo = false`,
+i.e. `le_lt_trans` (`Bleb a b -> Bltb b c -> Bltb a c`) then `lt_asym` (`Bltb a c -> Bltb c a = false`). `lt_asym` is
+another swap one-liner, but `le_lt_trans` is SFcompare TRANSITIVITY, which Flocq proves only through `B2R`/`Rlt_trans`
+(the classical-axiom route, grep: every `*_trans` in BinarySingleNaN goes via `R`). An axiom-free proof must establish
+the spec-float order is transitive by constructive case analysis on the sign/exponent/mantissa layout -- the one
+genuinely intricate lemma in this subsection. With it, the full `constrain` contract is axiom-free and Closed, the
+generator emits this shape, and the twin gets a spec-float refutation certificate. Everything up to that single
+transitivity lemma is done and committed.
