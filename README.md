@@ -86,3 +86,9 @@ test files are not in this repository; export them from uDebug into one folder p
 The language, its seven lowerings, the specification audits of public benchmarks and the PX4 flight-code work
 are in [`ENGINE.md`](ENGINE.md); the registration and read for these problems are in
 [`t/PREDICT-2026-10-08-math.md`](t/PREDICT-2026-10-08-math.md).
+
+There are also [40 arithmetic, algorithm and repository applications](problems/applications/README.md):
+all 40 proved with their twins refuted in Dafny, 18 also in Lean, measured on a clean checkout of 9ccd6cc.
+Their generated programs pass 82,880 independent oracle cases and 13,562 repository comparisons/rejection checks.
+The work repairs the judge's compiled-module loading and a locallm training loop that could retry empty epochs
+forever. The [application matrix](problems/applications/RESULTS.md) records its two-kernel scope separately.

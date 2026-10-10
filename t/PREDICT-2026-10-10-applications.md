@@ -56,7 +56,9 @@ remain in the suite. The executable run exposed a second judge defect before
 comparison: Dafny doubles underscores in Python identifiers. A failing regression
 now pins that lookup too. Source: Dafny 4.11.0's PythonCodeGenerator.cs.
 
-The remaining runs and final clean-clone read are pending.
+The first executable run also caught invalid top-level proof assertions in four
+new tasks; SPEC permits assertions only inside lemmas. They were moved to proved
+lemmas, and every task now passes the well-formedness check before compilation.
 
 Before a second batch: add eight applications (40 total): extended_gcd,
 peasant_multiply, binary_power, max_subarray, count_inversions, leap_year,
@@ -66,3 +68,53 @@ enumeration tests that modelling step. Sources: the Euclidean invariant in
 SPEC.md, [Python calendar](https://docs.python.org/3/library/calendar.html),
 and locallm's plain_generate.py context suffix. Existing integer_exponential
 uses linear multiplication; binary_power tests a different logarithmic algorithm.
+
+### T74 final read (2026-10-10 11:27Z): all bars held
+
+Clean clone of **9ccd6ccbe6d61cc6e07037e69f3b7f939fbcede1**; clean before and after
+the run. Dafny 4.11.0, Lean 4.33.1, Python 3.14.7. A systemd user scope capped the
+matrix at 8 GiB. The command was:
+
+```sh
+python3 t/cli.py verify problems/applications --kernels dafny,lean --jobs 2 --flake 3 \
+  --out /tmp/t-applications-clean-lowerings --table /tmp/t-applications-clean-table.md --json
+```
+
+1. **Held.** 40 attempted tasks; **40/40 Dafny, 18/40 Lean**, all counted cells
+   verified / refuted. Every side repeated three times, with no flake. Lean's
+   other 22 cells remain visible: 19 real programs unproved, 3 timed out. The
+   command exits 1 because those cells do not count. No known-wrong twin verified.
+   The eight-task addendum also held: all eight count in Dafny.
+2. **Held.** `python3 problems/applications/check.py --json ...` passed **82,880
+   of 82,880 cases**, covering all 40 compiled programs. This includes integers
+   beyond machine width and independent exhaustive subarray/inversion oracles.
+   These are finite tests, not proofs of the compiler or Python.
+3. **Held.** Before repair, compiling `probe(x)=x+1`, then `probe(x)=x+2`, returned
+   6 for both at x=5. A second task name could instead raise AttributeError.
+   Loading each translation with its own module objects and restoring import
+   state fixes both. Underscore escaping needed a separate correction. The new
+   judge regressions and existing build tests pass **12/12** on the clean clone.
+4. **Held.** The actual pinned locallm generator yields zero batches at n=1,b=2;
+   its epoch expression returns one. Both Dafny and Lean accept the original
+   body's refutation certificate at that input. Corrected full_batches counts
+   in Dafny. The applied locallm fix, commit
+   **3ec301f5f449bbf17f72f7e835bf078e251982ef**, rejects insufficient examples before
+   model construction and validates direct generator use. Its full trainer suite
+   passes **10 tests and 3 subtests** with CPU PyTorch 2.14.1. The original generator
+   fails the new rejection regressions; valid-batch controls preserve its order.
+5. **Held.** The clean-clone matrix, all 80 verdicts, executable receipts, task
+   hashes and all 160 lowering hashes are saved under `problems/applications/`.
+   `compare_repositories.py` passed **13,562** source comparisons/rejection checks:
+   1,040 batch counts, 136 rejected empty epochs, 5,424 resume positions, 332 index
+   normalizations, 1,235 window counts, 325 context suffixes and 5,070 NumPy
+   partition endpoints. NumPy was 2.5.3; original source is pinned to locallm
+   e81b5e4 and fixed source is hashed. This establishes the named code slices,
+   not either whole repository. The existing seven-kernel tables were not replaced.
+
+The last Dafny misses were solved by explicit arithmetic lemmas, without larger
+budgets or weaker contracts: multiplication order and quotient uniqueness (using
+the existing UVa 11526 proof and Dafny's DivMod library), a Bezout step, and the
+halving/doubling identity. Lean still needs stronger automation for variable
+division and some quantified or recursive goals. In particular, extended_gcd's
+Lean real and twin both time out. That is an open proof obligation, not a false
+program or a counted cell.

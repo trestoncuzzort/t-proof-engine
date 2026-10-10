@@ -1,9 +1,23 @@
 # Applications: mathematics, algorithms and repository code
 
-40 tasks, each with a contract, executable implementation and a broken twin.
-The final clean-checkout measurements are being collected under T74 in
+**40 tasks proved in Dafny, 18 also in Lean; every counted cell refutes its broken
+twin.** Measured from a clean checkout of 9ccd6cc on 2026-10-10, with three repeats
+per side and no flaked cell. [The matrix](RESULTS.md) includes all 80 attempted
+cells. Lean leaves 22 unproved or timed out. Five other kernels were not run.
+
+The compiled programs pass **82,880 independent oracle cases**, plus **13,562
+repository comparisons and rejection checks** against locallm and NumPy. These
+finite tests are separate from the proofs. T74's registration and read are in
 [`t/PREDICT-2026-10-10-applications.md`](../../t/PREDICT-2026-10-10-applications.md).
 The original UVa and seven-kernel engine tables retain their own measured scope.
+
+Receipts: [manifest and source hashes](evidence/manifest.json),
+[kernel verdicts](evidence/verdicts.json), [execution](evidence/execution.json),
+[repository comparisons](evidence/repositories.json),
+[original defect refutation](evidence/locallm-refutation.json), and
+[lowered-source hashes](evidence/LOWERINGS.sha256). The engine's judge/build
+regressions pass 12 tests. The locallm fix is local commit 3ec301f; its trainer
+suite passes 10 tests and 3 subtests.
 
 ## What the suite does
 
@@ -20,7 +34,7 @@ The original UVa and seven-kernel engine tables retain their own measured scope.
 | [modular_add](modular_add.t) | Add two residues using a subtraction guard. |
 | [modular_multiply](modular_multiply.t) | Repeated residue addition; prove congruence and canonical range. |
 | [decimal_digits](decimal_digits.t) | Decimal length characterized by consecutive powers of ten. |
-| [extended_gcd](extended_gcd.t) | Euclidean gcd plus Bezout coefficients, including zero arguments. |
+| [extended_gcd](extended_gcd.t) | Euclid's recursive gcd definition plus the Bezout equation, including zero arguments. |
 | [peasant_multiply](peasant_multiply.t) | Multiplication by halving and doubling; logarithmic in the nonnegative multiplier. |
 | [binary_power](binary_power.t) | Repeated squaring, proved against recursive exponentiation. |
 | [bisect_left](bisect_left.t) | First insertion boundary: every earlier value is smaller. |
@@ -110,9 +124,12 @@ sampling, and the buffer/arithmetic tasks do not establish C overflow semantics.
 
 max_subarray proves the standard Kadane recurrence; its equivalence to a maximum
 over all subarrays is tested here by exhaustive enumeration on the chosen inputs,
-not proved as a separate theorem. count_inversions defines the pair count by
-recursive bounded sums. Other rows state their arithmetic or sequence contracts
-directly. Runtimes and complexity bounds are not kernel-checked.
+not proved as a separate theorem. extended_gcd proves its recursive Euclidean
+definition and the Bezout equation; executable checks compare the result with
+`math.gcd`. Horner, geometric_series, run_count and count_inversions also use
+recursive definitions, with independent power-sum, grouping or pair-enumeration
+oracles. The catalog names each contract. Runtimes and complexity bounds are not
+kernel-checked.
 
 Sources read before implementation: Python's
 [bisect](https://docs.python.org/3/library/bisect.html),
