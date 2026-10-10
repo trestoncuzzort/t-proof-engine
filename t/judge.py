@@ -22,6 +22,7 @@ import re
 import subprocess
 import sys
 import tempfile
+import threading
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
@@ -30,6 +31,40 @@ import surface  # noqa: E402
 import tlib     # noqa: E402
 from build import DAFNY  # noqa: E402
 
+_IMPORT_LOCK = threading.RLock()
+
+
+def _load_translation(directory: Path):
+    """Load a translation with its own self-imports and runtime, then restore imports.
+
+    Dafny gives every translation the same module names. Importing module_ normally
+    can silently execute the previous task's code. Keep each loaded module object
+    alive through its globals, but never leave its names or path in the caller's
+    import state. See docs.python.org/3/library/importlib.html.
+    """
+    roots = {p.stem for p in directory.glob("*.py") if p.name != "__main__.py"}
+    roots.update(p.name for p in directory.iterdir() if (p / "__init__.py").is_file())
+
+    def belongs(name):
+        return name.split(".", 1)[0] in roots
+
+    with _IMPORT_LOCK:
+        saved = {n: m for n, m in sys.modules.items() if belongs(n)}
+        old_path = list(sys.path)
+        try:
+            for n in saved:
+                del sys.modules[n]
+            sys.path.insert(0, str(directory))
+            importlib.invalidate_caches()
+            runtime = importlib.import_module("_dafny")
+            module = importlib.import_module("module_")
+            return module, runtime
+        finally:
+            for n in list(sys.modules):
+                if belongs(n):
+                    del sys.modules[n]
+            sys.modules.update(saved)
+            sys.path[:] = old_path
 
 
 def compile_task(task: dict, work: Path):
@@ -48,10 +83,10 @@ def compile_task(task: dict, work: Path):
                        capture_output=True, text=True, timeout=600, cwd=str(work))
     if p.returncode != 0:
         raise SystemExit("judge: dafny translate failed: " + ((p.stdout + p.stderr).strip().splitlines() or ["?"])[-1][:300])
-    sys.path.insert(0, str(work / "prog-py"))
-    import _dafny   # noqa: E402  (the runtime the translation shipped beside the module)
-    module = importlib.import_module("module_")
-    fn = getattr(module.default__, name)
+    module, _dafny = _load_translation(work / "prog-py")
+    # Dafny's Python backend escapes each underscore in a source identifier.
+    # Task methods start with a capital, so Python keyword escaping is irrelevant.
+    fn = getattr(module.default__, name.replace("_", "__"))
 
     def to_dafny(v):
         return _dafny.SeqWithoutIsStrInference([to_dafny(x) for x in v]) if isinstance(v, (list, tuple)) else v
