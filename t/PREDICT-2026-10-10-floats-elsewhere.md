@@ -130,3 +130,24 @@ Tradeoff for the owner to weigh: primitive floats rest on the `Floats` library's
 Both are now demonstrated to compile and prove; the choice is a soundness-vs-effort call. Either way the generator
 work for the comparison-only subset is no longer open-ended: emit function + real theorem (definitional proof) +
 twin + `vm_compute` refutation at the routed witness, gated on the comparison-only check `tshape` already computes.
+
+## Read 4 (2026-10-10): comparison-only subsection real-side PROVEN, axiom-free
+
+Scoping floats-elsewhere into subsections (operator's steer) made the tractable part obvious, and it is now done and
+machine-checked. `t/flight/evidence/constrain_flocq_full.v` (coqc exit 0) proves the FULL PX4 `math::constrain`
+contract -- the bounds clause `lo <= r <= hi` AND all three implication clauses -- in Rocq via Flocq, **axiom-free**
+and **generic over any IEEE format** (`prec`, `emax`, so binary32 and binary64 at once), under finiteness
+hypotheses (Floats v1 is finite-only).
+
+The key is Flocq's `Bltb_correct`/`Bleb_correct`/`Beqb_correct`: for finite floats each comparison boolean equals the
+corresponding real-comparison boolean, so the whole contract reduces to real arithmetic and `lra` closes it. Crucially
+the proof is a SINGLE uniform tactic (destruct the body's two comparisons; rewrite every finite-float comparison to
+its real form; case-split the real bools; `lra`), which is the same for any comparison-only float task -- exactly what
+a generator needs to emit. This corrects Read 2-3's "multi-week" estimate for this subsection: the real side is a
+~30-line generic proof, not a formalization program.
+
+Remaining for the subsection to land in `lower_rocq.py`: (1) emit, for a comparison-only float task, the Flocq
+preamble + `Definition` (the body) + the contract `Theorem` (from the ensures, with finiteness hypotheses) + this
+uniform proof; (2) the twin side -- either a concrete-witness Flocq disproof or the primitive-float `vm_compute`
+route (Read 3); (3) carry `float` in Rocq's set behind the comparison-only gate. Arithmetic-float tasks remain a
+separate, later subsection (they need Flocq rounding lemmas, not this reduction).
