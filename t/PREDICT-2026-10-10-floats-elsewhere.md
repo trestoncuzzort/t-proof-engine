@@ -268,3 +268,22 @@ sign only -- straightforward, just more constructor cases), giving `blt_trans`; 
 contradiction `Bltb hi v` + `Bltb v lo` => `Bltb hi lo` (blt_trans) vs `Bleb lo hi` => `Bltb hi lo = false`
 (le_not_gt). The other three clauses are already axiom-free and Closed (Read 9). The hard mathematics is finished;
 what's left is constructor bookkeeping.
+
+## Read 12 (2026-10-10): the FULL constrain contract is proved axiom-free and Closed
+
+`t/flight/evidence/constrain_contract_axfree.v` (coqc exit 0; `Print Assumptions constrain_spec` = "Closed under the
+global context"): the complete PX4 `math::constrain` contract -- all four clauses (bounds, within, below, above) --
+proved in Rocq over Flocq `binary_float`, generic over any IEEE format (`prec`, `emax`), under finiteness
+hypotheses, with ZERO axioms (no `R`, no classical logic). This is the result Read 5/6 said the engine required and
+the reals route could not give: it passes the rocq adapter's positive-check-1 closedness audit.
+
+The whole lemma stack, all Closed: `lex_chr`, `lex_trans`, `neg_eq`, `sf_lt_trans` (spec-float transitivity, the piece
+that timed out under brute force), then `cmp_some`, `bleb_refl`, `beqb_refl`, `le_not_lt`, `le_not_gt`, `blt_iff`,
+`blt_trans` (lifted to binary floats incl. zeros). The "above" clause closes by the contradiction
+`Bltb hi v` + `Bltb v lo` =(blt_trans)=> `Bltb hi lo` vs `Bleb lo hi` =(le_not_gt)=> `Bltb hi lo = false`.
+
+The hard mathematics of the comparison-only float subsection is DONE. Remaining is engineering, not proof: make the
+generator's `_float_cmp_lower` emit this exact shape (a fixed lemma-kit preamble + per-task Definition/Theorem + the
+clause tactics) instead of the reals version, generalize the per-clause tactic to any comparison-only float task, and
+emit the spec-float refutation certificate for the twin. With the closedness audit now satisfied by construction, the
+wired lowering should read VERIFIED where Read 5 read VACUOUS.
