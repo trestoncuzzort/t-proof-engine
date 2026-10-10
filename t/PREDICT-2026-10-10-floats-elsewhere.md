@@ -187,3 +187,20 @@ and prove the clamp order facts (reflexivity, the `<?`=false ⟹ `<=?` relation,
 total order WITHOUT touching `R`. That is a genuinely harder proof than the reals shortcut, and PrimFloat is no help
 (its `vm_compute` route assumes the FPU axioms). So for this subsection the axiom-free requirement, not the algebra,
 is the hard part -- the opposite of Read 4's optimism, and the honest statement of what remains.
+
+## Read 7 (2026-10-10): axiom-free IS reachable at the spec-float level (reflexivity proven Closed)
+
+Read 6 said the axiom-free requirement was the hard wall. It is a wall only for the reals shortcut; the spec-float
+route goes straight through it. `t/flight/evidence/bleb_refl_axfree.v`: `Bleb x x = true` for finite `x`, proved by
+unfolding `Bleb`/`SFleb`/`SFcompare`, `destruct`ing the `binary_float` constructors (non-finite cases `discriminate`),
+reducing the mantissa/exponent comparisons with `Z.compare_refl`/`Pos.compare_refl`, and splitting the sign. `Print
+Assumptions bleb_refl` reports **"Closed under the global context"** -- no `R`, no `Classical_Prop.classic`, no
+`ClassicalDedekindReals`. This is exactly the audit the rocq adapter demands (positive-check-1), and it passes.
+
+So the comparison-only subsection is reachable axiom-free. The building block is done; the rest is the same kind of
+constructive SF reasoning: `Bltb x x = false` (as reflexivity), the order relation `Bltb a b = false -> Bleb b a =
+true` for finite `a b` (via `Bcompare_swap`, which is constructive, plus a three-way case on the compare), and then
+the clamp bounds reassembled from these instead of `lra`. All `Closed under the global context`, all passing the
+closedness audit. The generator then emits this shape (Read 5's wiring) and a witness-grounded `t_refutation_certificate`
+for the twin at concrete spec-float values. Laborious, but no longer uncertain: the axiom-free comparison-only float
+lowering is a finite stack of constructive SF lemmas, not a reals reduction and not a multi-week unknown.
