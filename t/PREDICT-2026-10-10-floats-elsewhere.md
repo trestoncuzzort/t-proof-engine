@@ -115,3 +115,18 @@ What remains (and is the real work): teach dawnr's Rocq *generator* (`t/lower_ro
 comparison-only float task and its twin, carry `float` in Rocq's set, and discharge over Flocq — then widen past
 comparisons toward the arithmetic tasks, where the Flocq rounding lemmas are needed and the proof stops being a case
 split. The POC fixes the API and the environment so that work starts from a compiling base rather than a blank one.
+
+## Read 3 (2026-10-10): both hard pieces solved via Rocq primitive floats
+
+The generator blockers were (a) the real-side proof, (b) the twin *refutation*, (c) concrete float witnesses. Rocq's
+`Stdlib.Floats` primitive floats dissolve (b) and (c): `t/flight/evidence/constrain_primfloat_poc.v` (coqc exit 0)
+proves the three `constrain` clamp properties (real, definitional) AND refutes a low-branch mutant at the measured
+witness `(0,1,2)` by `vm_compute; reflexivity` on `(... =? 1) = false`. Native float literals, native computable
+order (`<?`,`=?`), and `vm_compute` are exactly what the generator needs to emit and what dawnr's witness-routed
+refutation already expects.
+
+Tradeoff for the owner to weigh: primitive floats rest on the `Floats` library's FPU axioms (visible in
+`Print Assumptions`), whereas the Flocq `binary_float` POC (Read 2) is axiom-free but has hard literals/refutation.
+Both are now demonstrated to compile and prove; the choice is a soundness-vs-effort call. Either way the generator
+work for the comparison-only subset is no longer open-ended: emit function + real theorem (definitional proof) +
+twin + `vm_compute` refutation at the routed witness, gated on the comparison-only check `tshape` already computes.
