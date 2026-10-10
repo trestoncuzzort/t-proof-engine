@@ -169,3 +169,21 @@ satisfiable; likely the `Section`/`prec`/`emax`/finiteness framing confuses the 
 coqchk-clean, and emitting a witness-grounded refutation certificate for the twin instead of a failing contract
 proof. That is engine-adapter-specific work (how the standard Z/lia lowering already satisfies these audits), to be
 done against `t/verifiers/rocq.py`'s protocol -- the math (Read 4) is settled.
+
+## Read 6 (2026-10-10): CORRECTION -- the reduce-to-reals proof is classical, not axiom-free
+
+Read 4 called the Flocq proof axiom-free. That was wrong, and the adapter caught it. `Print Assumptions
+constrain_spec` lists `Classical_Prop.classic` and `ClassicalDedekindReals.sig_forall_dec/sig_not_dec`: reducing
+finite-float order to real order and closing with `lra` goes through Coq's classical real numbers, so the proof
+assumes classical logic + the axiomatic reals. The rocq adapter's positive-check-1 closedness audit
+(`Print Assumptions` per theorem; "Axioms:" present or not "Closed under the global context" for every obligation)
+demotes exactly this to VACUOUS -- that is the door that fired when the lowering was wired in (Read 5), not the
+vacuity smoke.
+
+This sharpens the real blocker: the engine requires constructive, axiom-free kernel proofs, and the B2R/`Rcompare`/
+`lra` route cannot give one. An axiom-free comparison-only float lowering must reason at Flocq's spec-float (SF)
+level -- `SFcompare`/`SFltb`/`SFleb` over the integer sign/mantissa/exponent representation, which is constructive --
+and prove the clamp order facts (reflexivity, the `<?`=false ⟹ `<=?` relation, and the precondition) from the SF
+total order WITHOUT touching `R`. That is a genuinely harder proof than the reals shortcut, and PrimFloat is no help
+(its `vm_compute` route assumes the FPU axioms). So for this subsection the axiom-free requirement, not the algebra,
+is the hard part -- the opposite of Read 4's optimism, and the honest statement of what remains.
