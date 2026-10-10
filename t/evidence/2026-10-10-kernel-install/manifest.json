@@ -49,9 +49,27 @@
       "url": "https://github.com/ocaml/opam/releases/download/2.5.2/opam-2.5.2-x86_64-linux",
       "sha256": "edfca2630c373b44b7ee1c2f81cd8dcf67468d0db57d6c02158de553ac63dbd4",
       "matched_publisher_digest": true
+    },
+    {
+      "asset": "graphviz-16.1.0.tar.xz",
+      "url": "https://gitlab.com/api/v4/projects/4207231/packages/generic/graphviz-releases/16.1.0/graphviz-16.1.0.tar.xz",
+      "sha256": "0f661718f3e5268dc3bad0fb53ab646605d26db70f4080799aff1dc2f61783c3",
+      "matched_publisher_digest": true,
+      "tool": "graphviz",
+      "tag": "16.1.0",
+      "native_svg_render_passed": true,
+      "opam_conf_graphviz_passed": true
     }
   ],
   "rustc": "rustc 1.97.1 (8bab26f4f 2026-07-14)",
   "rustup": "rustup 1.29.1 (d95a37b6a 2026-08-13)",
-  "ocaml_switch": "default: ocaml-base-compiler.4.14.4"
+  "ocaml_switch": "default: ocaml-base-compiler.4.14.4",
+  "additional_smoke": {
+    "rocq": "3 verified/refuted cells",
+    "framac": "2 verified/refuted cells; reverse tool_error/tool_error with Alt-Ergo-free 2.4.3"
+  },
+  "pending": [
+    "full committed-corpus matrix",
+    "Frama-C repeat after compatible Alt-Ergo installation"
+  ]
 }

@@ -38,3 +38,16 @@ OCaml 4.14.4 locally. Rocq 9.2.0, its pinned standard library, Frama-C 33.0 and
 Alt-Ergo-free 2.4.3 are being installed. The five-kernel committed-corpus run is
 also in progress from clean checkout `edc1027`; neither pending activity is
 counted as completed evidence.
+
+The first opam transaction built Rocq, its standard library, Frama-C and
+Alt-Ergo-free, but exited nonzero because `dot` was missing for conf-graphviz.
+Graphviz 16.1.0 was built from its checksum-verified official source archive;
+`dot -V`, an actual SVG render and the opam dependency check then passed.
+
+Rocq passed all three smoke tasks. Frama-C passed abs/gcd but returned
+TOOL_ERROR on reverse. Its emitted polymorphic SMT-LIB query failed to parse in
+Alt-Ergo-free 2.4.3, and Why3 1.8.2 reports that version as unrecognized. This is
+not recorded as a refutation or a successful installation control. Next use
+Alt-Ergo 2.6.1, a version recognized by this Why3 and already used by the pinned
+SPARK distribution, and repeat all three Frama-C controls. No specification,
+lowering or verification budget is changed for this dependency repair.
