@@ -204,3 +204,20 @@ the clamp bounds reassembled from these instead of `lra`. All `Closed under the 
 closedness audit. The generator then emits this shape (Read 5's wiring) and a witness-grounded `t_refutation_certificate`
 for the twin at concrete spec-float values. Laborious, but no longer uncertain: the axiom-free comparison-only float
 lowering is a finite stack of constructive SF lemmas, not a reals reduction and not a multi-week unknown.
+
+## Read 8 (2026-10-10): axiom-free bounds clause PROVEN Closed -- the hard clause is done
+
+The clause Read 2-4 feared most -- the universally-quantified `lo <= r <= hi` -- is now proved axiom-free.
+`t/flight/evidence/constrain_bounds_axfree.v` (coqc, `Print Assumptions constrain_bounds` = "Closed under the global
+context") derives it at the spec-float level from three small reusable lemmas, all Closed:
+- `bleb_refl`  : `Bleb x x = true` for finite x (unfold SFcompare; `Z.compare_refl`/`Pos.compare_refl`; split sign).
+- `cmp_some`   : finite x,y => `SFcompare (B2SF x) (B2SF y) <> None` (so the unordered/NaN case is excluded).
+- `le_not_lt`  : finite a,b => `Bltb a b = false -> Bleb b a = true` (via `Bcompare_swap`, which is `Bcompare = SFcompare`,
+  plus `cmp_some` to kill None). NB `SFleb` maps None->false, so finiteness is load-bearing here.
+
+The bounds proof is then an 8-line case split using `bleb_refl`, `le_not_lt`, and the precondition -- no `lra`, no `R`.
+This is the proof shape the generator emits, and it passes the rocq adapter's closedness audit (the door that
+rejected the reals version in Read 5/6). Remaining for the full contract: `Beqb` reflexivity (like `bleb_refl`) for the
+implication clauses, `le_not_gt` (`Bleb a b = true -> Bltb b a = false`) for the "within" clause, and one small order
+chain (`lo<=hi` and `hi<v` => `Bltb v lo = false`) for the "above" clause -- all the same constructive SF style.
+Then the generator emits this shape and a spec-float refutation certificate for the twin.
