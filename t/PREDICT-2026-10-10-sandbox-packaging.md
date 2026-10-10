@@ -35,5 +35,8 @@ SHA-256 `5099f8a4ec58d6099c939ae6af5019c04d9c6bef6880b342c24690c676d26e3d`.
 `python -m pytest -q -rs t/test_sandbox_packaging.py t/test_py_sandbox_landlock.py
 t/test_py_sandbox.py` passed **22 tests with no skips**. All five previously
 skipped Landlock controls executed, including the unsupported-kernel refusal.
-Clean-checkout confirmation remains pending. These finite controls do not
-establish completeness of the syscall policy or the host kernel's correctness.
+Clean checkout `f7384c4` then passed the full collected suite: **842 passed,
+40 skipped, one expected failure, 150 passing subtests, five existing warnings**.
+The five missing-launcher skips are gone. Commands and source hashes are in
+`t/evidence/2026-10-10-sandbox.json`. These finite controls do not establish
+completeness of the syscall policy or the host kernel's correctness.
