@@ -25,4 +25,16 @@ https://github.com/verus-lang/verus/releases,
 https://github.com/FStarLang/FStar/releases and
 https://github.com/alire-project/GNAT-FSF-builds/releases.
 
-Results pending.
+GNATprove FSF 16.1.0, Verus 0.2026.08.30.b432e82 and F* 2026.08.30 were
+installed from checksum-verified publisher archives. Verus uses Rust 1.97.1;
+the new Rust installation did not modify shell startup files. Alongside the
+existing Dafny/Lean installations, all five kernels passed the three-task smoke
+matrix from clean engine checkout `21528a1`: 15 verified/refuted cells, three
+agreeing runs per side. The table and archive identities are under
+`t/evidence/2026-10-10-kernel-install/`.
+
+Opam 2.5.2 was installed from its checksum-verified release binary and built
+OCaml 4.14.4 locally. Rocq 9.2.0, its pinned standard library, Frama-C 33.0 and
+Alt-Ergo-free 2.4.3 are being installed. The five-kernel committed-corpus run is
+also in progress from clean checkout `edc1027`; neither pending activity is
+counted as completed evidence.
