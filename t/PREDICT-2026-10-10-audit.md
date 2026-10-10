@@ -125,4 +125,6 @@ review. In particular, five sandbox tests skipped because `landlock_exec.py`
 is absent from this checkout; this is an explicit packaging/audit gap, not a
 passed sandbox check. The existing expected failure is SPARK's two-loop
 certificate fallback. Passing these checks does not establish absolute
-flawlessness.
+flawlessness. The Landlock packaging gap is subsequently addressed in
+`t/PREDICT-2026-10-10-sandbox-packaging.md` (T76); its restoration and runtime
+checks are separate from the historical T75 counts above.
