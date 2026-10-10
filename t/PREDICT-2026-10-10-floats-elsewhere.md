@@ -70,3 +70,27 @@ for the subset it can prove. Run `t/cli.py verify t/flight` and the float unit t
 with all seven kernels before and after, and regenerate the matrix from a clean clone. Engine changes land here
 first, then sync to dawnr. Do not claim a binary32 result: Floats (v1) is binary64 by definition and binary32 flight
 correspondence remains the separately-deferred item.
+
+## Read (2026-10-10, on the lab)
+
+The comparison-only desugar (step 4) was prototyped and measured before committing: a `tshape.floats_to_real_if_safe`
+that rewrites a float task to real only when every op is a comparison, a boolean connective, equality or selection
+(the whitelist is conservative — any arithmetic or value-producing float op keeps it abstaining), wired into the five
+non-native kernels ahead of `abstain_on_floats`. It was run on `px4_constrain_f` (float params, ops `< <= > == and
+implies`) across all seven kernels on the lab.
+
+The rewrite fired correctly (params → real, `has_float` false). It did **not** close the gap, for a different reason
+in each kernel, and every failure was an honest refusal — no twin was wrongly accepted, so nothing was unsound:
+
+- **verus:** lowering error on the real-rewritten task (its real lowering did not accept this shape).
+- **lean, rocq:** still abstain — the real version is caught by the next guard (`abstain_unless_carried`); their carried
+  set does not cover this real comparison/selection shape.
+- **dafny, fstar:** prove the real task but the solver gives up on the twin without a countermodel, so the cell is a
+  refusal, not agreement.
+- **spark, framac** (unchanged, native floats): count as before.
+
+So the desugar shortcut adds zero agreements and turns clean abstains into tried-and-failed cells; it was reverted.
+**This empirically confirms the plan above:** closing the gap is not a rewrite but real per-kernel float support —
+Flocq binary64 for Rocq first, and the real-lowering/carried-set gaps in Lean, F\* and Verus addressed in their own
+lowerings — with Dafny/Verus staying abstained on anything that rounds. The negative result is the measurement that
+tells the next run to invest in the Rocq/Flocq lowering rather than a generic float→real desugar.
