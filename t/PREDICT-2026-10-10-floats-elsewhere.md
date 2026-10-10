@@ -94,3 +94,24 @@ So the desugar shortcut adds zero agreements and turns clean abstains into tried
 Flocq binary64 for Rocq first, and the real-lowering/carried-set gaps in Lean, F\* and Verus addressed in their own
 lowerings — with Dafny/Verus staying abstained on anything that rounds. The negative result is the measurement that
 tells the next run to invest in the Rocq/Flocq lowering rather than a generic float→real desugar.
+
+## Read 2 (2026-10-10, demonstrated on the lab)
+
+The Rocq-via-Flocq route is no longer only predicted: it is compiled and proved. `coq-flocq 4.2.2` was installed into
+the lab's default opam switch against Rocq 9.2 (user-level, no sudo). Two infra gaps had to be closed first, both
+without root: the switch lacked `gmp.h` (only a gnatprove-bundled `libgmp` runtime existed), so GMP 6.3.0 was built
+from source into `~/.local` — which in turn needed `m4`, taken from `~/.local/t-proof-deps/usr/bin/m4`; `conf-gmp`
+and `zarith` then rebuilt against it, with the Rocq stack recompiled. After the install, `dawnr doctor` still reports
+7 of 7 provers and Rocq runs under the pipeline's normal environment — no regression.
+
+The proof-of-concept `t/flight/evidence/constrain_flocq_poc.v` states PX4's `math::constrain` at IEEE-754 binary64
+(`Binary.binary_float 53 1024`), with the float order as Flocq's `Bcompare 53 1024`, and proves the three clamp
+properties (below/above/within) with `coqc` exit 0. The proof is a direct case analysis — which is the point: for a
+comparison-only task the body and the specification share the same float order, so the t program provably meets its t
+specification, and the twin rule then does its job. This confirms step 1 is reachable and cheap for the comparison
+subset.
+
+What remains (and is the real work): teach dawnr's Rocq *generator* (`t/lower_rocq.py`) to emit this shape for any
+comparison-only float task and its twin, carry `float` in Rocq's set, and discharge over Flocq — then widen past
+comparisons toward the arithmetic tasks, where the Flocq rounding lemmas are needed and the proof stops being a case
+split. The POC fixes the API and the environment so that work starts from a compiling base rather than a blank one.
