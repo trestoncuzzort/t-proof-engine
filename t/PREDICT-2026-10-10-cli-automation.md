@@ -23,4 +23,33 @@ https://docs.python.org/3/library/json.html. Python documents atomic successful
 replacement with os.replace:
 https://docs.python.org/3/library/os.html#os.replace.
 
-Results pending.
+The initial controlled run failed twelve checks, including subcases. It
+reproduced progress mixed into JSON, false success with a requested missing
+kernel, agreement tables with one or two repetitions, work dispatched before
+empty/minimum-kernel refusals, nonpositive worker counts accepted, invented
+source paths, and output-directory state retained between CLI calls. The
+report replacement control showed that the writer did not use an atomic
+replacement, so the injected replacement failure was never reached.
+
+The repairs keep progress on stderr in JSON mode, retain actual input paths,
+validate execution requirements before dispatch, and atomically replace a
+completed table. Directory runs require at least three repetitions; single-file
+provisional checks retain their existing behavior. The previous output
+directory is restored when the invocation finishes.
+
+An additional control caught a regression in the first atomic writer: replacing
+a report symlink removed the link instead of updating its target. Resolving the
+target before replacement preserves the existing path behavior. The final
+affected regression command passed 42 tests and 131 subtests:
+
+```sh
+python -m pytest -q t/test_cli_automation.py t/test_validation_gate.py \
+  t/test_verify_names.py t/test_run_par_guards.py t/test_verdict_cache.py \
+  t/test_library_concurrency.py
+```
+
+A real three-repeat Dafny/Lean run on the committed abs task, copied to a
+filename different from its task name, exited zero. Its stdout parsed as
+exactly two JSON records naming the real input path, both verified/refuted;
+progress appeared only on stderr. No specification, lowering or proof budget
+changed. Clean-checkout replication remains the next measurement.
