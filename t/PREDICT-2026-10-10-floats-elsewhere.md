@@ -151,3 +151,21 @@ preamble + `Definition` (the body) + the contract `Theorem` (from the ensures, w
 uniform proof; (2) the twin side -- either a concrete-witness Flocq disproof or the primitive-float `vm_compute`
 route (Read 3); (3) carry `float` in Rocq's set behind the comparison-only gate. Arithmetic-float tasks remain a
 separate, later subsection (they need Flocq rounding lemmas, not this reduction).
+
+## Read 5 (2026-10-10): emitter wired + validated through the pipeline; blocker is adapter conformance
+
+The comparison-only Flocq lowering was emitted from the task AST and wired into `lower_rocq.py` behind a
+comparison-only-float gate (`_float_cmp_ok`/`_float_cmp_lower`), then run through `t/cli.py verify` on the lab for
+`px4_constrain_f`. Result: `rocq` reads **VACUOUS** on both real and twin ("accepted, but for the wrong reason;
+never a win") -- the adapter (`t/verifiers/rocq.py`) rejected it. The standalone proof is unchanged and still
+`coqc`-clean (Read 4); what fails is the ADAPTER'S AUDIT PROTOCOL, which the ad-hoc emitted artifact does not satisfy:
+the vacuity smoke (`_vacuity_smoke` replaces the goal with False and refuses if the hypotheses prove it), the coqchk
+local-assumption re-check, the theorem-name scan, and -- for the twin -- the single REFUTED door, a declared
+`t_refutation_certificate` proving the spec false at the measured witness. The emitter change was reverted.
+
+So the subsection's remaining work is now precisely located and is NOT the proof: it is making the emitted artifact
+conform to the rocq adapter's audit, i.e. structuring the theorem so the vacuity smoke passes (hypotheses provably
+satisfiable; likely the `Section`/`prec`/`emax`/finiteness framing confuses the probe's top-split), keeping the unit
+coqchk-clean, and emitting a witness-grounded refutation certificate for the twin instead of a failing contract
+proof. That is engine-adapter-specific work (how the standard Z/lia lowering already satisfies these audits), to be
+done against `t/verifiers/rocq.py`'s protocol -- the math (Read 4) is settled.
