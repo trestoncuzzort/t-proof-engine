@@ -103,5 +103,26 @@ FileNotFoundError when two same-process writes renamed one temporary filename.
 Unique temporary files remove that collision. Sixteen new targeted tests and
 41 subtests pass before adding the existing malformed corpus to the gate test.
 
-Clean-checkout checks and the broader audit remain pending.
-Passing registered checks is not a claim that every defect has been eliminated.
+The final targeted gate/cache/concurrency suite passed 17 tests and 127 subtests,
+including all 86 existing semantic-error fixtures. Clean checkout `f3cb6a5`
+then ran the complete collected suite: **836 passed, 45 skipped, one expected
+failure, 150 passing subtests, five warnings**, no failing tests. The warnings
+come from existing standalone test helpers returning counts after assertions;
+they are not ignored failed assertions. The receipt is in
+`t/evidence/2026-10-10-audit.json`.
+
+The same clean engine verified tup's boot-acceptance task and its broken twin
+with Dafny and Lean, three repeats per side. Both kernels refuted the legacy
+integer model at the overflowing counter in three repeats, and compiled models
+matched the original/fixed native Bash gates in all 3,872 comparisons. These
+are additional end-to-end controls on the changed library and directory paths.
+
+The broader audit remains open. Five kernels are not installed here; no full
+seven-kernel matrix or new operating-system boot was performed. Parser and
+lowering semantics beyond the registered cases, trusted toolchain dependencies,
+remaining public entry points and tup's other build/release paths still need
+review. In particular, five sandbox tests skipped because `landlock_exec.py`
+is absent from this checkout; this is an explicit packaging/audit gap, not a
+passed sandbox check. The existing expected failure is SPARK's two-loop
+certificate fallback. Passing these checks does not establish absolute
+flawlessness.
