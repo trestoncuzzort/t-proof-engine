@@ -44,4 +44,8 @@ The obsolete expected-failure assertion is replaced by explicit checks of both
 uncontracted loop clones and their use by the certificate. The affected suite
 passes 15 tests and three kernel subtests with `T_SPARK_JOBS=1 python -m pytest
 -q t/test_lower_spark_loop_cert.py t/test_spark_multiloop_kernel.py`.
-Clean-checkout confirmation remains pending.
+Clean checkout `21528a1` repeated all 15 passing tests and three kernel subtests.
+Generated sources, their hashes and the command are preserved under
+`t/evidence/2026-10-10-spark/`. This closes the obsolete expected failure with
+direct checks of its replacement behavior; it does not establish a full SPARK
+column or a complete audit of the lowering.
